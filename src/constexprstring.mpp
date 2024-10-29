@@ -1,0 +1,34 @@
+export module constexprstring;
+
+import std;
+
+export {
+  template <std::size_t N> struct ConstexprString {
+    std::array<char, N> str{};
+
+    static constexpr auto size = N - 1u;
+
+    [[nodiscard]] constexpr auto view() const noexcept {
+      return std::string_view{std::data(str), std::data(str) + size};
+    }
+
+    [[nodiscard]] constexpr operator std::string_view() const noexcept {
+      return std::string_view{std::data(str), std::data(str) + size};
+    }
+
+    consteval ConstexprString() = default;
+
+    consteval ConstexprString(const char (&new_str)[N]) {
+      std::copy_n(new_str, size, std::data(str));
+    }
+  };
+
+//   template <std::size_t N>
+//   [[nodiscard]] consteval auto operator""_cstr(const char(&str)[N]) noexcept
+//       -> ConstexprString<N> {
+//     return ConstexprString<N>{str};
+//   }
+}
+  // template <ConstexprString str> auto foo() -> std::string { return str; }
+
+  // foo<"lolilol"_cstr>();
