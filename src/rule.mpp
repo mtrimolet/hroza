@@ -1,0 +1,15 @@
+export module rule;
+
+import std;
+
+export template <std::size_t IM, std::size_t OM> struct Rule {
+public:
+  int IMX, IMY, IMZ, OMX, OMY, OMZ;
+  std::array<int, IM> input;
+  std::array<std::byte, OM> output, binput;
+
+  double p;
+  //   std::array<int, 3>[][] ishifts, oshifts;
+
+  bool original;
+};

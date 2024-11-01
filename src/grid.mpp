@@ -1,0 +1,147 @@
+﻿export module grid;
+
+import std;
+import stormkit.Core;
+import pugixml;
+
+import rule;
+import utils;
+
+using namespace std::literals;
+using namespace stormkit;
+
+export struct Grid {
+public:
+  using State = Int;
+  using Symbol = char;
+
+  Int MX, MY, MZ;
+
+  std::vector<State> states;
+  std::vector<Boolean> mask;
+
+  std::vector<Symbol> characters;
+  HashMap<Symbol, State> values;
+  HashMap<Symbol, State> waves; // State ? really ? not a superposition (aka an array) ??
+  std::string_view folder;
+
+  Grid(const pugi::xml_node &xelem, Int _MX, Int _MY, Int _MZ)
+      : MX{_MX}, MY{_MY}, MZ{_MZ}, states(MX * MY * MZ),
+        statesbuffer(MX * MY * MZ), mask(MX * MY * MZ),
+        folder{xelem.attribute("folder").as_string()} {
+
+    const auto symbols = xelem.attribute("values").as_string();
+    if (std::strcmp(symbols, "")) {
+      std::println("no values specified");
+      //   return nullptr;
+      throw;
+    }
+
+    for (auto [i, symbol] = std::make_tuple(0, symbols[0]); symbol != 0;
+         symbol = symbols[++i]) {
+      // const auto symbol = symbols[i];
+      if (values.contains(symbol)) {
+        std::println("repeating value {}", symbol);
+        // return nullptr;
+        throw;
+      } else {
+        characters.push_back(symbol);
+        values.insert({symbol, i});
+        waves.insert({symbol, 1 << i});
+      }
+    }
+
+    waves.insert({'*', (1 << std::ranges::size(characters)) - 1});
+
+    transparent = wave(xelem.attribute("transparent").as_string());
+
+    // constexpr auto is_union = [](auto &&elem) {
+    //   return elem.Name() == "union"sv;
+    // };
+    // const auto xunions =
+    //     std::ranges::subrange{XMLBreadthIterator<"markov", "sequence",
+    //     "union">{&xelem}} | std::views::filter(is_union);
+    // for (auto &&xunion : xunions) {
+    //   Char symbol = xunion.Attribute("symbol")[0];
+    //   if (waves.contains(symbol)) {
+    //     std::println("repeating union type {} at line {}", symbol,
+    //     xunion.GetLineNum());
+    //     // return nullptr;
+    //     throw;
+    //   } else {
+    //     const auto w = Wave(xunion.Attribute("values"));
+    //     waves.insert({symbol, w});
+    //   }
+    // }
+  }
+
+  auto clear() -> void {
+    for (auto &&component : states)
+      component = 0;
+  }
+
+  auto wave(std::string_view _values) -> Int {
+    auto sum = 0;
+    for (auto &&value : _values)
+      sum += 1 << values[value];
+    return sum;
+  }
+
+  /*static readonly Int[] DX = { 1, 0, -1, 0, 0, 0 };
+  static readonly Int[] DY = { 0, 1, 0, -1, 0, 0 };
+  static readonly Int[] DZ = { 0, 0, 0, 0, 1, -1 };
+  byte[] State()
+  {
+      Int neighbors(Int x, Int y, Int z)
+      {
+          Int sum = 0;
+          for (Int d = 0; d < 6; d++)
+          {
+              Int X = x + DX[d], Y = y + DY[d], Z = z + DZ[d];
+              if (X < 0 || X >= MX || Y < 0 || Y >= MY || Z < 0 || Z >= MZ)
+  continue; if (state[X + Y * MX + Z * MX * MY] != 0) sum++;
+          }
+          return sum;
+      };
+
+      Array.Copy(state, statebuffer, state.Length);
+      for (Int z = 0; z < MZ; z++) for (Int y = 0; y < MY; y++) for (Int x = 0;
+  x < MX; x++)
+              {
+                  Int i = x + y * MX + z * MX * MY;
+                  byte v = state[i];
+                  Int n = neighbors(x, y, z);
+                  if (v == 0 || ((1 << v) & transparent) != 0 || n == 0 || (n ==
+  1 && z == 1 && (state[i - MX * MY] == 11 || state[i - MX * MY] == 4)))
+  statebuffer[i] = 0;
+              }
+      return statebuffer;
+  }*/
+
+  template <Int IM, Int OM>
+  auto matches(Rule<IM, OM> rule, Int x, Int y, Int z) -> Boolean {
+    Int dz = 0, dy = 0, dx = 0;
+    for (auto rule_input_component : rule.input) {
+      if ((rule_input_component &
+           // for (Int di = 0; di < rule.input.Length; di++) {
+           //   if ((rule.input[di] &
+           (1 << states[x + dx + (y + dy) * MX + (z + dz) * MX * MY])) == 0)
+        return false;
+
+      dx++;
+      if (dx == rule.IMX) {
+        dx = 0;
+        dy++;
+        if (dy == rule.IMY) {
+          dy = 0;
+          dz++;
+        }
+      }
+    }
+    return true;
+  }
+
+private:
+  Int transparent;
+  std::vector<State> statesbuffer;
+};

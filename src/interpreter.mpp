@@ -1,0 +1,91 @@
+export module interpreter;
+
+import std;
+import stormkit.Core;
+import pugixml;
+import grid;
+import model;
+import symmetry;
+import utils;
+
+using namespace stormkit;
+
+export struct Interpreter {
+public:
+  // Branch root, current;
+  Grid grid;
+  // Random random;
+
+  std::vector<std::array<Int, 3>> changes;
+  std::vector<std::size_t> first;
+  Int counter;
+
+  // Boolean gif;
+
+  Interpreter(const Model &model)
+      : Interpreter{model.doc.root(), model.MX, model.MY, model.MZ} {}
+
+  Interpreter(const pugi::xml_node &xelem, Int _MX, Int _MY, Int _MZ)
+      : grid{xelem, _MX, _MY, _MZ}, startgrid{grid}, changes{}, first{},
+        origin{xelem.attribute("origin").as_bool(false)} {
+    // const auto symmetryString =
+    // std::string_view{null2dflt(xelem.Attribute("symmetry"), "")}; const auto
+    // symmetry = symmetry::GetSymmetry(grid.MZ == 1, symmetryString); if
+    // (symmetry == nullptr) {
+    //   std::println("unknown symmetry {} at line {}", symmetryString,
+    //   xelem.GetLineNum());
+    //   // return nullptr;
+    //   throw;
+    // }
+
+    // const auto topnode = Node.Factory(xelem, symmetry, *this, grid);
+    // if (topnode == nullptr) {
+    //   std::println("error while loading top node");
+    //   // return nullptr;
+    //   throw;
+    // }
+
+    // root = topnode is Branch ? topnode : new MarkovNode{topnode, *this};
+  }
+  // auto run(Model m) -> decltype(auto) {
+  //   const auto seed = ;
+  //   return run(seed, model.steps, model.gif)
+  // }
+
+  auto run(Int seed, Int steps, Boolean gif) -> decltype(auto) {
+    // random = Random{seed};
+    grid = startgrid;
+    grid.clear();
+    if (origin)
+      grid.states[center(grid.MX, grid.MY, grid.MZ)] = 1;
+
+    changes.clear();
+    first.clear();
+    first.push_back(0);
+
+    // root.Reset();
+    // current = root;
+
+    // gif = _gif;
+    counter = 0;
+    // while (current != nullptr && (steps <= 0 || counter < steps)) {
+    //   if (gif) {
+    //     std::println("[{}]", counter);
+    //     yield /*return*/ {grid.states, grid.characters, grid.MX, grid.MY,
+    //     grid.MZ};
+    //   }
+
+    //   current.Go();
+    //   counter++;
+    //   first.push_back(std::ranges::size(changes));
+    // }
+
+    /*yield*/ return std::make_tuple(grid.states, grid.characters, grid.MX,
+                                     grid.MY, grid.MZ);
+  }
+
+private:
+  Grid startgrid;
+
+  Boolean origin;
+};

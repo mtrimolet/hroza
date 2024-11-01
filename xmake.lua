@@ -1,24 +1,44 @@
-
 add_rules("mode.debug", "mode.release")
 
 set_languages("c++latest")
 
+add_repositories("tapzcrew-repo https://github.com/tapzcrew/xmake-repo main")
+
+add_requires("stormkit develop", {
+    configs = {
+        image = false,
+        wsi = false,
+        log = false,
+        entities = false,
+        gpu = false,
+        components = { "core", "main" },
+    },
+})
+-- stormkit deps, remove when handled by xmake
+add_requires("glm", "frozen", "unordered_dense", "magic_enum", "tl_function_ref")
+
+add_defines("PUGIXML_USE_STD_MODULE")
 add_requires(
-    "tinyxml2"
---     "nlohmann_json"
+    "pugixml",
+    {system=false}
 )
 
--- add_requireconfs("**", { configs = { cxxflags = table.join(cxxflags, "-Wno-unused-command-line-argument"), ldflags = ldflags } })
+
+add_requireconfs("**", {configs = {modules = true}})
 add_cxxflags("-fexperimental-library")
 
 add_rules("plugin.compile_commands.autoupdate", {outputdir = ".vscode"})
 
-target("hello-world")
+target("hroza")
     set_kind("binary")
 
     add_packages(
-        "tinyxml2"
-    --     "nlohmann_json"
+        "stormkit",
+
+        -- stormkit deps, remove when handled by xmake
+        "glm", "frozen", "unordered_dense", "magic_enum", "tl_function_ref",
+
+        "pugixml"
     )
 
     add_files("src/*.cpp")

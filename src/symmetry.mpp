@@ -1,0 +1,138 @@
+export module symmetry;
+
+import std;
+import stormkit.Core;
+import frozen;
+import utils;
+
+using namespace std::literals;
+using namespace stormkit;
+
+export namespace symmetry {
+namespace subgroup_length {
+constexpr inline auto square = 8z;
+constexpr inline auto cube = 48z;
+}; // namespace subgroup_length
+
+using square_subgroup = std::array<Boolean, subgroup_length::square>;
+using cube_subgroup = std::array<Boolean, subgroup_length::cube>;
+
+constexpr inline auto square_subgroups =
+    frozen::make_unordered_map<frozen::string, square_subgroup, 6>(
+        {{"()", {true, false, false, false, false, false, false, false}},
+         {"(x)", {true, true, false, false, false, false, false, false}},
+         {"(y)", {true, false, false, false, true, false, false, false}},
+         {"(x)(y)", {true, true, false, false, true, true, false, false}},
+         {"(xy+)", {true, false, true, false, true, false, true, false}},
+         {"(xy)", {true, true, true, true, true, true, true, true}}});
+
+template <typename T>
+auto square_symmetries(T thing, auto rotation, auto reflection, auto same,
+                       auto subgroup = square_subgroups.at("(xy)"))
+    -> decltype(auto) {
+  static constexpr auto images = std::array<T, subgroup_length::square>{
+      thing,                                           //    e
+      reflection(thing),                               //    b
+      rotation(thing),                                 //    a
+      reflection(rotation(thing)),                     //   ba
+      rotation(rotation(thing)),                       //   aa
+      reflection(rotation(rotation(thing))),           //  baa
+      rotation(rotation(rotation(thing))),             //  aaa
+      reflection(rotation(rotation(rotation(thing)))), // baaa
+  };
+
+  return std::views::zip(images, subgroup) |
+         std::views::filter(monadic::get<1>()) |
+         std::views::transform(monadic::get<0>()) |
+         std::ranges::to<std::vector>();
+}
+
+auto get_square_symmetry(std::string_view &&s) -> decltype(auto) {
+  return square_subgroups.at(std::empty(s) ? "(xy)" : s);
+}
+
+constexpr inline auto cube_subgroups =
+    frozen::make_unordered_map<frozen::string, cube_subgroup>({
+        {"(x)", iota_array<Boolean, subgroup_length::cube>(
+                    [](auto i) { return i == 0 || i == 1; })},
+        {"(z)", iota_array<Boolean, subgroup_length::cube>(
+                    [](auto i) { return i == 0 || i == 17; })},
+        {"(xy)", iota_array<Boolean, subgroup_length::cube>(
+                     [](auto i) { return i < 8; })},
+        {"(xyz+)", iota_array<Boolean, subgroup_length::cube>(
+                       [](auto i) { return i % 2 == 0; })},
+        {"(xyz)", iota_array<Boolean, subgroup_length::cube>(
+                      [](auto i) { return true; })},
+        // {"(xy)(z)", iota_array<Boolean, subgroup_length::cube>([](auto i) {
+        // return i < 8 || i == 17 || ...; })},
+    });
+
+template <typename T>
+auto cube_symmetries(T thing, auto a, auto b, auto r, auto same,
+                     auto subgroup = cube_subgroups.at("(xyz)"))
+    -> decltype(auto) {
+  static constexpr auto images = std::array<T, subgroup_length::cube>{
+      thing,                         // e
+      r(thing),                      //
+      a(thing),                      // a
+      r(a(thing)),                   //
+      a(a(thing)),                   // a2
+      r(a(a(thing))),                //
+      a(a(a(thing))),                // a3
+      r(a(a(a(thing)))),             //
+      b(thing),                      // b
+      r(b(thing)),                   //
+      b(a(thing)),                   // b a
+      r(b(a(thing))),                //
+      b(a(a(thing))),                // b a2
+      r(b(a(a(thing)))),             //
+      b(a(a(a(thing)))),             // b a3
+      r(b(a(a(a(thing))))),          //
+      b(b(thing)),                   // b2
+      r(b(b(thing))),                //
+      b(b(a(thing))),                // b2 a
+      r(b(b(a(thing)))),             //
+      b(b(a(a(thing)))),             // b2 a2
+      r(b(b(a(a(thing))))),          //
+      b(b(a(a(a(thing))))),          // b2 a3
+      r(b(b(a(a(a(thing)))))),       //
+      b(b(b(thing))),                // b3
+      r(b(b(b(thing)))),             //
+      b(b(b(a(thing)))),             // b3 a
+      r(b(b(b(a(thing))))),          //
+      b(b(b(a(a(thing))))),          // b3 a2
+      r(b(b(b(a(a(thing)))))),       //
+      b(b(b(a(a(a(thing)))))),       // b3 a3
+      r(b(b(b(a(a(a(thing))))))),    //
+      a(b(thing)),                   // a b
+      r(a(b(thing))),                //
+      a(b(a(thing))),                // a b a
+      r(a(b(a(thing)))),             //
+      a(b(a(a(thing)))),             // a b a2
+      r(a(b(a(a(thing))))),          //
+      a(b(a(a(a(thing))))),          // a b a3
+      r(a(b(a(a(a(thing)))))),       //
+      a(b(b(b(thing)))),             // a3 b a2 = a b3
+      r(a(b(b(b(thing))))),          //
+      a(b(b(b(a(thing))))),          // a3 b a3 = a b3 a
+      r(a(b(b(b(a(thing)))))),       //
+      a(b(b(b(a(a(thing)))))),       // a3 b = a b3 a2
+      r(a(b(b(b(a(a(thing))))))),    //
+      a(b(b(b(a(a(a(thing))))))),    // a3 b a = a b3 a3
+      r(a(b(b(b(a(a(a(thing)))))))), //
+  };
+
+  return std::views::zip(images, subgroup) |
+         std::views::filter(monadic::get<1>()) |
+         std::views::transform(monadic::get<0>()) |
+         std::ranges::to<std::vector>();
+}
+
+auto get_cube_symmetry(std::string_view &&s) -> decltype(auto) {
+  return square_subgroups.at(std::empty(s) ? "(xyz)" : s);
+}
+
+// auto get_symmetry(Boolean d2, std::string_view &&s) -> decltype(auto) {
+//     return (d2 ? get_square_symmetry : get_cube_symmetry)(s);
+// }
+} // namespace symmetry
