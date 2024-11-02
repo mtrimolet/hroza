@@ -16,20 +16,10 @@ constexpr inline auto cube = 48z;
 
 using square_subgroup = std::array<Boolean, subgroup_length::square>;
 using cube_subgroup = std::array<Boolean, subgroup_length::cube>;
-
-template <typename T>
-auto square_symmetries(T thing, auto rotation, auto reflection, auto same,
-                       auto subgroup) -> decltype(auto);
-auto get_square_symmetry(std::string_view s) -> decltype(auto);
-
-template <typename T>
-auto cube_symmetries(T thing, auto a, auto b, auto r, auto same, auto subgroup)
-    -> decltype(auto);
-auto get_cube_symmetry(std::string_view s) -> decltype(auto);
-
 } // namespace symmetry
 
-constexpr inline auto square_subgroups =
+namespace {
+constexpr auto square_subgroups =
     frozen::make_unordered_map<frozen::string, symmetry::square_subgroup, 6>(
         {{"()", {true, false, false, false, false, false, false, false}},
          {"(x)", {true, true, false, false, false, false, false, false}},
@@ -38,10 +28,47 @@ constexpr inline auto square_subgroups =
          {"(xy+)", {true, false, true, false, true, false, true, false}},
          {"(xy)", {true, true, true, true, true, true, true, true}}});
 
+constexpr auto cube_subgroups =
+    frozen::make_unordered_map<frozen::string, symmetry::cube_subgroup>({
+        {"()", iotaArray<Boolean, symmetry::subgroup_length::cube>(
+                   [](auto i) { return false; })},
+        {"(x)", iotaArray<Boolean, symmetry::subgroup_length::cube>(
+                    [](auto i) { return i == 0 || i == 1; })},
+        {"(z)", iotaArray<Boolean, symmetry::subgroup_length::cube>(
+                    [](auto i) { return i == 0 || i == 17; })},
+        {"(xy)", iotaArray<Boolean, symmetry::subgroup_length::cube>(
+                     [](auto i) { return i < 8; })},
+        {"(xyz+)", iotaArray<Boolean, symmetry::subgroup_length::cube>(
+                       [](auto i) { return i % 2 == 0; })},
+        {"(xyz)", iotaArray<Boolean, symmetry::subgroup_length::cube>(
+                      [](auto i) { return true; })},
+        // {"(xy)(z)", iotaArray<Boolean,
+        // symmetry::subgroup_length::cube>([](auto i) { return i < 8 || i == 17
+        // || ...; })},
+    });
+} // namespace
+
+export namespace symmetry {
+constexpr auto getSymmetry(Boolean, std::string_view s) noexcept
+    -> decltype(auto);
+
 template <typename T>
-auto square_symmetries(T thing, auto rotation, auto reflection, auto same,
-                       auto subgroup = square_subgroups.at("(xy)"))
-    -> decltype(auto) {
+auto squareSymmetries(T &&thing, auto rotation, auto reflection, auto same,
+                      auto subgroup = square_subgroups.at("(xy)"))
+    -> decltype(auto);
+constexpr auto getSquareSymmetry(std::string_view s) noexcept -> decltype(auto);
+
+template <typename T>
+auto cubeSymmetries(T &&thing, auto a, auto b, auto r, auto same,
+                    auto subgroup = cube_subgroups.at("(xyz)"))
+    -> decltype(auto);
+constexpr auto getCubeSymmetry(std::string_view s) noexcept -> decltype(auto);
+
+} // namespace symmetry
+
+template <typename T>
+auto symmetry::squareSymmetries(T &&thing, auto rotation, auto reflection,
+                                auto same, auto subgroup) -> decltype(auto) {
   static constexpr auto images =
       std::array<T, symmetry::subgroup_length::square>{
           thing,                                           //    e
@@ -60,27 +87,9 @@ auto square_symmetries(T thing, auto rotation, auto reflection, auto same,
          std::ranges::to<std::vector>();
 }
 
-constexpr inline auto cube_subgroups =
-    frozen::make_unordered_map<frozen::string, symmetry::cube_subgroup>({
-        {"(x)", iotaArray<Boolean, symmetry::subgroup_length::cube>(
-                    [](auto i) { return i == 0 || i == 1; })},
-        {"(z)", iotaArray<Boolean, symmetry::subgroup_length::cube>(
-                    [](auto i) { return i == 0 || i == 17; })},
-        {"(xy)", iotaArray<Boolean, symmetry::subgroup_length::cube>(
-                     [](auto i) { return i < 8; })},
-        {"(xyz+)", iotaArray<Boolean, symmetry::subgroup_length::cube>(
-                       [](auto i) { return i % 2 == 0; })},
-        {"(xyz)", iotaArray<Boolean, symmetry::subgroup_length::cube>(
-                      [](auto i) { return true; })},
-        // {"(xy)(z)", iotaArray<Boolean,
-        // symmetry::subgroup_length::cube>([](auto i) { return i < 8 || i == 17
-        // || ...; })},
-    });
-
 template <typename T>
-auto cube_symmetries(T thing, auto a, auto b, auto r, auto same,
-                     auto subgroup = cube_subgroups.at("(xyz)"))
-    -> decltype(auto) {
+auto symmetry::cubeSymmetries(T &&thing, auto a, auto b, auto r, auto same,
+                              auto subgroup) -> decltype(auto) {
   static constexpr auto images = std::array<T, symmetry::subgroup_length::cube>{
       thing,                         // e
       r(thing),                      //
@@ -138,16 +147,29 @@ auto cube_symmetries(T thing, auto a, auto b, auto r, auto same,
          std::ranges::to<std::vector>();
 }
 
-module :private;
-
-auto get_square_symmetry(std::string_view s) -> decltype(auto) {
-  return square_subgroups.at(std::empty(s) ? "(xy)" : s);
+template <typename T>
+constexpr auto get_symmetry(const T &subgroups, std::string_view s,
+                            std::string_view default_key) noexcept {
+  const auto key = std::empty(s) ? default_key : s;
+  const auto it = subgroups.find(key);
+  ensures(it != std::ranges::cend(subgroups),
+          std::format("unknown symmetry {}", key));
+  return it->second;
 }
 
-auto get_cube_symmetry(std::string_view s) -> decltype(auto) {
-  return square_subgroups.at(std::empty(s) ? "(xyz)" : s);
+constexpr auto symmetry::getSquareSymmetry(std::string_view s) noexcept
+    -> decltype(auto) {
+  return get_symmetry(square_subgroups, s, "(xy)");
 }
 
-// auto get_symmetry(Boolean d2, std::string_view s) -> decltype(auto) {
-//     return (d2 ? get_square_symmetry : get_cube_symmetry)(s);
-// }
+constexpr auto symmetry::getCubeSymmetry(std::string_view s) noexcept
+    -> decltype(auto) {
+  return get_symmetry(cube_subgroups, s, "(xyz)");
+}
+
+constexpr auto symmetry::getSymmetry(Boolean d2, std::string_view s) noexcept
+    -> decltype(auto) {
+  if (d2)
+    return symmetry::getSquareSymmetry(s) | std::ranges::to<std::vector>();
+  return symmetry::getCubeSymmetry(s) | std::ranges::to<std::vector>();
+}

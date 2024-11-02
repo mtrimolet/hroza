@@ -39,22 +39,11 @@ Interpreter::Interpreter(const Model &model)
 Interpreter::Interpreter(const pugi::xml_node &xelem, Int _MX, Int _MY, Int _MZ)
     : grid{xelem, _MX, _MY, _MZ}, startgrid{grid}, changes{}, first{},
       origin{xelem.attribute("origin").as_bool(false)} {
-  // const auto symmetryString =
-  // std::string_view{null2dflt(xelem.Attribute("symmetry"), "")}; const auto
-  // symmetry = symmetry::GetSymmetry(grid.MZ == 1, symmetryString); if
-  // (symmetry == nullptr) {
-  //   std::println("unknown symmetry {} at line {}", symmetryString,
-  //   xelem.GetLineNum());
-  //   // return nullptr;
-  //   throw;
-  // }
+  const auto symmetry = symmetry::getSymmetry(
+      grid.MZ == 1, xelem.attribute("symmetry").as_string());
 
   // const auto topnode = Node.Factory(xelem, symmetry, *this, grid);
-  // if (topnode == nullptr) {
-  //   std::println("error while loading top node");
-  //   // return nullptr;
-  //   throw;
-  // }
+  // ensures(topnode != Node{});
 
   // root = topnode is Branch ? topnode : new MarkovNode{topnode, *this};
 }
