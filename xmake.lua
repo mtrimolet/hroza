@@ -44,4 +44,4 @@ target("hroza")
 
     add_files("src/*.cpp")
     add_files("src/**.mpp")
-    set_rundir(".")
+    set_rundir("$(projectdir)")

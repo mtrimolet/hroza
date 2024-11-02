@@ -1,4 +1,5 @@
 #include <stormkit/Main/MainMacro.hpp>
+#include <unistd.h>
 
 import std;
 import pugixml;
@@ -13,7 +14,9 @@ using namespace std::literals;
 using namespace stormkit;
 
 auto main(std::span<const std::string_view> args) noexcept -> int {
-
+  // [tmpfix] remove when stormkit userMain allows for non-packaged build
+  chdir("/Users/mtrimolet/Desktop/mtrimolet/markovjunior/hroza");
+  
   // load color palette
   auto palette_doc = pugi::xml_document{};
   auto load_result = palette_doc.load_file("resources/palette.xml");
