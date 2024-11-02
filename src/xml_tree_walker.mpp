@@ -1,0 +1,46 @@
+export module xml_tree_walker;
+
+import std;
+import pugixml;
+import stormkit.Core;
+
+using namespace stormkit;
+
+export struct XMLDepthWalker {
+  struct Iterator {
+    pugi::xml_node cur;
+    Int depth;
+
+    Iterator() {}
+    Iterator(pugi::xml_node &&_cur) : cur{std::move(_cur)}, depth{cur ? 1 : 0} {}
+
+    auto operator++() -> decltype(auto) {
+      if (cur.first_child()) {
+        ++depth;
+        cur = cur.first_child();
+      } else if (cur.next_sibling())
+        cur = cur.next_sibling();
+      else {
+        while (!cur.next_sibling() && depth > 0 && cur.parent()) {
+          --depth;
+          cur = cur.parent();
+        }
+
+        if (depth > 0)
+          cur = cur.next_sibling();
+        else
+          cur = pugi::xml_node{};
+      }
+
+      return *this;
+    }
+
+    auto operator*() -> decltype(auto) { return cur; }
+
+    auto operator!=(Iterator &other) -> bool { return cur != other.cur; }
+  };
+
+  const pugi::xml_node root;
+  auto begin() -> decltype(auto) { return Iterator{root.first_child()}; }
+  auto end() -> decltype(auto) { return Iterator{}; }
+};

@@ -1,8 +1,9 @@
-export module grid;
+﻿export module grid;
 
 import std;
 import stormkit.Core;
 import pugixml;
+import xml_tree_walker;
 
 import rule;
 import utils;
@@ -63,16 +64,16 @@ Grid::Grid(const pugi::xml_node &xelem, Int _MX, Int _MY, Int _MZ)
   // constexpr auto is_union = [](auto &&elem) {
   //   return elem.name() == "union"sv;
   // };
-  // const auto xunions = 
-  //     std::ranges::subrange{XMLBreadthIterator<"markov", "sequence", "union">{&xelem}} |
-  //     std::views::filter(is_union);
-  // for (auto &&xunion : xunions) {
-  //   auto symbol = xunion.attribute("symbol").as_string()[0];
-  //   ensures(!waves.contains(symbol), std::format("repeating union {}", symbol));
 
-  //   const auto w = wave(xunion.attribute("values").as_string());
-  //   waves.insert({symbol, w});
-  // }
+  for (auto &&xunion : XMLDepthWalker{xelem.root()}) {
+    std::println("{}", xunion.name());
+
+    // auto symbol = xunion.attribute("symbol").as_string()[0]; // !!!!
+    // ensures(!waves.contains(symbol), std::format("repeating union {}", symbol));
+
+    // const auto w = wave(xunion.attribute("values").as_string());
+    // waves.insert({symbol, w});
+  }
 }
 
 auto Grid::clear() -> void {

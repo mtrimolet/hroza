@@ -34,7 +34,7 @@ private:
 };
 
 Interpreter::Interpreter(const Model &model)
-    : Interpreter{model.doc.root(), model.MX, model.MY, model.MZ} {}
+    : Interpreter{model.doc.first_child(), model.MX, model.MY, model.MZ} {}
 
 Interpreter::Interpreter(const pugi::xml_node &xelem, Int _MX, Int _MY, Int _MZ)
     : grid{xelem, _MX, _MY, _MZ}, startgrid{grid}, changes{}, first{},
