@@ -45,14 +45,14 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
 
   // load and run models
   std::ranges::for_each(
-      xmodels | std::views::filter([](const auto &m) {
-        return m.attribute("name").as_string() == "CarmaTower"sv;
+      xmodels | std::views::filter([_args = args.subspan(1)](const auto &m) {
+        return std::ranges::contains(_args, m.attribute("name").as_string());
       }) | std::views::transform(bindBack<parseModel>(palette)) |
           std::views::filter(
               [](const auto &e) { return static_cast<bool>(e); }),
       [](const auto &r) {
         const auto &model = r.value();
-        std::print("{} > ", model.name);
+        std::println("[[{}]]", model.name);
 
         auto interpreter = Interpreter{model};
 
