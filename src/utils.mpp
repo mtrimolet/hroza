@@ -9,28 +9,35 @@ import pugixml;
 using namespace stormkit;
 
 export {
-  auto center(auto MX, auto MY, auto MZ) -> decltype(auto) {
+  template <meta::IsArithmetic T> auto center(T MX, T MY, T MZ) -> T {
     return MX / 2 + (MY / 2) * MX + (MZ / 2) * MX * MY;
   }
 
   template <meta::IsArithmetic T>
-  auto fromBase(std::string_view x, Int8 base) -> T {
-    auto out = T{};
-    const auto result =
-        std::from_chars(std::ranges::cbegin(x), std::ranges::cend(x), out);
-    ensures(result.ec == std::errc{},
-            std::make_error_code(result.ec).message());
-    return out;
-  }
-
-  template <typename T, RangeExtent N, typename F, RangeExtent... I>
-  constexpr auto iota_array_impl(F && func, std::index_sequence<I...>) {
-    return std::array<T, N>{{func(I)...}};
-  }
+  auto fromBase(std::string_view x, Int8 base) -> T;
 
   template <typename T, RangeExtent N, typename F>
-  constexpr auto iota_array(F && func) {
-    return iota_array_impl<T, N>(std::forward<F>(func),
-                                 std::make_index_sequence<N>{});
-  }
+  constexpr auto iotaArray(F && func)->decltype(auto);
+}
+
+template <meta::IsArithmetic T>
+auto fromBase(std::string_view x, Int8 base) -> T {
+  auto out = T{};
+  const auto result =
+      std::from_chars(std::ranges::cbegin(x), std::ranges::cend(x), out);
+  ensures(result.ec == std::errc{},
+          std::format("string: {}, base: {}, reason: {}", x, base,
+                      std::make_error_code(result.ec).message()));
+  return out;
+}
+
+template <typename T, RangeExtent N, typename F, RangeExtent... I>
+constexpr auto iota_array_impl(F &&func, std::index_sequence<I...>) {
+  return std::array<T, N>{{func(I)...}};
+}
+
+template <typename T, RangeExtent N, typename F>
+constexpr auto iotaArray(F &&func) -> decltype(auto) {
+  return iota_array_impl<T, N>(std::forward<F>(func),
+                               std::make_index_sequence<N>{});
 }

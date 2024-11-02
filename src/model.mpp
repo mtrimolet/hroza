@@ -29,9 +29,13 @@ export struct Model {
   pugi::xml_document doc;
 };
 
-export auto
-parseModel(const pugi::xml_node &xmodel,
-           const Palette &default_palette)
+export auto parseModel(const pugi::xml_node &xmodel,
+                       const Palette &default_palette)
+    -> std::expected<Model, pugi::xml_parse_result>;
+
+module :private;
+
+auto parseModel(const pugi::xml_node &xmodel, const Palette &default_palette)
     -> std::expected<Model, pugi::xml_parse_result> {
   auto name = xmodel.attribute("name").as_string();
   auto linearSize = xmodel.attribute("size").as_int(-1);
