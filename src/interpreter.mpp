@@ -57,7 +57,7 @@ public:
     grid = startgrid;
     grid.clear();
     if (origin)
-      grid.states[center(grid.MX, grid.MY, grid.MZ)] = 1;
+      grid.states.at(center(grid.MX, grid.MY, grid.MZ)) = 1;
 
     changes.clear();
     first.clear();

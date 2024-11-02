@@ -65,7 +65,7 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
         for (auto k = 0; k < model.amount; k++) {
           const auto seed =
               // !std::empty(model.seeds) && k < std::ranges::size(model.seeds)
-              //     ? model.seeds[k] :
+              //     ? model.seeds.at(k) :
               std::rand();
 
           // for (auto [result, legend, FX, FY, FZ] : interpreter.Run(seed,
