@@ -16,7 +16,7 @@ using namespace stormkit;
 auto main(std::span<const std::string_view> args) noexcept -> int {
   // [tmpfix] remove when stormkit userMain allows for non-packaged build
   chdir("/Users/mtrimolet/Desktop/mtrimolet/markovjunior/hroza");
-  
+
   // load color palette
   auto palette_doc = pugi::xml_document{};
   auto load_result = palette_doc.load_file("resources/palette.xml");
@@ -33,7 +33,6 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
                 fromBase<UInt32>(c.attribute("value").as_string(), 16));
       }) |
       std::ranges::to<Palette>();
-  std::println("palette: {}", palette);
 
   // load models registry
   auto models_doc = pugi::xml_document{};
@@ -76,10 +75,6 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
               model.gif ? std::format("output/{}", interpreter.counter)
                         : std::format("output/{}_{}", model.name, seed);
 
-          std::println("{} {} {} {}:{}:{} {} {}", seed,
-                       std::ranges::size(result), legend, FX, FY, FZ, colors,
-                       outputname);
-
           // if (FZ == 1 || model.iso) {
           //   const auto [bitmap, WIDTH, HEIGHT] = Graphics.Render(
           //       result, FX, FY, FZ, colors, model.pixelsize, model.gui);
@@ -91,12 +86,10 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
           //   VoxHelper.SaveVox(result, FX, FY, FZ, colors, outputname +
           //   ".vox");
           // }
-          std::println("DONE");
         }
       });
 
   // std::println("time = {}", sw.ElapsedMilliseconds);
-  std::println("finished");
 
   return 0;
 }
