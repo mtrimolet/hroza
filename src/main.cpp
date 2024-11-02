@@ -1,3 +1,5 @@
+#include <stormkit/Main/MainMacro.hpp>
+
 import std;
 import pugixml;
 
@@ -5,22 +7,17 @@ import model;
 import interpreter;
 import utils;
 
-#include <stormkit/Main/MainMacro.hpp>
-
 import stormkit.Core;
 
 using namespace std::literals;
 using namespace stormkit;
 
 auto main(std::span<const std::string_view> args) noexcept -> int {
-  // auto sw = std::chrono{};
-  // auto random = std::rand();
 
   // load color palette
   auto palette_doc = pugi::xml_document{};
   auto load_result = palette_doc.load_file("resources/palette.xml");
-  ensures(!load_result,
-          std::format("ERROR loading palette: {}", load_result.description()));
+  ensures(load_result, load_result.description());
 
   const auto palette =
       palette_doc.child("colors").children("color") |
@@ -38,16 +35,10 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   // load models registry
   auto models_doc = pugi::xml_document{};
   load_result = models_doc.load_file("models.xml");
-  if (!load_result) {
-    std::println("ERROR loading models: {}", load_result.description());
-    return -1;
-  }
+  ensures(load_result, load_result.description());
 
   const auto xmodels = models_doc.child("models");
-  if (!xmodels) {
-    std::println("models not found");
-    return -1;
-  }
+  ensures(xmodels, "models not found");
 
   // load and run models
   std::ranges::for_each(
@@ -73,11 +64,10 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
           auto [result, legend, FX, FY, FZ] =
               interpreter.run(seed, model.steps, model.gif);
 
-          const auto colors =
-              legend | std::views::transform([&model](auto ch) {
-                return model.palette.at(ch);
-              }) |
-              std::ranges::to<std::vector>();
+          const auto colors = legend | std::views::transform([&model](auto ch) {
+                                return model.palette.at(ch);
+                              }) |
+                              std::ranges::to<std::vector>();
 
           const auto outputname =
               model.gif ? std::format("output/{}", interpreter.counter)
