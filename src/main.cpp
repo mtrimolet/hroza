@@ -6,6 +6,7 @@ import stormkit.Core;
 import pugixml;
 import model;
 import interpreter;
+import graphics;
 import utils;
 
 using namespace std::literals;
@@ -89,10 +90,10 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
       std::ranges::for_each(frames, [&model](const auto &f) {
         const auto [grid, colors, outputname] = f;
         // if (grid.MZ == 1 || model.iso) {
-        // const auto [bitmap, WIDTH, HEIGHT] =
-        //     render(grid.states, grid.MX, grid.MY, grid.MZ, colors,
-        //            model.pixelsize, model.gui);
-        // std::println("{}[{}x{}]: {}", outputname, WIDTH, HEIGHT, bitmap);
+        const auto [bitmap, WIDTH, HEIGHT] =
+            render(grid.states, grid.MX, grid.MY, grid.MZ, colors,
+                   model.pixelsize, model.gui);
+        std::println("{}[{}x{}]: {}", outputname, WIDTH, HEIGHT, bitmap);
         //   if (model.gui > 0)
         //     GUI.Draw(model.name, interpreter.root, interpreter.current,
         //              bitmap, WIDTH, HEIGHT, model.palette);

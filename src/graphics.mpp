@@ -1,0 +1,17 @@
+export module graphics;
+
+import std;
+import stormkit.Core;
+import grid;
+
+using namespace stormkit;
+
+export auto render(const std::vector<Grid::State> &state, Int MX, Int MY,
+                   Int MZ, const std::vector<UInt32> &colors, Int pixelsize,
+                   Int margin) -> decltype(auto) {
+  const auto width = margin + MX * pixelsize, height = MY * pixelsize;
+  const auto totalwidth = width, totalheight = height;
+  // int totalwidth = 189 + margin, totalheight = 189;
+  auto bitmap = std::vector<Int>(totalwidth * totalheight);
+  return std::make_tuple(bitmap, totalwidth, totalheight);
+}
