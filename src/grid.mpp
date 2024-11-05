@@ -1,4 +1,4 @@
-﻿export module grid;
+export module grid;
 
 import std;
 import stormkit.Core;
@@ -23,7 +23,9 @@ public:
 
   std::vector<Symbol> characters;
   HashMap<Symbol, State> values;
-  HashMap<Symbol, State> waves; // State ? really ? not a superposition (aka an array) ??
+  // wave is a State ? really ? not a superposition (aka a distribution over all
+  // possible values of a State) ??
+  HashMap<Symbol, State> waves;
   std::string_view folder;
 
   Grid(const pugi::xml_node &xelem, Int _MX, Int _MY, Int _MZ);
@@ -43,15 +45,14 @@ Grid::Grid(const pugi::xml_node &xelem, Int _MX, Int _MY, Int _MZ)
       statesbuffer(MX * MY * MZ), mask(MX * MY * MZ),
       folder{xelem.attribute("folder").as_string()} {
 
-  auto attr = xelem.attribute("values");
-  auto s = attr.as_string();
-  const auto symbols = std::string{s};
-  ensures(!std::empty(symbols), "no values specified");
+  const auto symbols = std::string{xelem.attribute("values").as_string()};
+  ensures(!std::empty(symbols),
+          std::format("no values specified [:{}]", xelem.offset_debug()));
 
   for (auto [i, symbol] = std::make_tuple(0, symbols[0]);
        i < std::ranges::size(symbols) and symbol != 0; symbol = symbols[++i]) {
     ensures(!values.contains(symbol),
-            std::format("repeating value {}", symbol));
+            std::format("repeating value {} [:{}]", symbol, xelem.offset_debug()));
     characters.push_back(symbol);
     values.insert({symbol, i});
     waves.insert({symbol, 1 << i});

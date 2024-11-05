@@ -50,7 +50,9 @@ auto parseModel(const pugi::xml_node &xmodel, const Palette &default_palette)
   auto palette = auto(default_palette);
   std::ranges::for_each(xmodel.children("color"), [&palette](const auto &c) {
     const auto symbol_str = std::string{c.attribute("symbol").as_string()};
-    ensures(!std::ranges::empty(symbol_str));
+    ensures(!std::ranges::empty(symbol_str),
+            std::format("missing '{}' attribute [:{}]", "symbol",
+                        c.offset_debug()));
     // use .emplace if new values
     palette.at(symbol_str[0]) =
         (255u << 24u) + fromBase<UInt32>(c.attribute("value").as_string(), 16);
