@@ -9,27 +9,52 @@ using namespace stormkit;
 export struct XMLDepthWalker {
   struct Iterator {
     pugi::xml_node cur;
-    Int depth;
+    UInt depth;
 
     Iterator() {}
-    Iterator(pugi::xml_node &&_cur) : cur{std::move(_cur)}, depth{cur ? 1 : 0} {}
+    Iterator(pugi::xml_node &&_cur)
+        : cur{std::move(_cur)}, depth{cur ? 1u : 0u} {}
+
+    auto go_in() -> void {
+      ++depth;
+      cur = cur.first_child();
+    }
+
+    auto can_go_in() const -> Boolean {
+      return static_cast<Boolean>(cur.first_child());
+    }
+
+    auto go_out() -> void {
+      --depth;
+      cur = cur.parent();
+    }
+
+    auto can_go_out() const -> Boolean {
+      return depth > 0 && static_cast<Boolean>(cur.parent());
+    }
+
+    auto next() -> void { cur = cur.first_child(); }
+
+    auto can_go_next() const -> Boolean {
+      return static_cast<Boolean>(cur.next_sibling());
+    }
+
+    auto end() -> void { cur = pugi::xml_node{}; }
 
     auto operator++() -> decltype(auto) {
-      if (cur.first_child()) {
-        ++depth;
-        cur = cur.first_child();
-      } else if (cur.next_sibling())
-        cur = cur.next_sibling();
-      else {
-        while (!cur.next_sibling() && depth > 0 && cur.parent()) {
-          --depth;
-          cur = cur.parent();
+      if (can_go_in()) {
+        go_in();
+      } else if (can_go_next()) {
+        next();
+      } else {
+        while (!can_go_next() && can_go_out()) {
+          go_out();
         }
 
-        if (depth > 0)
-          cur = cur.next_sibling();
+        if (can_go_next())
+          next();
         else
-          cur = pugi::xml_node{};
+          end();
       }
 
       return *this;
