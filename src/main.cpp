@@ -47,13 +47,19 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
         return std::ranges::contains(args, m.attribute("name").as_string());
       })
       | std::views::transform(bindBack<parseModel>(palette))
-      | std::views::filter([](const auto &e) { return static_cast<bool>(e); })
+      | std::views::filter([](const auto &e) {
+          if (!e) {
+            std::println("parse_result: {}", e.error().description());
+            return false;
+          }
+          return true;
+        })
+      | std::views::transform([](const auto &e) { return e.value(); })
       | std::ranges::to<std::vector>();
 
   auto random = std::random_device{};
-  std::ranges::for_each(models, [&random](const auto &e) {
-    const auto &model = e.value();
-    std::println("[[{}]]", model.name);
+  std::ranges::for_each(models, [](const auto &model) {
+    std::println("{}[{}x{}x{}]:", model.name, model.MX, model.MY, model.MZ);
 
     const auto interpreter = Interpreter{model};
 
