@@ -20,46 +20,41 @@ struct Branch {
 export struct Interpreter {
 public:
   struct Runtime {
+    struct Halt {};
+
     struct Iterator {
-      struct Data {
-        Grid grid;
-        RangeExtent counter;
-      };
-      std::optional<Data> data;
-      Branch current;
-
-      struct Sentinel {};
-
-      using value_type = Data;
+      using value_type = Grid;
       using difference_type = RangeOffset;
       using reference = value_type &;
       using const_reference = const value_type &;
-      using sentinel_type = Sentinel;
+      using sentinel_type = Halt;
+
+      Grid grid;
+      std::optional<Branch> current;
 
       std::vector<std::array<Int, 3>> changes;
       std::vector<std::size_t> first;
 
-      Iterator() noexcept = default;
-      Iterator(const Grid &grid, const Branch &current, RangeExtent counter,
-               bool origin) noexcept;
-      ~Iterator() noexcept = default;
+      // Iterator() noexcept = default;
+      // Iterator(Grid &&grid, const Branch &current,
+      //          bool origin) noexcept;
+      // ~Iterator() noexcept = default;
 
-      Iterator(const Iterator &) noexcept = default;
-      auto operator=(const Iterator &) noexcept -> Iterator & = default;
-      Iterator(Iterator &&) noexcept = default;
-      auto operator=(Iterator &&) noexcept -> Iterator & = default;
+      // Iterator(const Iterator &) noexcept = default;
+      // auto operator=(const Iterator &) noexcept -> Iterator & = default;
+      // Iterator(Iterator &&) noexcept = default;
+      // auto operator=(Iterator &&) noexcept -> Iterator & = default;
 
       auto operator++() noexcept -> Iterator &;
       auto operator++(int) noexcept -> Iterator;
       auto operator*(this auto &&self) noexcept -> decltype(auto);
       auto operator!=(const Iterator &other) const noexcept -> bool;
 
-      auto operator=(Sentinel) noexcept -> Iterator &;
-      // auto operator!=(Sentinel) const noexcept -> bool;
-      auto operator==(Sentinel) const noexcept -> bool;
+      auto operator=(Halt) noexcept -> Iterator &;
+      auto operator==(Halt) const noexcept -> bool;
     };
 
-    using value_type = Iterator::Data;
+    using value_type = Grid;
     using size_type = RangeExtent;
     using difference_type = RangeOffset;
     using reference = value_type &;
@@ -69,17 +64,16 @@ public:
 
     Grid grid;
     Branch root;
-    RangeExtent steps;
-    bool origin;
+    // bool origin;
 
     auto begin() const noexcept -> Iterator;
-    auto end() const noexcept -> Iterator::Sentinel;
+    auto end() const noexcept -> Halt;
   };
 
   Interpreter(const Model &model);
   Interpreter(const pugi::xml_node &xelem, Int MX, Int MY, Int MZ);
 
-  auto run(UInt seed, RangeExtent steps) const -> decltype(auto);
+  auto run(UInt seed) const -> decltype(auto);
 
 private:
   Grid grid;
@@ -87,30 +81,27 @@ private:
   bool origin;
 };
 
-Interpreter::Runtime::Iterator::Iterator(const Grid &grid,
-                                         const Branch &_current,
-                                         RangeExtent counter,
-                                         bool origin) noexcept
-    : data{std::in_place, grid, counter}, current{_current}, first{0} {
-  data->grid.clear();
-  std::println("origin: {}", origin);
-  if (origin)
-    data->grid.states.at(center(grid.MX, grid.MY, grid.MZ)) = 1;
+// Interpreter::Runtime::Iterator::Iterator(Grid &&_grid,
+//                                          const Branch &_current,
+//                                         //  RangeExtent counter,
+//                                          bool origin) noexcept
+//     // : data{std::in_place, grid, counter}, current{_current}, first{0} {
+//     : grid{_grid}, current{_current}, first{0} {
+//   std::println("origin: {}", origin);
+//   if (origin)
+//     grid.states.at(center(grid.MX, grid.MY, grid.MZ)) = 1;
 
-  current.reset();
-}
+//   std::println("grid.states: {}", grid.states);
+
+//   current.reset();
+// }
 
 auto Interpreter::Runtime::Iterator::operator++() noexcept -> Iterator & {
-  ensures(data != std::nullopt, "Cannot iterate terminated runtime");
+  ensures(current != std::nullopt, "Cannot iterate terminated runtime");
 
-  if (data->counter == 0) {
-    data = std::nullopt;
-  }
-  else {
-    current.go();
-    data->counter--;
-    first.push_back(std::ranges::size(changes));
-  }
+  current->go();
+  first.push_back(std::ranges::size(changes));
+
   return *this;
 }
 
@@ -123,38 +114,34 @@ auto Interpreter::Runtime::Iterator::operator++(int) noexcept -> Iterator {
 auto Interpreter::Runtime::Iterator::operator*(this auto &&self) noexcept
     -> decltype(auto) {
   using Self = decltype(self);
-  ensures(self.data != std::nullopt, "Cannot dereference terminated runtime");
+  // ensures(self.grid != std::nullopt, "Cannot dereference terminated
+  // runtime");
   if constexpr (not meta::IsConst<Self>) {
-    return std::as_const(*self.data);
+    return std::as_const(self.grid);
   } else {
-    return std::forward_like<Self>(*self.data);
+    return std::forward_like<Self>(self.grid);
   }
 }
 
 auto Interpreter::Runtime::Iterator::operator!=(
     const Iterator &other) const noexcept -> bool {
-  return current != other.current && data->counter != other.data->counter;
+  return current != other.current;
 }
 
-auto Interpreter::Runtime::Iterator::operator=(Iterator::Sentinel) noexcept
-    -> Iterator & {
-  data.reset();
+auto Interpreter::Runtime::Iterator::operator=(Halt) noexcept -> Iterator & {
+  current.reset();
   return *this;
 }
 
-auto Interpreter::Runtime::Iterator::operator==(Sentinel) const noexcept
-    -> bool {
-  return data == std::nullopt;
+auto Interpreter::Runtime::Iterator::operator==(Halt) const noexcept -> bool {
+  return current == std::nullopt;
 }
 
 auto Interpreter::Runtime::begin() const noexcept -> Iterator {
-  std::println("steps: {}", steps);
-  return Iterator{grid, root, steps, origin};
+  return Iterator{std::move(grid), root};
 }
 
-auto Interpreter::Runtime::end() const noexcept -> Iterator::Sentinel {
-  return Iterator::Sentinel{};
-}
+auto Interpreter::Runtime::end() const noexcept -> Halt { return Halt{}; }
 
 Interpreter::Interpreter(const Model &model)
     : Interpreter{model.doc.first_child(), model.MX, model.MY, model.MZ} {}
@@ -172,9 +159,13 @@ Interpreter::Interpreter(const pugi::xml_node &xelem, Int _MX, Int _MY, Int _MZ)
   // root = topnode is Branch ? topnode : new MarkovNode{topnode, *this};
 }
 
-auto Interpreter::run(UInt seed, RangeExtent steps) const -> decltype(auto) {
+auto Interpreter::run(UInt seed) const -> decltype(auto) {
   auto random = std::mt19937{seed};
-  return Runtime{grid, root, steps, origin};
+
+  auto _grid = auto{grid};
+  if (origin) _grid.states.at(_grid.center()) = 1;
+
+  return Runtime{std::move(_grid), root};
 }
 
 static_assert(std::ranges::viewable_range<Interpreter::Runtime>);

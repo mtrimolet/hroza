@@ -1,4 +1,4 @@
-export module grid;
+﻿export module grid;
 
 import std;
 import stormkit.Core;
@@ -29,11 +29,13 @@ public:
   std::string_view folder;
 
   Grid(const pugi::xml_node &xelem, Int _MX, Int _MY, Int _MZ);
-  auto clear() -> void;
-  auto wave(std::string_view _values) -> Int;
+  auto clear() noexcept -> void;
+  auto wave(std::string_view _values) const noexcept -> Int;
 
   template <Int IM, Int OM>
-  auto matches(Rule<IM, OM> rule, Int x, Int y, Int z) -> Boolean;
+  auto matches(Rule<IM, OM> rule, Int x, Int y, Int z) const noexcept -> Boolean;
+
+  auto center() const noexcept -> decltype(auto);
 
 private:
   Int transparent;
@@ -51,8 +53,9 @@ Grid::Grid(const pugi::xml_node &xelem, Int _MX, Int _MY, Int _MZ)
 
   for (auto [i, symbol] = std::make_tuple(0, symbols[0]);
        i < std::ranges::size(symbols) and symbol != 0; symbol = symbols[++i]) {
-    ensures(!values.contains(symbol),
-            std::format("repeating value {} [:{}]", symbol, xelem.offset_debug()));
+    ensures(
+        !values.contains(symbol),
+        std::format("repeating value {} [:{}]", symbol, xelem.offset_debug()));
     characters.push_back(symbol);
     values.insert({symbol, i});
     waves.insert({symbol, 1 << i});
@@ -66,8 +69,11 @@ Grid::Grid(const pugi::xml_node &xelem, Int _MX, Int _MY, Int _MZ)
   //   return elem.name() == "union"sv;
   // };
 
+  std::println("nodes:");
   for (auto &&xunion : XMLDepthWalker{xelem.root()}) {
-    std::println("{}", xunion.name());
+    const auto attributes = xunion.attributes()
+        | std::views::transform([](auto attr) { return std::format("{}={}", attr.name(), attr.value()); });
+    std::println("{}{}", xunion.name(), attributes);
 
     // auto symbol = xunion.attribute("symbol").as_string()[0]; // !!!!
     // ensures(!waves.contains(symbol), std::format("repeating union {}", symbol));
@@ -75,22 +81,21 @@ Grid::Grid(const pugi::xml_node &xelem, Int _MX, Int _MY, Int _MZ)
     // const auto w = wave(xunion.attribute("values").as_string());
     // waves.insert({symbol, w});
   }
+  std::println();
 }
 
-auto Grid::clear() -> void {
-  for (auto &&component : states)
-    component = 0;
+auto Grid::clear() noexcept -> void {
+  for (auto &&component : states) component = 0;
 }
 
-auto Grid::wave(std::string_view _values) -> Int {
+auto Grid::wave(std::string_view _values) const noexcept -> Int {
   auto sum = 0;
-  for (auto &&value : _values)
-    sum += 1 << values[value];
+  for (auto &&value : _values) sum += 1 << values.at(value);
   return sum;
 }
 
 template <Int IM, Int OM>
-auto Grid::matches(Rule<IM, OM> rule, Int x, Int y, Int z) -> Boolean {
+auto Grid::matches(Rule<IM, OM> rule, Int x, Int y, Int z) const noexcept -> Boolean {
   Int dz = 0, dy = 0, dx = 0;
   for (auto rule_input_component : rule.input) {
     if ((rule_input_component &
@@ -110,4 +115,8 @@ auto Grid::matches(Rule<IM, OM> rule, Int x, Int y, Int z) -> Boolean {
     }
   }
   return true;
+}
+
+auto Grid::center() const noexcept -> decltype(auto) {
+  return ::center(MX, MY, MZ);
 }
