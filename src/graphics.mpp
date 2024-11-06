@@ -3,15 +3,25 @@ export module graphics;
 import std;
 import stormkit.Core;
 import grid;
+import model;
 
 using namespace stormkit;
 
-export auto render(const std::vector<Grid::State> &state, Int MX, Int MY,
-                   Int MZ, const std::vector<UInt32> &colors, Int pixelsize,
-                   Int margin) -> decltype(auto) {
-  const auto width = margin + MX * pixelsize, height = MY * pixelsize;
-  const auto totalwidth = width, totalheight = height;
-  // int totalwidth = 189 + margin, totalheight = 189;
-  auto bitmap = std::vector<Int>(totalwidth * totalheight);
-  return std::make_tuple(bitmap, totalwidth, totalheight);
+export auto render(const Grid &grid, const Model &model) -> decltype(auto) {
+  // const auto width = /*model.gui +*/ grid.MX * model.pixelsize,
+  //            height = grid.MY * model.pixelsize;
+  auto bitmap = grid.states
+      | std::views::transform([&model, &grid](auto s) { return model.palette.at(grid.characters.at(s)); })
+      | std::ranges::to<std::vector>();
+
+  return std::make_tuple(std::move(bitmap), grid.MX, grid.MY);
+}
+
+export auto draw(std::span<UInt32> bitmap, UInt width, UInt height) -> void {
+  for (auto i = 0u; i < height; i++) {
+    for (auto j = 0u; j < width; j++)
+      std::print("{:x} ", bitmap.at(i * width + j));
+    std::println();
+  }
+  std::println();
 }
