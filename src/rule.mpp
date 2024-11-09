@@ -1,15 +1,26 @@
 export module rule;
 
 import std;
+import stormkit.Core;
 
-export template <std::size_t IM, std::size_t OM> struct Rule {
+using namespace stormkit;
+
+export struct Rule {
 public:
-  int IMX, IMY, IMZ, OMX, OMY, OMZ;
-  std::array<int, IM> input;
-  std::array<std::byte, OM> output, binput;
+  using State = UInt;
+  using Size = std::array<RangeExtent, 3>;
+
+  Size input_size, output_size;
+  
+  // size(input) == input_size[0] * input_size[1] * input_size[2];  
+  // size(input[i]) == size(input[j]);  
+  std::vector<std::vector<Boolean>> input;
+
+  // size(output) == size(binput) == output_size[0] * output_size[1] * output_size[2];  
+  std::vector<State> output, binput;
 
   double p;
   //   std::array<int, 3>[][] ishifts, oshifts;
 
-  bool original;
+  Boolean original;
 };

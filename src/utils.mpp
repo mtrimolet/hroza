@@ -9,15 +9,20 @@ import pugixml;
 using namespace stormkit;
 
 export {
-  template <meta::IsArithmetic T> auto center(T MX, T MY, T MZ) -> T {
+  template <meta::IsArithmetic T> auto center(std::array<T, 3> M) -> T {
+    const auto &[MX, MY, MZ] = M;
     return MX / 2 + (MY / 2) * MX + (MZ / 2) * MX * MY;
+  }
+
+  template <meta::IsArithmetic T> auto center(T MX, T MY, T MZ) -> T {
+    return center({std::forward(MX), std::forward(MY), std::forward(MZ)});
   }
 
   template <meta::IsArithmetic T>
   auto fromBase(std::string_view x, Int8 base) -> T;
 
   template <typename T, RangeExtent N, typename F>
-  constexpr auto iotaArray(F && func)->decltype(auto);
+  constexpr auto iotaArray(F && func) -> decltype(auto);
 }
 
 template <meta::IsArithmetic T>

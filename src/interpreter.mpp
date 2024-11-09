@@ -11,161 +11,49 @@ import utils;
 using namespace stormkit;
 
 struct Branch {
-  void go() {}
+  auto go(Grid& grid) -> std::optional<Branch>{ return std::nullopt;}
   void reset() {}
 
   bool operator!=(const Branch &other) const noexcept { return true; }
 };
 
 export struct Interpreter {
-public:
-  struct Runtime {
-    struct Halt {};
-
-    struct Iterator {
-      using value_type = Grid;
-      using difference_type = RangeOffset;
-      using reference = value_type &;
-      using const_reference = const value_type &;
-      using sentinel_type = Halt;
-
-      Grid grid;
-      std::optional<Branch> current;
-
-      std::vector<std::array<Int, 3>> changes;
-      std::vector<std::size_t> first;
-
-      // Iterator() noexcept = default;
-      // Iterator(Grid &&grid, const Branch &current,
-      //          bool origin) noexcept;
-      // ~Iterator() noexcept = default;
-
-      // Iterator(const Iterator &) noexcept = default;
-      // auto operator=(const Iterator &) noexcept -> Iterator & = default;
-      // Iterator(Iterator &&) noexcept = default;
-      // auto operator=(Iterator &&) noexcept -> Iterator & = default;
-
-      auto operator++() noexcept -> Iterator &;
-      auto operator++(int) noexcept -> Iterator;
-      auto operator*(this auto &&self) noexcept -> decltype(auto);
-      auto operator!=(const Iterator &other) const noexcept -> bool;
-
-      auto operator=(Halt) noexcept -> Iterator &;
-      auto operator==(Halt) const noexcept -> bool;
-    };
-
-    using value_type = Grid;
-    using size_type = RangeExtent;
-    using difference_type = RangeOffset;
-    using reference = value_type &;
-    using const_reference = const value_type &;
-    using iterator = Iterator;
-    using const_iterator = Iterator;
-
-    Grid grid;
-    Branch root;
-    // bool origin;
-
-    auto begin() const noexcept -> Iterator;
-    auto end() const noexcept -> Halt;
-  };
-
-  Interpreter(const Model &model);
-  Interpreter(const pugi::xml_node &xelem, Int MX, Int MY, Int MZ);
-
-  auto run(UInt seed) const -> decltype(auto);
-
 private:
   Grid grid;
   Branch root;
-  bool origin;
-};
+  Boolean origin;
 
-// Interpreter::Runtime::Iterator::Iterator(Grid &&_grid,
-//                                          const Branch &_current,
-//                                         //  RangeExtent counter,
-//                                          bool origin) noexcept
-//     // : data{std::in_place, grid, counter}, current{_current}, first{0} {
-//     : grid{_grid}, current{_current}, first{0} {
-//   std::println("origin: {}", origin);
-//   if (origin)
-//     grid.states.at(center(grid.MX, grid.MY, grid.MZ)) = 1;
-
-//   std::println("grid.states: {}", grid.states);
-
-//   current.reset();
-// }
-
-auto Interpreter::Runtime::Iterator::operator++() noexcept -> Iterator & {
-  ensures(current != std::nullopt, "Cannot iterate terminated runtime");
-
-  current->go();
-  first.push_back(std::ranges::size(changes));
-
-  return *this;
-}
-
-auto Interpreter::Runtime::Iterator::operator++(int) noexcept -> Iterator {
-  auto retval = *this;
-  operator++();
-  return retval;
-}
-
-auto Interpreter::Runtime::Iterator::operator*(this auto &&self) noexcept
-    -> decltype(auto) {
-  using Self = decltype(self);
-  // ensures(self.grid != std::nullopt, "Cannot dereference terminated
-  // runtime");
-  if constexpr (not meta::IsConst<Self>) {
-    return std::as_const(self.grid);
-  } else {
-    return std::forward_like<Self>(self.grid);
-  }
-}
-
-auto Interpreter::Runtime::Iterator::operator!=(
-    const Iterator &other) const noexcept -> bool {
-  return current != other.current;
-}
-
-auto Interpreter::Runtime::Iterator::operator=(Halt) noexcept -> Iterator & {
-  current.reset();
-  return *this;
-}
-
-auto Interpreter::Runtime::Iterator::operator==(Halt) const noexcept -> bool {
-  return current == std::nullopt;
-}
-
-auto Interpreter::Runtime::begin() const noexcept -> Iterator {
-  return Iterator{std::move(grid), root};
-}
-
-auto Interpreter::Runtime::end() const noexcept -> Halt { return Halt{}; }
-
-Interpreter::Interpreter(const Model &model)
-    : Interpreter{model.doc.first_child(), model.MX, model.MY, model.MZ} {}
-
-Interpreter::Interpreter(const pugi::xml_node &xelem, Int _MX, Int _MY, Int _MZ)
-    : grid{xelem, _MX, _MY, _MZ}, root{},
+public:
+  Interpreter(const Model &model)
+    : Interpreter{model.doc.first_child(), {model.MX, model.MY, model.MZ}} {}
+  Interpreter(const pugi::xml_node &xelem, Grid::Size&& size)
+    : grid{parseGrid(xelem, std::move(size))},
       origin{xelem.attribute("origin").as_bool(false)} {
 
-  const auto symmetry = symmetry::getSymmetry(
-      grid.MZ == 1, xelem.attribute("symmetry").as_string());
+      const auto symmetry = symmetry::getSymmetry(
+        get<2>(grid.size) == 1, xelem.attribute("symmetry").as_string());
 
-  // const auto topnode = Node.Factory(xelem, symmetry, *this, grid);
-  // ensures(topnode != Node{});
+      // const auto topnode = Node.Factory(xelem, symmetry, *this, grid);
+      // ensures(topnode != Node{});
 
-  // root = topnode is Branch ? topnode : new MarkovNode{topnode, *this};
-}
+      // root = topnode is Branch ? topnode : new MarkovNode{topnode, *this};
+  }
 
-auto Interpreter::run(UInt seed) const -> decltype(auto) {
-  auto random = std::mt19937{seed};
+  auto run(UInt seed) -> std::generator<const Grid&> {
+    auto random = std::mt19937{seed};
 
-  auto _grid = auto{grid};
-  if (origin) _grid.states.at(_grid.center()) = 1;
+    std::println("waves: {}", grid.waves
+      | std::views::transform([](auto&& x){
+          return std::make_pair(get<0>(x), get<1>(x));
+        }));
+    if (origin) grid.states.at(grid.center()) = 1;
 
-  return Runtime{std::move(_grid), root};
-}
+    auto current = std::optional{root};
 
-static_assert(std::ranges::viewable_range<Interpreter::Runtime>);
+    co_yield grid;
+    while (current != std::nullopt) {
+      current = current->go(grid);
+      co_yield grid;
+    }
+  }
+};

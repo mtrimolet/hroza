@@ -42,8 +42,8 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   const auto xmodels = models_doc.child("models");
   ensures(xmodels, std::format("models not found [:{}]", xmodels.offset_debug()));
 
-  const auto models =
-      xmodels | std::views::filter([args{args.subspan(1)}](const auto &m) {
+  const auto models = xmodels 
+      | std::views::filter([args{args.subspan(1)}](const auto &m) {
         return std::ranges::contains(args, m.attribute("name").as_string());
       })
       | std::views::transform(bindBack<parseModel>(palette))
@@ -61,34 +61,34 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   std::ranges::for_each(models, [](const auto &model) {
     std::println("{}[{}x{}x{}]:", model.name, model.MX, model.MY, model.MZ);
 
-    const auto interpreter = Interpreter{model};
+    auto interpreter = Interpreter{model};
 
-    std::ranges::for_each(std::views::iota(0, model.amount), [&](auto k) {
+    std::ranges::for_each(std::views::iota(0u, model.amount), [&](auto k) {
       const auto seed = std::rand();
 
-      const auto ticks = interpreter.run(seed)
-          | std::views::take(model.steps)
-          | std::ranges::to<std::vector>();
+      auto ticks = interpreter.run(seed)
+        | std::views::take(model.steps)
+        // mandatory to get real size
+        | std::ranges::to<std::vector>();
+
+      auto frames = ticks
+        | std::views::drop(model.gif ? 0 : std::ranges::size(ticks) - 1);
 
       std::println("generation: {}, ticks: {}", k, std::ranges::size(ticks));
 
-      std::ranges::for_each(
-          model.gif || std::empty(ticks) ? ticks : std::vector{ticks.back()},
-          [&model](const auto &grid) {
-            // if (grid.MZ == 1 || model.iso) {
-            auto [bitmap, width, height] = render(grid, model);
-            draw(bitmap, width, height);
-            std::println();
-            //   if (model.gui > 0)
-            //     GUI.Draw(model.name, interpreter.root, interpreter.current,
-            //              bitmap, width, height, model.palette);
-            //   Graphics.SaveBitmap(bitmap, width, height,
-            //   std::format("{}.png", outputname);
-            // } else
-            //   VoxHelper.SaveVox(grid.states, grid.MX, grid.MY, grid.MZ,
-            //   colors, std::format("{}.vox", outputname);
-            // }
-          });
+      std::ranges::for_each(frames, [&model](const auto &grid) {
+        // if (grid.MZ == 1 || model.iso) {
+        auto [bitmap, s] = render(grid, model);
+        //   if (model.gui > 0)
+        //     GUI.Draw(model.name, interpreter.root, interpreter.current,
+        //              bitmap, width, height, model.palette);
+        draw(bitmap, get<0>(s), get<1>(s));
+        std::println();
+        //   Graphics.SaveBitmap(bitmap, width, height, std::format("{}.png", outputname);
+        // } else
+        //   VoxHelper.SaveVox(grid, std::format("{}.vox", outputname);
+        // }
+      });
     });
   });
 

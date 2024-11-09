@@ -1,10 +1,10 @@
 ﻿export module grid;
 
 import std;
+import glm;
 import stormkit.Core;
 import pugixml;
 import xml_tree_walker;
-
 import rule;
 import utils;
 
@@ -13,57 +13,95 @@ using namespace stormkit;
 
 export struct Grid {
 public:
-  using State = Int;
   using Symbol = char;
+  // 0 <= {s : State} < size(symbols)
+  using State = UInt;
+  // size({w : Wave}) == size(state)
+  using Wave = std::vector<Boolean>;
 
-  Int MX, MY, MZ;
+  using Size = Rule::Size;
+  Size size;
 
+  // size(state) == size[0] * size[1] * size[2]
   std::vector<State> states;
+  // size(mask) == size(state)
   std::vector<Boolean> mask;
 
-  std::vector<Symbol> characters;
-  HashMap<Symbol, State> values;
-  // wave is a State ? really ? not a superposition (aka a distribution over all
-  // possible values of a State) ??
-  HashMap<Symbol, State> waves;
+  std::vector<Symbol> symbols;
+  // size(values) == size(symbols)
+  std::unordered_map<Symbol, State> values;
+  // size(waves) == size(symbols) + 1
+  std::unordered_map<Symbol, Wave> waves;
+
   std::string_view folder;
 
-  Grid(const pugi::xml_node &xelem, Int _MX, Int _MY, Int _MZ);
-  auto clear() noexcept -> void;
-  auto wave(std::string_view _values) const noexcept -> Int;
+  Grid() noexcept = default;
+  Grid(Size &&size, std::vector<Symbol>&& symbols, std::string_view folder, std::string_view transparent) noexcept;
+  
+  Grid(const Grid&) noexcept = default;
+  auto operator=(const Grid&) noexcept -> Grid& = default;
+  Grid(Grid&&) noexcept = default;
+  auto operator=(Grid&&) noexcept -> Grid& = default;
 
-  template <Int IM, Int OM>
-  auto matches(Rule<IM, OM> rule, Int x, Int y, Int z) const noexcept -> Boolean;
+  auto at(const math::Vector3I&) noexcept -> State&;
+  auto at(const math::Vector3I&) const noexcept -> const State&;
+  // auto at(math::Vector3I::value_type, math::Vector3I::value_type, math::Vector3I::value_type) noexcept -> State&;
+  // auto at(math::Vector3I::value_type, math::Vector3I::value_type, math::Vector3I::value_type) const noexcept -> const State&;
+
+  auto clear() noexcept -> void;
+  auto wave(std::string_view _values) const noexcept -> Wave;
+
+  auto matches(const Rule& rule, const math::Vector3I& x) const noexcept -> Boolean;
 
   auto center() const noexcept -> decltype(auto);
 
 private:
-  Int transparent;
-  std::vector<State> statesbuffer;
+  Wave transparent;
+  // size(statebuffer) == size(state)
+  // std::vector<State> statebuffer;
 };
 
-Grid::Grid(const pugi::xml_node &xelem, Int _MX, Int _MY, Int _MZ)
-    : MX{_MX}, MY{_MY}, MZ{_MZ}, states(MX * MY * MZ),
-      statesbuffer(MX * MY * MZ), mask(MX * MY * MZ),
-      folder{xelem.attribute("folder").as_string()} {
+Grid::Grid(Size &&size, std::vector<Symbol>&& symbols, std::string_view folder, std::string_view _transparent) noexcept
+    : size{size}, states(size[0] * size[1] * size[2]),
+      // statebuffer(size[0] * size[1] * size[2]),
+      mask(size[0] * size[1] * size[2]),
+      symbols{symbols},
+      // none_wave{std::views::repeat(Boolean{false})
+      //   | std::views::take(std::ranges::size(symbols))
+      //   | std::ranges::to<std::vector>()},
+      values{std::views::zip(symbols, std::views::iota(0u))
+        | std::ranges::to<std::unordered_map>()},
+      waves{symbols
+        | std::views::transform([this](auto&& symbol) {
+            return std::make_pair(symbol, wave(std::string{symbol}));
+          })
+        | std::ranges::to<std::unordered_map>()},
+      folder{folder},
+      transparent{wave(_transparent)} {
 
-  const auto symbols = std::string{xelem.attribute("values").as_string()};
-  ensures(!std::empty(symbols),
-          std::format("no values specified [:{}]", xelem.offset_debug()));
+  auto any_wave = std::views::repeat(Boolean{true})
+      | std::views::take(std::ranges::size(symbols))
+      | std::ranges::to<std::vector>();
 
-  for (auto [i, symbol] = std::make_tuple(0, symbols[0]);
-       i < std::ranges::size(symbols) and symbol != 0; symbol = symbols[++i]) {
-    ensures(
-        !values.contains(symbol),
-        std::format("repeating value {} [:{}]", symbol, xelem.offset_debug()));
-    characters.push_back(symbol);
-    values.insert({symbol, i});
-    waves.insert({symbol, 1 << i});
-  }
+  waves.insert({'*', std::move(any_wave)});
+}
 
-  waves.insert({'*', (1 << std::ranges::size(characters)) - 1});
+export auto parseGrid(const pugi::xml_node &xelem, Grid::Size&& size) -> Grid {
+  const auto values = std::string{xelem.attribute("values").as_string()};
+  ensures(!std::empty(values), std::format("no values specified [:{}]", xelem.offset_debug()));
 
-  transparent = wave(xelem.attribute("transparent").as_string());
+  auto symbols = std::vector(std::ranges::begin(values), std::ranges::end(values));
+  ensures(std::ranges::size(symbols) == std::ranges::size(std::set(std::ranges::begin(symbols), std::ranges::end(symbols))),
+          std::format("found {} duplicated values [:{}]",
+            std::ranges::size(values) - std::ranges::size(symbols),
+            xelem.offset_debug()));
+
+  auto grid = Grid{
+    std::move(size),
+    std::move(symbols),
+    xelem.attribute("folder").as_string(),
+    xelem.attribute("transparent").as_string(),
+  };
 
   // constexpr auto is_union = [](auto &&elem) {
   //   return elem.name() == "union"sv;
@@ -72,51 +110,71 @@ Grid::Grid(const pugi::xml_node &xelem, Int _MX, Int _MY, Int _MZ)
   std::println("nodes:");
   for (auto &&xunion : XMLDepthWalker{xelem.root()}) {
     const auto attributes = xunion.attributes()
-        | std::views::transform([](auto attr) { return std::format("{}={}", attr.name(), attr.value()); });
+        | std::views::transform([](auto attr) {
+          return std::format("{}={}", attr.name(), attr.value());
+        });
     std::println("{}{}", xunion.name(), attributes);
 
-    // auto symbol = xunion.attribute("symbol").as_string()[0]; // !!!!
+    // auto symbol = std::string{xunion.attribute("symbol").as_string()}.at(0);
     // ensures(!waves.contains(symbol), std::format("repeating union {}", symbol));
 
     // const auto w = wave(xunion.attribute("values").as_string());
     // waves.insert({symbol, w});
   }
   std::println();
+
+  return std::move(grid);
+}
+
+auto Grid::at(const math::Vector3I& u) noexcept -> Grid::State& {
+  return states.at(u.x + u.y * get<0>(size) + u.z * get<0>(size) * get<1>(size));
+}
+
+auto Grid::at(const math::Vector3I& u) const noexcept -> const Grid::State& {
+  return states.at(u.x + u.y * get<0>(size) + u.z * get<0>(size) * get<1>(size));
 }
 
 auto Grid::clear() noexcept -> void {
   for (auto &&component : states) component = 0;
 }
 
-auto Grid::wave(std::string_view _values) const noexcept -> Int {
-  auto sum = 0;
-  for (auto &&value : _values) sum += 1 << values.at(value);
-  return sum;
+auto Grid::wave(std::string_view _values) const noexcept -> Wave {
+  ensures(!std::ranges::empty(values), "cannot call 'Grid::wave' before Grid initialization");
+  auto w = std::views::repeat(Boolean{false})
+        | std::views::take(std::ranges::size(symbols))
+        | std::ranges::to<std::vector>();
+  for (auto &&value : _values) w.at(values.at(value)) = true;
+  return std::move(w);
 }
 
-template <Int IM, Int OM>
-auto Grid::matches(Rule<IM, OM> rule, Int x, Int y, Int z) const noexcept -> Boolean {
-  Int dz = 0, dy = 0, dx = 0;
-  for (auto rule_input_component : rule.input) {
-    if ((rule_input_component &
-         // for (Int di = 0; di < rule.input.Length; di++) {
-         //   if ((rule.input[di] &
-         (1 << states[x + dx + (y + dy) * MX + (z + dz) * MX * MY])) == 0)
-      return false;
+auto Grid::matches(const Rule& rule, const math::Vector3I& u) const noexcept -> Boolean {
+  const auto s = get<0>(rule.input_size) * get<1>(rule.input_size) * get<2>(rule.input_size);
+  return std::ranges::none_of(
+    std::views::zip(rule.input, std::views::iota(0)),
+    [this, &u, &s] (const auto& v) {
+      const auto& [input_part, i] = v;
+      const auto dx = i;
+      const auto dy = dx / get<0>(size);
+      const auto dz = dy / get<1>(size);
+      const auto du = math::Vector3I{
+        dx % get<0>(size),
+        dy % get<1>(size),
+        dz % get<2>(size)
+      };
 
-    dx++;
-    if (dx == rule.IMX) {
-      dx = 0;
-      dy++;
-      if (dy == rule.IMY) {
-        dy = 0;
-        dz++;
-      }
-    }
-  }
-  return true;
+      auto here = std::views::repeat(Boolean{false})
+          | std::views::take(std::ranges::size(symbols))
+          | std::ranges::to<std::vector>();
+
+      here.at(at(u + du)) = true;
+
+      return std::ranges::any_of(std::views::zip(input_part, here), [](const auto& v){
+        const auto& [a, b] = v;
+        return a and b;
+      });
+  });
 }
 
 auto Grid::center() const noexcept -> decltype(auto) {
-  return ::center(MX, MY, MZ);
+  return ::center(size);
 }
