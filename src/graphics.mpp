@@ -11,10 +11,20 @@ export auto render(const Grid &grid, const Model &model) -> decltype(auto) {
   // const auto width = /*model.gui +*/ grid.MX * model.pixelsize,
   //            height = grid.MY * model.pixelsize;
   auto bitmap = grid.states
-      | std::views::transform([&model, &grid](auto s) { return model.palette.at(grid.characters.at(s)); })
+      // | std::views::transform([&model, &grid](auto s) { return model.palette.at(grid.symbols.at(s)); })
+      | std::views::transform([&model, &grid](auto s) { return grid.symbols.at(s); })
       | std::ranges::to<std::vector>();
 
-  return std::make_tuple(std::move(bitmap), grid.MX, grid.MY);
+  return std::make_tuple(std::move(bitmap), grid.size);
+}
+
+export auto draw(std::span<char> bitmap, UInt width, UInt height) -> void {
+  for (auto i = 0u; i < height; i++) {
+    for (auto j = 0u; j < width; j++)
+      std::print("{} ", bitmap.at(i * width + j));
+    std::println();
+  }
+  std::println();
 }
 
 export auto draw(std::span<UInt32> bitmap, UInt width, UInt height) -> void {
