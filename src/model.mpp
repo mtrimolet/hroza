@@ -44,50 +44,50 @@ export struct Model {
               other.gui} {
     doc.reset(other.doc);
   }
+
+  static auto parse(const pugi::xml_node &xmodel, const Palette &default_palette)
+      -> std::expected<Model, pugi::xml_parse_result> {
+    auto name = xmodel.attribute("name").as_string();
+    auto linearSize = xmodel.attribute("size").as_uint(-1);
+    auto dimension = xmodel.attribute("d").as_uint(2);
+    auto gif = xmodel.attribute("gif").as_bool(false);
+    auto amount = gif ? 1 : xmodel.attribute("amount").as_uint(2);
+    // const auto split_result = split(xmodel.attribute("seeds").as_string(),
+    // ''); auto seeds = split_result
+    //   | std::views::transform(monadic::as<Int>())
+    //   | std::ranges::to<std::vector>();
+
+    auto palette = auto{default_palette};
+    std::ranges::for_each(xmodel.children("color"), [&palette](const auto &c) {
+      const auto symbol_str = std::string{c.attribute("symbol").as_string()};
+      ensures(!std::ranges::empty(symbol_str),
+              std::format("missing '{}' attribute [:{}]", "symbol", c.offset_debug()));
+      ensures(std::ranges::size(symbol_str) == 1,
+              std::format("only one character allowed for '{}' attribute [:{}]", "symbol", c.offset_debug()));
+      // use .emplace if new values
+      palette.at(symbol_str[0]) = (255u << 24u) + fromBase<UInt32>(c.attribute("value").as_string(), 16);
+    });
+
+    auto model = Model{
+      name,
+      linearSize,
+      dimension,
+      xmodel.attribute("length").as_uint(linearSize),
+      xmodel.attribute("width").as_uint(linearSize),
+      xmodel.attribute("height").as_uint(dimension == 2 ? 1 : linearSize),
+      gif,
+      amount,
+      xmodel.attribute("pixelsize").as_uint(4),
+      std::move(palette),
+      xmodel.attribute("iso").as_bool(false),
+      xmodel.attribute("steps").as_uint(gif ? 1000 : 50000),
+      xmodel.attribute("gui").as_uint(0)
+    };
+
+    if (const auto load_result = model.doc.load_file(std::data(std::format("models/{}.xml", name)));
+        !load_result)
+      return std::unexpected{load_result};
+
+    return std::move(model);
+  }
 };
-
-export auto parseModel(const pugi::xml_node &xmodel,
-                       const Palette &default_palette)
-    -> std::expected<Model, pugi::xml_parse_result> {
-  auto name = xmodel.attribute("name").as_string();
-  auto linearSize = xmodel.attribute("size").as_uint(-1);
-  auto dimension = xmodel.attribute("d").as_uint(2);
-  auto gif = xmodel.attribute("gif").as_bool(false);
-  auto amount = gif ? 1 : xmodel.attribute("amount").as_uint(2);
-  // const auto split_result = split(xmodel.attribute("seeds").as_string(), '');
-  // auto seeds = split_result
-  //   | std::views::transform(monadic::as<Int>())
-  //   | std::ranges::to<std::vector>();
-
-  auto palette = auto(default_palette);
-  std::ranges::for_each(xmodel.children("color"), [&palette](const auto &c) {
-    const auto symbol_str = std::string{c.attribute("symbol").as_string()};
-    ensures(!std::ranges::empty(symbol_str),
-            std::format("missing '{}' attribute [:{}]", "symbol", c.offset_debug()));
-    // use .emplace if new values
-    palette.at(symbol_str[0]) =
-        (255u << 24u) + fromBase<UInt32>(c.attribute("value").as_string(), 16);
-  });
-
-  auto model = Model{
-    name,
-    linearSize,
-    dimension,
-    xmodel.attribute("length").as_uint(linearSize),
-    xmodel.attribute("width").as_uint(linearSize),
-    xmodel.attribute("height").as_uint(dimension == 2 ? 1 : linearSize),
-    gif,
-    amount,
-    xmodel.attribute("pixelsize").as_uint(4),
-    std::move(palette),
-    xmodel.attribute("iso").as_bool(false),
-    xmodel.attribute("steps").as_uint(gif ? 1000 : 50000),
-    xmodel.attribute("gui").as_uint(0)};
-
-  if (const auto load_result =
-          model.doc.load_file(std::data(std::format("models/{}.xml", name)));
-      !load_result)
-    return std::unexpected{load_result};
-
-  return std::move(model);
-}

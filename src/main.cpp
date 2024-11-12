@@ -46,7 +46,7 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
       | std::views::filter([args{args.subspan(1)}](const auto &m) {
         return std::ranges::contains(args, m.attribute("name").as_string());
       })
-      | std::views::transform(bindBack<parseModel>(palette))
+      | std::views::transform(bindBack<Model::parse>(palette))
       | std::views::filter([](const auto &e) {
           if (!e) {
             std::println("parse_result: {}", e.error().description());
