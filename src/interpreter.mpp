@@ -7,6 +7,7 @@ import grid;
 import model;
 import symmetry;
 import utils;
+import xml_tree_walker;
 
 using namespace stormkit;
 
@@ -33,10 +34,31 @@ public:
       const auto symmetry = symmetry::getSymmetry(
         get<2>(grid.size) == 1, xelem.attribute("symmetry").as_string());
 
-      // const auto topnode = Node.Factory(xelem, symmetry, *this, grid);
-      // ensures(topnode != Node{});
+    std::println("nodes:");
 
-      // root = topnode is Branch ? topnode : new MarkovNode{topnode, *this};
+    auto prev = 0;
+    for (auto &&xnode : XMLDepthWalker{xelem}) {
+      const auto attributes = xnode.attributes() 
+          | std::views::transform([](auto attr) {
+              return std::format("{}={}", attr.name(), attr.value());
+            });
+
+      const auto name = std::string{xnode.name()};
+      std::println("{}{}", name, attributes);
+
+      std::optional<Node> node = std::nullopt;
+      if (name == "one")
+        node = OneNode::parse(xnode, symmetry, grid.size);
+      if (name == "markov")
+        node = MarkovNode::parse(xnode, symmetry, grid.size);
+
+      ensures(static_cast<bool>(node),
+              std::format("unknown node name '{}' [:{}]", name,
+                          xnode.offset_debug()));
+    }
+    std::println();
+
+    // root = topnode is Branch ? topnode : new MarkovNode{topnode};
   }
 
   auto run(UInt seed) -> std::generator<const Grid&> {

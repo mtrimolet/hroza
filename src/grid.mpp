@@ -1,4 +1,4 @@
-﻿export module grid;
+export module grid;
 
 import std;
 import glm;
@@ -107,21 +107,13 @@ export auto parseGrid(const pugi::xml_node &xelem, Grid::Size&& size) -> Grid {
   //   return elem.name() == "union"sv;
   // };
 
-  std::println("nodes:");
-  for (auto &&xunion : XMLDepthWalker{xelem.root()}) {
-    const auto attributes = xunion.attributes()
-        | std::views::transform([](auto attr) {
-          return std::format("{}={}", attr.name(), attr.value());
-        });
-    std::println("{}{}", xunion.name(), attributes);
-
+  // for (auto &&xunion : XMLDepthWalker{xelem.root()}) {
     // auto symbol = std::string{xunion.attribute("symbol").as_string()}.at(0);
     // ensures(!waves.contains(symbol), std::format("repeating union {}", symbol));
 
     // const auto w = wave(xunion.attribute("values").as_string());
     // waves.insert({symbol, w});
-  }
-  std::println();
+  // }
 
   return std::move(grid);
 }
