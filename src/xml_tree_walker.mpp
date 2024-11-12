@@ -33,7 +33,7 @@ export struct XMLDepthWalker {
       return depth > 0 && static_cast<Boolean>(cur.parent());
     }
 
-    auto next() -> void { cur = cur.first_child(); }
+    auto next() -> void { cur = cur.next_sibling(); }
 
     auto can_go_next() const -> Boolean {
       return static_cast<Boolean>(cur.next_sibling());
@@ -66,6 +66,6 @@ export struct XMLDepthWalker {
   };
 
   const pugi::xml_node root;
-  auto begin() -> decltype(auto) { return Iterator{root.first_child()}; }
+  auto begin() -> decltype(auto) { return Iterator{auto{root}}; }
   auto end() -> decltype(auto) { return Iterator{}; }
 };
