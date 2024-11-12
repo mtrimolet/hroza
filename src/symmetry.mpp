@@ -16,6 +16,7 @@ constexpr inline auto cube = 48z;
 
 using square_subgroup = std::array<Boolean, subgroup_length::square>;
 using cube_subgroup = std::array<Boolean, subgroup_length::cube>;
+using subgroup = std::vector<Boolean>;
 } // namespace symmetry
 
 namespace {
@@ -42,9 +43,8 @@ constexpr auto cube_subgroups =
                        [](auto i) { return i % 2 == 0; })},
         {"(xyz)", iotaArray<Boolean, symmetry::subgroup_length::cube>(
                       [](auto i) { return true; })},
-        // {"(xy)(z)", iotaArray<Boolean,
-        // symmetry::subgroup_length::cube>([](auto i) { return i < 8 || i == 17
-        // || ...; })},
+        // {"(xy)(z)", iotaArray<Boolean, symmetry::subgroup_length::cube>(
+        //             [](auto i) { return i < 8 || i == 17 || ...; })},
     });
 } // namespace
 
@@ -81,10 +81,10 @@ auto symmetry::squareSymmetries(T &&thing, auto rotation, auto reflection,
           reflection(rotation(rotation(rotation(thing)))), // baaa
       };
 
-  return std::views::zip(images, subgroup) |
-         std::views::filter(monadic::get<1>()) |
-         std::views::transform(monadic::get<0>()) |
-         std::ranges::to<std::vector>();
+  return std::views::zip(images, subgroup)
+      | std::views::filter(monadic::get<1>())
+      | std::views::transform(monadic::get<0>())
+      | std::ranges::to<std::vector>();
 }
 
 template <typename T>
@@ -141,10 +141,10 @@ auto symmetry::cubeSymmetries(T &&thing, auto a, auto b, auto r, auto same,
       r(a(b(b(b(a(a(a(thing)))))))), //
   };
 
-  return std::views::zip(images, subgroup) |
-         std::views::filter(monadic::get<1>()) |
-         std::views::transform(monadic::get<0>()) |
-         std::ranges::to<std::vector>();
+  return std::views::zip(images, subgroup)
+      | std::views::filter(monadic::get<1>())
+      | std::views::transform(monadic::get<0>())
+      | std::ranges::to<std::vector>();
 }
 
 template <typename T>
@@ -170,6 +170,6 @@ constexpr auto symmetry::getCubeSymmetry(std::string_view s) noexcept
 constexpr auto symmetry::getSymmetry(Boolean d2, std::string_view s) noexcept
     -> decltype(auto) {
   if (d2)
-    return symmetry::getSquareSymmetry(s) | std::ranges::to<std::vector>();
-  return symmetry::getCubeSymmetry(s) | std::ranges::to<std::vector>();
+    return symmetry::getSquareSymmetry(s) | std::ranges::to<subgroup>();
+  return symmetry::getCubeSymmetry(s) | std::ranges::to<subgroup>();
 }
