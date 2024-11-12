@@ -1,0 +1,58 @@
+export module node;
+
+import std;
+import stormkit.Core;
+import pugixml;
+import grid;
+import symmetry;
+
+using namespace stormkit;
+
+export struct Node {
+  auto operator()(Grid &grid) const noexcept -> std::optional<Node> {
+    return std::nullopt;
+  }
+
+  auto operator!=(const Node &other) const noexcept -> bool { return true; }
+};
+
+export struct Branch : Node {
+  Int n;
+  // std::optional<Branch> parent;
+  std::vector<Node> children;
+
+  Branch() = default;
+  Branch(Node child) : children{child} {}
+  static auto parse(const pugi::xml_node &xelem,
+                    const symmetry::subgroup &symmetry, const Grid::Size &size)
+      -> Branch {
+    return Branch{};
+  }
+};
+
+export struct MarkovNode : Branch {
+  static auto parse(const pugi::xml_node &xelem,
+                    const symmetry::subgroup &symmetry, const Grid::Size &size)
+      -> MarkovNode {
+    return MarkovNode{};
+  }
+};
+export struct RuleNode : Node {};
+export struct OneNode : RuleNode {
+  static auto parse(const pugi::xml_node &xelem,
+                    const symmetry::subgroup &symmetry, const Grid::Size &size)
+      -> OneNode {
+    return OneNode{};
+  }
+};
+
+export auto parseNode(const pugi::xml_node &xelem,
+                      const symmetry::subgroup &symmetry,
+                      const Grid::Size &size) -> std::optional<Node> {
+  const auto name = std::string{xelem.name()};
+  if (name == "one")
+    return OneNode::parse(xelem, symmetry, size);
+  if (name == "markov")
+    return MarkovNode::parse(xelem, symmetry, size);
+  return std::nullopt;
+}

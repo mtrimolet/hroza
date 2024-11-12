@@ -4,19 +4,13 @@ import std;
 import stormkit.Core;
 import pugixml;
 import grid;
+import node;
 import model;
 import symmetry;
 import utils;
 import xml_tree_walker;
 
 using namespace stormkit;
-
-struct Branch {
-  auto go(Grid& grid) -> std::optional<Branch>{ return std::nullopt;}
-  void reset() {}
-
-  bool operator!=(const Branch &other) const noexcept { return true; }
-};
 
 export struct Interpreter {
 private:
@@ -64,17 +58,14 @@ public:
   auto run(UInt seed) -> std::generator<const Grid&> {
     auto random = std::mt19937{seed};
 
-    std::println("waves: {}", grid.waves
-      | std::views::transform([](auto&& x){
-          return std::make_pair(get<0>(x), get<1>(x));
-        }));
     if (origin) grid.states.at(grid.center()) = 1;
 
-    auto current = std::optional{root};
-
+    auto current = std::optional<Node>{root};
     co_yield grid;
+
     while (current != std::nullopt) {
-      current = current->go(grid);
+      const auto go = current.value();
+      current = go(grid);
       co_yield grid;
     }
   }
