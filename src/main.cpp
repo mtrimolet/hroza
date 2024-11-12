@@ -21,16 +21,12 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   auto load_result = palette_doc.load_file("resources/palette.xml");
   ensures(load_result, load_result.description());
 
-  const auto palette =
-      palette_doc.child("colors").children("color")
+  const auto palette = palette_doc.child("colors").children("color")
       | std::views::transform([](const auto &c) {
-          const auto symbol_str =
-              std::string{c.attribute("symbol").as_string()};
+          const auto symbol_str = std::string{c.attribute("symbol").as_string()};
           ensures(!std::ranges::empty(symbol_str),
-                  std::format("missing '{}' attribute [:{}]", "symbol",
-                              c.offset_debug()));
-          const auto value =
-              fromBase<UInt32>(c.attribute("value").as_string(), 16);
+                  std::format("missing '{}' attribute [:{}]", "symbol", c.offset_debug()));
+          const auto value = fromBase<UInt32>(c.attribute("value").as_string(), 16);
           return std::make_pair(symbol_str[0], (255u << 24u) + value);
         })
       | std::ranges::to<Palette>();
@@ -67,12 +63,12 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
       const auto seed = std::rand();
 
       auto ticks = interpreter.run(seed)
-        | std::views::take(model.steps)
-        // mandatory to get real size
-        | std::ranges::to<std::vector>();
+          | std::views::take(model.steps)
+          // mandatory to get real size
+          | std::ranges::to<std::vector>();
 
       auto frames = ticks
-        | std::views::drop(model.gif ? 0 : std::ranges::size(ticks) - 1);
+          | std::views::drop(model.gif ? 0 : std::ranges::size(ticks) - 1);
 
       std::println("generation: {}, ticks: {}", k, std::ranges::size(ticks));
 

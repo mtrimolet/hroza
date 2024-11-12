@@ -20,12 +20,12 @@ private:
 
 public:
   Interpreter(const Model &model)
-    : Interpreter{model.doc.first_child(), {model.MX, model.MY, model.MZ}} {}
+      : Interpreter{model.doc.first_child(), {model.MX, model.MY, model.MZ}} {}
   Interpreter(const pugi::xml_node &xelem, Grid::Size&& size)
-    : grid{parseGrid(xelem, std::move(size))},
-      origin{xelem.attribute("origin").as_bool(false)} {
+      : grid{parseGrid(xelem, std::move(size))},
+        origin{xelem.attribute("origin").as_bool(false)} {
 
-      const auto symmetry = symmetry::getSymmetry(
+    const auto symmetry = symmetry::getSymmetry(
         get<2>(grid.size) == 1, xelem.attribute("symmetry").as_string());
 
     std::println("nodes:");
@@ -47,8 +47,7 @@ public:
         node = MarkovNode::parse(xnode, symmetry, grid.size);
 
       ensures(static_cast<bool>(node),
-              std::format("unknown node name '{}' [:{}]", name,
-                          xnode.offset_debug()));
+              std::format("unknown node name '{}' [:{}]", name, xnode.offset_debug()));
     }
     std::println();
 

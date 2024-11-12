@@ -1,4 +1,4 @@
-export module grid;
+﻿export module grid;
 
 import std;
 import glm;
@@ -166,6 +166,4 @@ auto Grid::matches(const Rule& rule, const math::Vector3I& u) const noexcept -> 
     });
 }
 
-auto Grid::center() const noexcept -> decltype(auto) {
-  return ::center(size);
-}
+auto Grid::center() const noexcept -> decltype(auto) { return ::center(size); }
