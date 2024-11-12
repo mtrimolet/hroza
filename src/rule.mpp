@@ -2,25 +2,92 @@ export module rule;
 
 import std;
 import stormkit.Core;
+import pugixml;
 
 using namespace stormkit;
 
 export struct Rule {
 public:
   using State = UInt;
+  using Symbol = char;
   using Size = std::array<RangeExtent, 3>;
+  using Wave = std::vector<Boolean>;
 
   Size input_size, output_size;
-  
-  // size(input) == input_size[0] * input_size[1] * input_size[2];  
-  // size(input[i]) == size(input[j]);  
-  std::vector<std::vector<Boolean>> input;
 
-  // size(output) == size(binput) == output_size[0] * output_size[1] * output_size[2];  
-  std::vector<State> output, binput;
+  // size(input) == input_size[0] * input_size[1] * input_size[2];
+  std::vector<std::vector<std::vector<Wave>>> input;
+
+  // size(output) == output_size[0] * output_size[1] * output_size[2];
+  std::vector<std::vector<std::vector<State>>> output;
 
   double p;
   //   std::array<int, 3>[][] ishifts, oshifts;
 
   Boolean original;
+
+private:
+  static auto parsePattern(std::string_view s) -> decltype(auto) {
+    return split(s, ' ') 
+        | std::views::transform(bindBack<split>('/'))
+        | std::ranges::to<std::vector>();
+  }
+
+public:
+  static auto parse(const pugi::xml_node &xrule,
+                    const std::unordered_map<Symbol, Wave> &waves,
+                    const std::unordered_map<Symbol, State> &values)
+      -> std::expected<Rule, pugi::xml_parse_result> {
+
+    const auto inString = std::string{xrule.attribute("in").as_string()};
+    ensures(!std::ranges::empty(inString),
+            std::format("missing '{}' attribute [:{}]", "in", xrule.offset_debug()));
+    const auto outString = std::string{xrule.attribute("out").as_string()};
+    ensures(!std::ranges::empty(outString),
+            std::format("missing '{}' attribute [:{}]", "out", xrule.offset_debug()));
+    // auto finString = xrule.attribute("fin").as_string();
+    // auto foutString = xrule.attribute("fout").as_string();
+    // auto fileString = xrule.attribute("file").as_string();
+    // auto legend = xrule.attribute("legend").as_string();
+
+    auto in = parsePattern(inString) 
+        | std::views::transform([&waves](auto &&square) {
+            return square
+                | std::views::transform([&waves](auto &&line) {
+                    return line
+                        | std::views::transform([&waves](auto i){
+                            return waves.at(i);
+                          })
+                        | std::ranges::to<std::vector>();
+                  })
+                | std::ranges::to<std::vector>();
+          })
+        | std::ranges::to<std::vector>();
+
+    auto out = parsePattern(outString)
+        | std::views::transform([&values](auto &&square) {
+            return square 
+                | std::views::transform([&values](auto &&line) {
+                    return line
+                        | std::views::transform([&values](auto &&symbol) {
+                            return values.at(symbol);
+                          })
+                        | std::ranges::to<std::vector>();
+                  })
+                | std::ranges::to<std::vector>();
+          })
+        | std::ranges::to<std::vector>();
+
+    auto p = xrule.attribute("p").as_double(1.0f);
+
+    return Rule{
+        {std::ranges::size(in), std::ranges::size(in.at(0)),
+         std::ranges::size(in.at(0).at(0))},
+        {std::ranges::size(out), std::ranges::size(out.at(0)),
+         std::ranges::size(out.at(0).at(0))},
+        in,
+        out,
+        p,
+    };
+  }
 };

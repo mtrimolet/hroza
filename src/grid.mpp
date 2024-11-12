@@ -141,30 +141,29 @@ auto Grid::wave(std::string_view _values) const noexcept -> Wave {
 
 auto Grid::matches(const Rule& rule, const math::Vector3I& u) const noexcept -> Boolean {
   const auto s = get<0>(rule.input_size) * get<1>(rule.input_size) * get<2>(rule.input_size);
-  return std::ranges::none_of(
+  return std::ranges::all_of(
     std::views::zip(rule.input, std::views::iota(0)),
-    [this, &u, &s] (const auto& v) {
-      const auto& [input_part, i] = v;
-      const auto dx = i;
-      const auto dy = dx / get<0>(size);
-      const auto dz = dy / get<1>(size);
-      const auto du = math::Vector3I{
-        dx % get<0>(size),
-        dy % get<1>(size),
-        dz % get<2>(size)
-      };
+    [this, &u, &s](const auto& v) {
+      const auto& [input_square, dz] = v;
+      return std::ranges::all_of(
+        std::views::zip(input_square, std::views::iota(0)),
+        [this, &u, &s, &dz](const auto &v) {
+          const auto& [input_line, dy] = v;
+          return std::ranges::all_of(
+            std::views::zip(input_line, std::views::iota(0)),
+            [this, &u, &s, &dz, &dy](const auto &v) {
+              const auto& [input_wave, dx] = v;
 
-      auto here = std::views::repeat(Boolean{false})
-          | std::views::take(std::ranges::size(symbols))
-          | std::ranges::to<std::vector>();
+              const auto du = math::Vector3I{dx, dy, dz};
+              const auto w = wave(std::string{symbols.at(at(u + du))});
 
-      here.at(at(u + du)) = true;
-
-      return std::ranges::any_of(std::views::zip(input_part, here), [](const auto& v){
-        const auto& [a, b] = v;
-        return a and b;
-      });
-  });
+              return std::ranges::any_of(std::views::zip(input_wave, w), [](const auto& v) {
+                const auto& [a, b] = v;
+                return a and b;
+              });
+            });
+        });
+    });
 }
 
 auto Grid::center() const noexcept -> decltype(auto) {
