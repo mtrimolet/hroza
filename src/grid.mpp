@@ -45,11 +45,11 @@ public:
 
   auto at(const math::Vector3I&) noexcept -> State&;
   auto at(const math::Vector3I&) const noexcept -> const State&;
-  // auto at(math::Vector3I::value_type, math::Vector3I::value_type, math::Vector3I::value_type) noexcept -> State&;
-  // auto at(math::Vector3I::value_type, math::Vector3I::value_type, math::Vector3I::value_type) const noexcept -> const State&;
 
   auto clear() noexcept -> void;
   auto wave(std::string_view _values) const noexcept -> Wave;
+  auto none_wave() const noexcept -> Wave;
+  auto any_wave() const noexcept -> Wave;
 
   auto matches(const Rule& rule, const math::Vector3I& x) const noexcept -> Boolean;
 
@@ -66,9 +66,6 @@ Grid::Grid(Size &&size, std::vector<Symbol>&& symbols, std::string_view folder, 
       // statebuffer(size[0] * size[1] * size[2]),
       mask(size[0] * size[1] * size[2]),
       symbols{symbols},
-      // none_wave{std::views::repeat(Boolean{false})
-      //   | std::views::take(std::ranges::size(symbols))
-      //   | std::ranges::to<std::vector>()},
       values{std::views::zip(symbols, std::views::iota(0u))
         | std::ranges::to<std::unordered_map>()},
       waves{symbols
@@ -77,24 +74,27 @@ Grid::Grid(Size &&size, std::vector<Symbol>&& symbols, std::string_view folder, 
           })
         | std::ranges::to<std::unordered_map>()},
       folder{folder},
-      transparent{wave(_transparent)} {
+      transparent{wave(_transparent)} {}
 
-  auto any_wave = std::views::repeat(Boolean{true})
+auto Grid::none_wave() const noexcept -> Grid::Wave {
+  return std::views::repeat(Boolean{false})
       | std::views::take(std::ranges::size(symbols))
       | std::ranges::to<std::vector>();
-
-  waves.insert({'*', std::move(any_wave)});
+}
+auto Grid::any_wave() const noexcept -> Grid::Wave {
+  return std::views::repeat(Boolean{true})
+      | std::views::take(std::ranges::size(symbols))
+      | std::ranges::to<std::vector>();
 }
 
 export auto parseGrid(const pugi::xml_node &xelem, Grid::Size&& size) -> Grid {
   const auto values = std::string{xelem.attribute("values").as_string()};
-  ensures(!std::empty(values), std::format("no values specified [:{}]", xelem.offset_debug()));
+  ensures(!std::empty(values), std::format("missing '{}' attribute in '{}' node [:{}]", "values", "grid", xelem.offset_debug()));
 
   auto symbols = std::vector(std::ranges::begin(values), std::ranges::end(values));
-  ensures(std::ranges::size(symbols) == std::ranges::size(std::set(std::ranges::begin(symbols), std::ranges::end(symbols))),
-          std::format("found {} duplicated values [:{}]",
-            std::ranges::size(values) - std::ranges::size(symbols),
-            xelem.offset_debug()));
+  const auto symbolset = std::set(std::ranges::begin(symbols), std::ranges::end(symbols));
+  ensures(std::ranges::size(symbols) == std::ranges::size(symbolset),
+          std::format("duplicated symbols in '{}' attribute of '{}' node [:{}]", "values", "grid", xelem.offset_debug()));
 
   auto grid = Grid{
     std::move(size),
@@ -103,17 +103,24 @@ export auto parseGrid(const pugi::xml_node &xelem, Grid::Size&& size) -> Grid {
     xelem.attribute("transparent").as_string(),
   };
 
-  // constexpr auto is_union = [](auto &&elem) {
-  //   return elem.name() == "union"sv;
-  // };
+  grid.waves.insert({'*', grid.any_wave()});
 
-  // for (auto &&xunion : XMLDepthWalker{xelem.root()}) {
-    // auto symbol = std::string{xunion.attribute("symbol").as_string()}.at(0);
-    // ensures(!waves.contains(symbol), std::format("repeating union {}", symbol));
+  for (auto&& xunion : XMLDepthWalker{xelem}) {
+    if (xunion.name() != "union"sv) continue;
 
-    // const auto w = wave(xunion.attribute("values").as_string());
-    // waves.insert({symbol, w});
-  // }
+    const auto symbol_str = std::string{xunion.attribute("symbol").as_string()};
+    ensures(!std::ranges::empty(symbol_str),
+            std::format("missing '{}' attribute in '{}' node [:{}]", "symbol", "union", xunion.offset_debug()));
+    ensures(std::ranges::size(symbol_str) == 1,
+            std::format("only one character allowed for '{}' attribute of '{}' node [:{}]", "symbol", "union", xunion.offset_debug()));
+    
+    const auto symbol = symbol_str[0];
+    ensures(!grid.waves.contains(symbol),
+            std::format("conflicting symbol '{}' in '{}' attribute of '{}' node [:{}]", symbol, "symbol", "union", xunion.offset_debug()));
+
+    const auto w = grid.wave(xunion.attribute("values").as_string());
+    grid.waves.insert({symbol, w});
+  }
 
   return std::move(grid);
 }
@@ -132,9 +139,7 @@ auto Grid::clear() noexcept -> void {
 
 auto Grid::wave(std::string_view _values) const noexcept -> Wave {
   ensures(!std::ranges::empty(values), "cannot call 'Grid::wave' before Grid initialization");
-  auto w = std::views::repeat(Boolean{false})
-        | std::views::take(std::ranges::size(symbols))
-        | std::ranges::to<std::vector>();
+  auto w = none_wave();
   for (auto &&value : _values) w.at(values.at(value)) = true;
   return std::move(w);
 }
