@@ -9,14 +9,29 @@ import model;
 import symmetry;
 import utils;
 import xml_tree_walker;
+import frozen;
 
 using namespace stormkit;
+using namespace std::literals;
 
 export struct Interpreter {
 private:
   Grid grid;
   Branch root;
   Boolean origin;
+
+  static constexpr auto node_types = frozen::set{ 
+    "one"sv,
+    // "all"sv,
+    // "prl"sv,
+    // "markov"sv,
+    // "sequence"sv,
+    // "path"sv,
+    // "map"sv,
+    // "convolution"sv,
+    // "convchain"sv,
+    // "wfc"sv
+  };
 
 public:
   Interpreter(const Model &model)
@@ -26,11 +41,11 @@ public:
         origin{xelem.attribute("origin").as_bool(false)} {
 
     const auto symmetry = symmetry::getSymmetry(
-        get<2>(grid.size) == 1, xelem.attribute("symmetry").as_string());
+        std::get<2>(grid.size) == 1, xelem.attribute("symmetry").as_string());
 
     std::println("nodes:");
 
-    auto prev = 0;
+    auto nodes = std::vector<Node>{};
     for (auto &&xnode : XMLDepthWalker{xelem}) {
       const auto attributes = xnode.attributes() 
           | std::views::transform([](auto attr) {
@@ -38,33 +53,41 @@ public:
             });
 
       const auto name = std::string{xnode.name()};
+      ensures(node_types.contains(name), std::format("unknown node name '{}' [:{}]", name, xnode.offset_debug()));
+
       std::println("{}{}", name, attributes);
 
-      std::optional<Node> node = std::nullopt;
+      auto node = std::optional<Node>{};
       if (name == "one")
-        node = OneNode::parse(xnode, symmetry, grid.size);
+        node = OneNode::parse(xnode, grid, symmetry);
       if (name == "markov")
-        node = MarkovNode::parse(xnode, symmetry, grid.size);
+        node = MarkovNode::parse(xnode, grid, symmetry);
 
       ensures(static_cast<bool>(node),
-              std::format("unknown node name '{}' [:{}]", name, xnode.offset_debug()));
+              std::format("failed to load '{}' node [:{}]", name, xnode.offset_debug()));
+      nodes.push_back(node.value());
     }
     std::println();
 
-    // root = topnode is Branch ? topnode : new MarkovNode{topnode};
+    root = MarkovNode{nodes.at(0)};
+    // root = nodes.at(0) is Branch ? nodes.at(0) : new MarkovNode{nodes.at(0)};
   }
 
   auto run(UInt seed) -> std::generator<const Grid&> {
     auto random = std::mt19937{seed};
 
+    auto changes = std::vector<math::Vector3I>{};
+    auto first = std::vector<UInt>{0u};
+
     if (origin) grid.states.at(grid.center()) = 1;
 
-    auto current = std::optional<Node>{root};
+    auto current = std::optional<Branch>{root};
     co_yield grid;
 
     while (current != std::nullopt) {
-      const auto go = current.value();
-      current = go(grid);
+      auto& go = current.value();
+      current = go(grid, changes, first);
+      first.push_back(std::ranges::size(changes));
       co_yield grid;
     }
   }

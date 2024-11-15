@@ -1,58 +1,223 @@
 export module node;
 
 import std;
+import glm;
 import stormkit.Core;
 import pugixml;
 import grid;
+import rule;
 import symmetry;
+import stride_view;
+import utils;
 
 using namespace stormkit;
 
-export struct Node {
-  auto operator()(Grid &grid) const noexcept -> std::optional<Node> {
+export
+struct Node {
+  virtual auto operator()(Grid& grid, const std::vector<math::Vector3I>& changes, const std::vector<UInt>& first) noexcept -> std::optional<Node> {
     return std::nullopt;
   }
 
   auto operator!=(const Node &other) const noexcept -> bool { return true; }
 };
 
-export struct Branch : Node {
+export 
+struct Branch : Node {
   Int n;
-  // std::optional<Branch> parent;
+  std::optional<Branch*> parent;
   std::vector<Node> children;
 
   Branch() = default;
   Branch(Node child) : children{child} {}
   static auto parse(const pugi::xml_node &xelem,
-                    const symmetry::subgroup &symmetry, const Grid::Size &size)
+                    const Grid& grid, const symmetry::subgroup &parentSymmetry)
       -> Branch {
+
+    const auto xsymmetry = std::string{xelem.attribute("symmetry").as_string()};
+    const auto symmetry = std::ranges::empty(xsymmetry) ? parentSymmetry 
+        : symmetry::getSymmetry(std::get<2>(grid.size) == 1, xsymmetry);
+
+    // XElement[] xchildren = xelem.Elements(nodenames).ToArray();
+    // nodes = new Node[xchildren.Length];
+    // for (int c = 0; c < xchildren.Length; c++)
+    // {
+    //     var child = Factory(xchildren[c], symmetry, ip, grid);
+    //     if (child == null) return false;
+    //     if (child is Branch branch) branch.parent = branch is MapNode || branch is WFCNode ? null : this;
+    //     nodes[c] = child;
+    // }
+    // return true;
     return Branch{};
+  }
+
+  std::optional<Node> operator()(Grid& grid, const std::vector<math::Vector3I>& changes, const std::vector<UInt>& first) noexcept override {
+    auto& current = *this;
+    for (auto& child : children | std::views::drop(n)) {
+        if (auto* branch = dynamic_cast<Branch*>(&child); branch != nullptr)
+          current = *branch;
+        if (child(grid, changes, first))
+          return current;
+    }
+    return current;
   }
 };
 
-export struct MarkovNode : Branch {
+export 
+struct MarkovNode : Branch {
+  MarkovNode() = default;
+  MarkovNode(Node child) : Branch{child} {}
   static auto parse(const pugi::xml_node &xelem,
-                    const symmetry::subgroup &symmetry, const Grid::Size &size)
+                    const Grid& grid, const symmetry::subgroup &parentSymmetry)
       -> MarkovNode {
     return MarkovNode{};
   }
-};
-export struct RuleNode : Node {};
-export struct OneNode : RuleNode {
-  static auto parse(const pugi::xml_node &xelem,
-                    const symmetry::subgroup &symmetry, const Grid::Size &size)
-      -> OneNode {
-    return OneNode{};
+  
+  std::optional<Node> operator()(Grid& grid, const std::vector<math::Vector3I>& changes, const std::vector<UInt>& first) noexcept override {
+    n = 0;
+    return Branch::operator()(std::forward<Grid&>(grid), 
+      std::forward<const std::vector<math::Vector3I>&>(changes), 
+      std::forward<const std::vector<UInt>&>(first));
   }
 };
 
-export auto parseNode(const pugi::xml_node &xelem,
-                      const symmetry::subgroup &symmetry,
-                      const Grid::Size &size) -> std::optional<Node> {
-  const auto name = std::string{xelem.name()};
-  if (name == "one")
-    return OneNode::parse(xelem, symmetry, size);
-  if (name == "markov")
-    return MarkovNode::parse(xelem, symmetry, size);
-  return std::nullopt;
-}
+export 
+struct RuleNode : Node {
+private:
+  const Grid::Size& grid_size;
+
+public:
+  std::vector<Rule> rules;
+
+protected:
+  using Match = std::tuple<UInt, UInt, UInt, UInt>; 
+  std::vector<Match> matches;
+  UInt matchCount;
+  std::optional<UInt> lastMatchedTurn;
+  std::vector<std::vector<Boolean>> matchMask;
+
+public:
+  RuleNode(const Grid::Size& grid_size, std::vector<Rule>&& rules) : grid_size{grid_size}, rules{rules} {};
+
+  auto add(UInt r, math::Vector3I u, std::vector<Boolean>& maskr) -> void {
+      maskr.at(u.x
+               + u.y * std::get<0>(grid_size)
+               + u.z * std::get<0>(grid_size) * std::get<1>(grid_size)
+              ) = true;
+
+      auto match = std::make_tuple(r, u.x, u.y, u.z);
+      if (matchCount < std::ranges::size(matches))
+        matches.at(matchCount) = std::move(match);
+      else
+        matches.push_back(std::move(match));
+      matchCount++;
+  }
+
+  std::optional<Node> operator()(Grid& grid, const std::vector<math::Vector3I>& changes, const std::vector<UInt>& first) noexcept override {
+    const auto& [MX, MY, MZ] = grid.size;
+    const auto M = math::Vector3I{MX, MY, MZ};
+
+    if (lastMatchedTurn) {
+      for (const auto& u : changes | std::views::drop(first[lastMatchedTurn.value()])) {
+        const auto& value = grid.at(u);
+        for (const auto& [rule, maskr, r]
+            : std::views::zip(rules, matchMask, std::views::iota(0u))) {
+          const auto& [IMX, IMY, IMZ] = rule.input_size;
+          const auto IM = math::Vector3I{IMX, IMY, IMZ};
+
+          for (const auto& shift : rule.ishifts[value]) { 
+            const auto s = u - shift;
+
+            if (s.x < 0 || s.y < 0 || s.z < 0
+                || s.x + IMX > MX
+                || s.y + IMY > MY
+                || s.z + IMZ > MZ)
+              continue;
+            const auto si = s.x + s.y * std::get<0>(grid.size) + s.z * std::get<0>(grid.size) * std::get<1>(grid.size);
+            if (!maskr[si] && grid.matches(rule, u))
+              add(r, u, maskr);
+          }
+        }
+      }
+    }
+    else {
+      for (const auto& [rule, maskr, r]
+          : std::views::zip(rules, matchMask, std::views::iota(0u))) {
+        const auto& [IMX, IMY, IMZ] = rule.input_size;
+        const auto IM = math::Vector3I{IMX, IMY, IMZ};
+
+        // fot (const auto& [x, y, z] : std::views::cartesian_product(
+        //   std::views::iota(IMX - 1, MX) | std::views::stride(IMX),
+        //   std::views::iota(IMY - 1, MY) | std::views::stride(IMY),
+        //   std::views::iota(IMZ - 1, MZ) | std::views::stride(IMZ),
+        // )) {}
+
+        for (const auto& z : std::views::iota(IMZ - 1, MZ) | std::views::stride(IMZ)) {
+        for (const auto& y : std::views::iota(IMY - 1, MY) | std::views::stride(IMY)) {
+        for (const auto& x : std::views::iota(IMX - 1, MX) | std::views::stride(IMX)) {
+          const auto u = math::Vector3I{x, y, z};
+
+          const auto& value = grid.at(u);
+          for (const auto& shift : rule.ishifts[value]) { 
+            const auto s = u - shift;
+
+            if (s.x < 0 || s.y < 0 || s.z < 0
+                || s.x + IMX > MX
+                || s.y + IMY > MY
+                || s.z + IMZ > MZ)
+              continue;
+            if (grid.matches(rule, u))
+              add(r, u, maskr);
+          }
+        }}}
+      }
+    }
+
+    return *this;
+  }
+};
+
+export 
+struct OneNode : RuleNode {
+  OneNode(const Grid::Size& grid_size, std::vector<Rule>&& rules) : RuleNode{grid_size, std::move(rules)} {};
+
+  static auto parse(const pugi::xml_node &xelem,
+                    const Grid& grid, const symmetry::subgroup &parentSymmetry)
+      -> OneNode {
+    auto xrules = xelem.children("rule") | std::ranges::to<std::vector>();
+    if (std::ranges::empty(xrules)) xrules.push_back(xelem);
+
+    auto rules = xrules
+        | std::views::transform([&grid](auto& xrule) { 
+            auto r = Rule::parse(xrule, grid.waves, grid.values);
+            ensures(static_cast<bool>(r), std::format("parse_result: {}", r.error().description()));
+            return std::views::single(r.value());
+          })
+        | std::views::join
+        | std::ranges::to<std::vector>();
+
+    return OneNode{grid.size, std::move(rules)};
+  }
+
+  // auto operator()(Grid& grid, const std::vector<math::Vector3I>& changes, const std::vector<UInt>& first) noexcept -> std::optional<Node> {
+  //       if (!RuleNode::operator()(grid, changes, first)) return false;
+  //       lastMatchedTurn = ip.counter;
+
+  //       if (trajectory != null)
+  //       {
+  //           if (counter >= trajectory.Length) return false;
+  //           Array.Copy(trajectory[counter], grid.state, grid.state.Length);
+  //           counter++;
+  //           return true;
+  //       }
+
+  //       var (R, X, Y, Z) = RandomMatch(ip.random);
+  //       if (R < 0) return false;
+  //       else
+  //       {
+  //           last[R] = true;
+  //           Apply(rules[R], X, Y, Z);
+  //           counter++;
+  //           return true;
+  //       }
+  // }
+};
