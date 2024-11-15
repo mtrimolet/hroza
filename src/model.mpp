@@ -9,6 +9,24 @@ using namespace stormkit;
 
 export using Palette = HashMap<char, UInt32>;
 
+export auto parsePalette(auto&& xcolors) -> Palette {
+  return xcolors
+      | std::views::transform([](const auto& xcolor) {
+          const auto symbol_str = std::string{xcolor.attribute("symbol").as_string()};
+          ensures(!std::ranges::empty(symbol_str),
+                  std::format("missing '{}' attribute in '{}' node [:{}]", "symbol", "color", xcolor.offset_debug()));
+          ensures(std::ranges::size(symbol_str) == 1,
+                  std::format("only one character allowed for '{}' attribute of 'color' node [:{}]", "symbol", "color", xcolor.offset_debug()));
+          
+          const auto value = std::string{xcolor.attribute("value").as_string()};
+          ensures(!std::ranges::empty(value),
+                  std::format("missing '{}' attribute in '{}' node [:{}]", "value", "color", xcolor.offset_debug()));
+          
+          return std::make_pair(symbol_str[0], (255u << 24u) + fromBase<UInt32>(value, 16));
+        })
+      | std::ranges::to<Palette>();
+}
+
 export struct Model {
   std::string_view name;
   UInt linear_size;
@@ -52,20 +70,15 @@ export struct Model {
     auto dimension = xmodel.attribute("d").as_uint(2);
     auto gif = xmodel.attribute("gif").as_bool(false);
     auto amount = gif ? 1 : xmodel.attribute("amount").as_uint(2);
-    // const auto split_result = split(xmodel.attribute("seeds").as_string(),
-    // ''); auto seeds = split_result
+    // const auto split_result = split(xmodel.attribute("seeds").as_string(), ''); 
+    // auto seeds = split_result
     //   | std::views::transform(monadic::as<Int>())
     //   | std::ranges::to<std::vector>();
 
     auto palette = auto{default_palette};
-    std::ranges::for_each(xmodel.children("color"), [&palette](const auto &c) {
-      const auto symbol_str = std::string{c.attribute("symbol").as_string()};
-      ensures(!std::ranges::empty(symbol_str),
-              std::format("missing '{}' attribute [:{}]", "symbol", c.offset_debug()));
-      ensures(std::ranges::size(symbol_str) == 1,
-              std::format("only one character allowed for '{}' attribute [:{}]", "symbol", c.offset_debug()));
-      // use .emplace if new values
-      palette.at(symbol_str[0]) = (255u << 24u) + fromBase<UInt32>(c.attribute("value").as_string(), 16);
+    std::ranges::for_each(parsePalette(xmodel.children("color")), [&palette](auto&& v){
+      auto &&[symbol, value] = v;
+      palette.insert_or_assign(symbol, std::move(value));
     });
 
     auto model = Model{

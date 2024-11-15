@@ -16,20 +16,11 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   // [tmpfix] remove when stormkit userMain allows for non-packaged build
   chdir("/Users/mtrimolet/Desktop/mtrimolet/markovjunior/hroza");
 
-  // load color palette
   auto palette_doc = pugi::xml_document{};
   auto load_result = palette_doc.load_file("resources/palette.xml");
   ensures(load_result, load_result.description());
 
-  const auto palette = palette_doc.child("colors").children("color")
-      | std::views::transform([](const auto &c) {
-          const auto symbol_str = std::string{c.attribute("symbol").as_string()};
-          ensures(!std::ranges::empty(symbol_str),
-                  std::format("missing '{}' attribute [:{}]", "symbol", c.offset_debug()));
-          const auto value = fromBase<UInt32>(c.attribute("value").as_string(), 16);
-          return std::make_pair(symbol_str[0], (255u << 24u) + value);
-        })
-      | std::ranges::to<Palette>();
+  const auto palette = parsePalette(palette_doc.child("colors").children("color"));
 
   auto models_doc = pugi::xml_document{};
   load_result = models_doc.load_file("models.xml");
@@ -53,7 +44,6 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
       | std::views::transform([](const auto &e) { return e.value(); })
       | std::ranges::to<std::vector>();
 
-  auto random = std::random_device{};
   std::ranges::for_each(models, [](const auto &model) {
     std::println("{}[{}x{}x{}]:", model.name, model.MX, model.MY, model.MZ);
 
@@ -78,7 +68,7 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
         //   if (model.gui > 0)
         //     GUI.Draw(model.name, interpreter.root, interpreter.current,
         //              bitmap, width, height, model.palette);
-        draw(bitmap, get<0>(s), get<1>(s));
+        draw(bitmap, std::get<0>(s), std::get<1>(s));
         std::println();
         //   Graphics.SaveBitmap(bitmap, width, height, std::format("{}.png", outputname);
         // } else
