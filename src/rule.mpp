@@ -3,6 +3,7 @@ export module rule;
 import std;
 import stormkit.Core;
 import pugixml;
+import symmetry;
 
 using namespace stormkit;
 
@@ -22,13 +23,31 @@ public:
   std::vector<std::vector<std::vector<State>>> output;
 
   double p;
-  //   std::array<int, 3>[][] ishifts, oshifts;
+  std::vector<std::vector<std::vector<State>>> binput;
+  std::vector<std::vector<math::Vector3I>> ishifts, oshifts;
 
   Boolean original;
 
 private:
-  static auto parsePattern(std::string_view s) -> decltype(auto) {
-    return split(s, ' ') 
+
+  static auto parseInput(std::string_view s, const std::unordered_map<Symbol, Wave>& waves) -> decltype(auto) {
+    const auto get_wave = [&waves](const auto& c){ return waves.at(c); };
+    const auto get_wave_1 = [&get_wave](const auto& l){ return l | std::views::transform(get_wave) | std::ranges::to<std::vector>(); };
+    const auto get_wave_2 = [&get_wave_1](const auto& sq){ return sq | std::views::split('/') | std::views::transform(get_wave_1) | std::ranges::to<std::vector>(); };
+
+    return s | std::views::split(' ') | std::views::transform(get_wave_2) | std::ranges::to<std::vector>();
+  }
+
+  static auto parseOutput(std::string_view s, const std::unordered_map<Symbol, State>& values) -> decltype(auto) {
+    const auto get_value = [&values](const auto& c){ return values.at(c); };
+    const auto get_value_1 = [&get_value](const auto& l){ return l | std::views::transform(get_value) | std::ranges::to<std::vector>(); };
+    const auto get_value_2 = [&get_value_1](const auto& sq){ return sq | std::views::split('/') | std::views::transform(get_value_1) | std::ranges::to<std::vector>(); };
+
+    return s | std::views::split(' ') | std::views::transform(get_value_2) | std::ranges::to<std::vector>();
+  }
+
+  static auto parsePattern(std::string_view s, const std::unordered_map<Symbol, State>& values) -> decltype(auto) {
+    return split(s, ' ')
         | std::views::transform(bindBack<split>('/'))
         | std::ranges::to<std::vector>();
   }
@@ -41,53 +60,37 @@ public:
 
     const auto inString = std::string{xrule.attribute("in").as_string()};
     ensures(!std::ranges::empty(inString),
-            std::format("missing '{}' attribute [:{}]", "in", xrule.offset_debug()));
+            std::format("missing '{}' attribute in '{}' node [:{}]", "in", "rule", xrule.offset_debug()));
     const auto outString = std::string{xrule.attribute("out").as_string()};
     ensures(!std::ranges::empty(outString),
-            std::format("missing '{}' attribute [:{}]", "out", xrule.offset_debug()));
+            std::format("missing '{}' attribute in '{}' node [:{}]", "out", "rule", xrule.offset_debug()));
     // auto finString = xrule.attribute("fin").as_string();
     // auto foutString = xrule.attribute("fout").as_string();
     // auto fileString = xrule.attribute("file").as_string();
     // auto legend = xrule.attribute("legend").as_string();
 
-    auto in = parsePattern(inString) 
-        | std::views::transform([&waves](auto &&square) {
-            return square
-                | std::views::transform([&waves](auto &&line) {
-                    return line
-                        | std::views::transform([&waves](auto i){
-                            return waves.at(i);
-                          })
-                        | std::ranges::to<std::vector>();
-                  })
-                | std::ranges::to<std::vector>();
-          })
-        | std::ranges::to<std::vector>();
-
-    auto out = parsePattern(outString)
-        | std::views::transform([&values](auto &&square) {
-            return square 
-                | std::views::transform([&values](auto &&line) {
-                    return line
-                        | std::views::transform([&values](auto &&symbol) {
-                            return values.at(symbol);
-                          })
-                        | std::ranges::to<std::vector>();
-                  })
-                | std::ranges::to<std::vector>();
-          })
-        | std::ranges::to<std::vector>();
+    auto in = parseInput(inString, waves);
+    auto out = parseOutput(outString, values);
 
     auto p = xrule.attribute("p").as_double(1.0f);
 
     return Rule{
-        {std::ranges::size(in), std::ranges::size(in.at(0)),
-         std::ranges::size(in.at(0).at(0))},
-        {std::ranges::size(out), std::ranges::size(out.at(0)),
-         std::ranges::size(out.at(0).at(0))},
+        {
+          std::ranges::size(in),
+          std::ranges::size(in.at(0)),
+          std::ranges::size(in.at(0).at(0))},
+        {
+          std::ranges::size(out),
+          std::ranges::size(out.at(0)),
+          std::ranges::size(out.at(0).at(0))},
         in,
         out,
         p,
     };
   }
+
+  // auto symmetries(Boolean d2, symmetry::subgroup symmetry) -> decltype(auto) {
+  //   if(d2) return symmetry::squareSymmetries(this, Rule::ZRotated, Rule::Reflected, Rule::operator==, symmetry);
+  //   return symmetry::cubeSymmetries(this, Rule::ZRotated, Rule:YZRotated, Rule::Reflected, Rule::operator==, symmetry);
+  // }
 };
