@@ -42,6 +42,7 @@ target("hroza")
         "pugixml"
     )
 
-    add_files("src/*.cpp")
+    add_files("lib/**.mpp")
     add_files("src/**.mpp")
+    add_files("src/*.cpp")
     set_rundir("$(projectdir)")
