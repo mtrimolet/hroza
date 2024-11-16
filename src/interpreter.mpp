@@ -17,19 +17,26 @@ using namespace std::literals;
 export struct Interpreter {
 private:
   Grid grid;
-  Branch root;
+  std::variant<MarkovNode> root;
   Boolean origin;
 
   static constexpr auto node_types = frozen::set{ 
     "one"sv,
     // "all"sv,
     // "prl"sv,
-    // "markov"sv,
+    "markov"sv,
     // "sequence"sv,
     // "path"sv,
     // "map"sv,
     // "convolution"sv,
     // "convchain"sv,
+    // "wfc"sv
+  };
+
+  static constexpr auto branch_types = frozen::set{ 
+    "markov"sv,
+    // "sequence"sv,
+    // "map"sv,
     // "wfc"sv
   };
 
@@ -45,7 +52,7 @@ public:
 
     std::println("nodes:");
 
-    auto nodes = std::vector<Node>{};
+    auto nodes = std::vector<std::variant<MarkovNode, OneNode>>{};
     for (auto &&xnode : XMLDepthWalker{xelem}) {
       const auto attributes = xnode.attributes() 
           | std::views::transform([](auto attr) {
@@ -57,20 +64,19 @@ public:
 
       std::println("{}{}", name, attributes);
 
-      auto node = std::optional<Node>{};
       if (name == "one")
-        node = OneNode::parse(xnode, grid, symmetry);
-      if (name == "markov")
-        node = MarkovNode::parse(xnode, grid, symmetry);
-
-      ensures(static_cast<bool>(node),
-              std::format("failed to load '{}' node [:{}]", name, xnode.offset_debug()));
-      nodes.push_back(node.value());
+        nodes.push_back(OneNode::parse(xnode, grid, symmetry));
+      // else if (name == "markov")
+      //   node.push_back(MarkovNode::parse(xnode, grid, symmetry));
+      else
+        ensures(false, std::format("failed to load '{}' node [:{}]", name, xnode.offset_debug()));
     }
     std::println();
 
-    root = MarkovNode{nodes.at(0)};
-    // root = nodes.at(0) is Branch ? nodes.at(0) : new MarkovNode{nodes.at(0)};
+    auto& _root = nodes.at(0);
+    root = std::holds_alternative<MarkovNode>(_root)
+      ? std::get<MarkovNode>(_root)
+      : MarkovNode{std::get<OneNode>(_root)};
   }
 
   auto run(UInt seed) -> std::generator<const Grid&> {
@@ -81,13 +87,15 @@ public:
 
     if (origin) grid.states.at(grid.center()) = 1;
 
-    auto current = std::optional<Branch>{root};
+    auto current = std::optional{root};
     co_yield grid;
 
     while (current != std::nullopt) {
-      auto& go = current.value();
-      current = go(grid, changes, first);
-      first.push_back(std::ranges::size(changes));
+      if (std::holds_alternative<MarkovNode>(current.value())) {
+        auto& go = std::get<MarkovNode>(current.value());
+        current = go(grid, changes, first);
+        first.push_back(std::ranges::size(changes));
+      }
       co_yield grid;
     }
   }

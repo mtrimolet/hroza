@@ -13,75 +13,7 @@ import utils;
 using namespace stormkit;
 
 export
-struct Node {
-  virtual auto operator()(Grid& grid, const std::vector<math::Vector3I>& changes, const std::vector<UInt>& first) noexcept -> std::optional<Node> {
-    return std::nullopt;
-  }
-
-  auto operator!=(const Node &other) const noexcept -> bool { return true; }
-};
-
-export 
-struct Branch : Node {
-  Int n;
-  std::optional<Branch*> parent;
-  std::vector<Node> children;
-
-  Branch() = default;
-  Branch(Node child) : children{child} {}
-  static auto parse(const pugi::xml_node &xelem,
-                    const Grid& grid, const symmetry::subgroup &parentSymmetry)
-      -> Branch {
-
-    const auto xsymmetry = std::string{xelem.attribute("symmetry").as_string()};
-    const auto symmetry = std::ranges::empty(xsymmetry) ? parentSymmetry 
-        : symmetry::getSymmetry(std::get<2>(grid.size) == 1, xsymmetry);
-
-    // XElement[] xchildren = xelem.Elements(nodenames).ToArray();
-    // nodes = new Node[xchildren.Length];
-    // for (int c = 0; c < xchildren.Length; c++)
-    // {
-    //     var child = Factory(xchildren[c], symmetry, ip, grid);
-    //     if (child == null) return false;
-    //     if (child is Branch branch) branch.parent = branch is MapNode || branch is WFCNode ? null : this;
-    //     nodes[c] = child;
-    // }
-    // return true;
-    return Branch{};
-  }
-
-  std::optional<Node> operator()(Grid& grid, const std::vector<math::Vector3I>& changes, const std::vector<UInt>& first) noexcept override {
-    auto& current = *this;
-    for (auto& child : children | std::views::drop(n)) {
-        if (auto* branch = dynamic_cast<Branch*>(&child); branch != nullptr)
-          current = *branch;
-        if (child(grid, changes, first))
-          return current;
-    }
-    return current;
-  }
-};
-
-export 
-struct MarkovNode : Branch {
-  MarkovNode() = default;
-  MarkovNode(Node child) : Branch{child} {}
-  static auto parse(const pugi::xml_node &xelem,
-                    const Grid& grid, const symmetry::subgroup &parentSymmetry)
-      -> MarkovNode {
-    return MarkovNode{};
-  }
-  
-  std::optional<Node> operator()(Grid& grid, const std::vector<math::Vector3I>& changes, const std::vector<UInt>& first) noexcept override {
-    n = 0;
-    return Branch::operator()(std::forward<Grid&>(grid), 
-      std::forward<const std::vector<math::Vector3I>&>(changes), 
-      std::forward<const std::vector<UInt>&>(first));
-  }
-};
-
-export 
-struct RuleNode : Node {
+struct RuleNode {
 private:
   const Grid::Size& grid_size;
 
@@ -98,11 +30,14 @@ protected:
 public:
   RuleNode(const Grid::Size& grid_size, std::vector<Rule>&& rules) : grid_size{grid_size}, rules{rules} {};
 
+  inline constexpr auto toGridIndex(const math::Vector3I& u) const noexcept {
+    return  u.x
+          + u.y * std::get<0>(grid_size)
+          + u.z * std::get<0>(grid_size) * std::get<1>(grid_size);
+  }
+
   auto add(UInt r, math::Vector3I u, std::vector<Boolean>& maskr) -> void {
-      maskr.at(u.x
-               + u.y * std::get<0>(grid_size)
-               + u.z * std::get<0>(grid_size) * std::get<1>(grid_size)
-              ) = true;
+      maskr.at(toGridIndex(u)) = true;
 
       auto match = std::make_tuple(r, u.x, u.y, u.z);
       if (matchCount < std::ranges::size(matches))
@@ -112,7 +47,23 @@ public:
       matchCount++;
   }
 
-  std::optional<Node> operator()(Grid& grid, const std::vector<math::Vector3I>& changes, const std::vector<UInt>& first) noexcept override {
+  static inline constexpr auto inBounds(const math::Vector3I& u, const math::Vector3I& b1, const math::Vector3I& b2) noexcept -> Boolean {
+    const auto lower = math::Vector3I{
+      std::min(b1.x, b2.x),
+      std::min(b1.y, b2.y),
+      std::min(b1.z, b2.z),
+    };
+    const auto upper = math::Vector3I{
+      std::max(b1.x, b2.x),
+      std::max(b1.y, b2.y),
+      std::max(b1.z, b2.z),
+    };
+    return  lower.x < u.x and u.x < upper.x
+        and lower.y < u.y and u.y < upper.y
+        and lower.z < u.z and u.z < upper.z;
+  }
+
+  std::optional<RuleNode> operator()(Grid& grid, const std::vector<math::Vector3I>& changes, const std::vector<UInt>& first) noexcept {
     const auto& [MX, MY, MZ] = grid.size;
     const auto M = math::Vector3I{MX, MY, MZ};
 
@@ -127,13 +78,9 @@ public:
           for (const auto& shift : rule.ishifts[value]) { 
             const auto s = u - shift;
 
-            if (s.x < 0 || s.y < 0 || s.z < 0
-                || s.x + IMX > MX
-                || s.y + IMY > MY
-                || s.z + IMZ > MZ)
+            if (not inBounds(s, {0, 0, 0}, M - IM))
               continue;
-            const auto si = s.x + s.y * std::get<0>(grid.size) + s.z * std::get<0>(grid.size) * std::get<1>(grid.size);
-            if (!maskr[si] && grid.matches(rule, u))
+            if (not maskr[toGridIndex(s)] and grid.matches(rule, u))
               add(r, u, maskr);
           }
         }
@@ -160,10 +107,7 @@ public:
           for (const auto& shift : rule.ishifts[value]) { 
             const auto s = u - shift;
 
-            if (s.x < 0 || s.y < 0 || s.z < 0
-                || s.x + IMX > MX
-                || s.y + IMY > MY
-                || s.z + IMZ > MZ)
+            if (not inBounds(s, {0, 0, 0}, M - IM))
               continue;
             if (grid.matches(rule, u))
               add(r, u, maskr);
@@ -176,7 +120,7 @@ public:
   }
 };
 
-export 
+export
 struct OneNode : RuleNode {
   OneNode(const Grid::Size& grid_size, std::vector<Rule>&& rules) : RuleNode{grid_size, std::move(rules)} {};
 
@@ -198,26 +142,71 @@ struct OneNode : RuleNode {
     return OneNode{grid.size, std::move(rules)};
   }
 
-  // auto operator()(Grid& grid, const std::vector<math::Vector3I>& changes, const std::vector<UInt>& first) noexcept -> std::optional<Node> {
-  //       if (!RuleNode::operator()(grid, changes, first)) return false;
-  //       lastMatchedTurn = ip.counter;
+  std::optional<OneNode> operator()(Grid& grid, const std::vector<math::Vector3I>& changes, const std::vector<UInt>& first) noexcept {
+        if (not RuleNode::operator()(grid, changes, first)) return std::nullopt;
+        return *this;
+        // RuleNode::lastMatchedTurn = ip.counter;
 
-  //       if (trajectory != null)
-  //       {
-  //           if (counter >= trajectory.Length) return false;
-  //           Array.Copy(trajectory[counter], grid.state, grid.state.Length);
-  //           counter++;
-  //           return true;
-  //       }
+        // if (trajectory != null)
+        // {
+        //     if (counter >= trajectory.Length) return false;
+        //     Array.Copy(trajectory[counter], grid.state, grid.state.Length);
+        //     counter++;
+        //     return true;
+        // }
 
-  //       var (R, X, Y, Z) = RandomMatch(ip.random);
-  //       if (R < 0) return false;
-  //       else
-  //       {
-  //           last[R] = true;
-  //           Apply(rules[R], X, Y, Z);
-  //           counter++;
-  //           return true;
-  //       }
-  // }
+        // auto [R, X, Y, Z] = RandomMatch(ip.random);
+        // if (R < 0) return std::nullopt;
+        // else
+        // {
+        //     // last[R] = true;
+        //     apply(rules[R], X, Y, Z);
+        //     counter++;
+        //     return true;
+        // }
+  }
+};
+
+template<class... Ts>
+struct overloads : Ts... { using Ts::operator()...; };
+
+export
+struct MarkovNode {
+  std::vector<std::variant<OneNode, MarkovNode>> children;
+  // std::optional<MarkovNode> parent;
+  Int n;
+
+  MarkovNode() = default;
+  ~MarkovNode() = default;
+  MarkovNode(MarkovNode&&) = default;
+  auto operator=(MarkovNode&&) -> MarkovNode& = default;
+  MarkovNode(const MarkovNode&) = default;
+  auto operator=(const MarkovNode&) -> MarkovNode& = default;
+
+  MarkovNode(std::variant<OneNode, MarkovNode> child) : children{child} {}
+  static auto parse(const pugi::xml_node &xelem,
+                    const Grid& grid, const symmetry::subgroup &parentSymmetry)
+      -> MarkovNode {
+    return MarkovNode{};
+  }
+
+  std::optional<MarkovNode> operator()(Grid& grid, const std::vector<math::Vector3I>& changes, const std::vector<UInt>& first) noexcept {
+    n = 0;
+
+    MarkovNode& current = *this;
+    for (auto& child : children | std::views::drop(n)) {
+      if (child.visit(overloads{
+        [&](MarkovNode& node) {
+          current = std::move(node);
+          return current(grid, changes, first) != std::nullopt;
+        },
+        [&](OneNode& node){
+          return node(grid, changes, first) != std::nullopt;
+        },
+      }))
+        return current;
+    }
+    return std::nullopt;
+    // return current.parent;
+  }
 };
