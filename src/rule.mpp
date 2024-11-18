@@ -17,45 +17,100 @@ public:
   Size input_size, output_size;
 
   // size(input) == input_size[0] * input_size[1] * input_size[2];
-  std::vector<std::vector<std::vector<Wave>>> input;
+  std::vector<Wave> input;
 
   // size(output) == output_size[0] * output_size[1] * output_size[2];
-  std::vector<std::vector<std::vector<State>>> output;
+  std::vector<State> output;
 
   double p;
-  std::vector<std::vector<std::vector<State>>> binput;
+  // size(binput) == size(input);
+  std::vector<State> binput;
+  // size(ishifts) == size(oshifts) == size(grid.symbols);
+  // size(ishifts[i]) == size(input);
+  // size(oshifts[i]) == size(output);
   std::vector<std::vector<math::Vector3I>> ishifts, oshifts;
 
   Boolean original;
 
 private:
 
-  static auto parseInput(std::string_view s, const std::unordered_map<Symbol, Wave>& waves) -> decltype(auto) {
-    const auto get_wave = [&waves](const auto& c){ return waves.at(c); };
-    const auto get_wave_1 = [&get_wave](const auto& l){ return l | std::views::transform(get_wave) | std::ranges::to<std::vector>(); };
-    const auto get_wave_2 = [&get_wave_1](const auto& sq){ return sq | std::views::split('/') | std::views::transform(get_wave_1) | std::ranges::to<std::vector>(); };
+  static auto parseInput(std::string_view block, const std::unordered_map<Symbol, Wave>& waves) -> decltype(auto) {
+    const auto get_wave_x = [&waves](const auto& symbol){
+      return waves.at(symbol);
+    };
 
-    return s | std::views::split(' ') | std::views::transform(get_wave_2) | std::ranges::to<std::vector>();
-  }
-
-  static auto parseOutput(std::string_view s, const std::unordered_map<Symbol, State>& values) -> decltype(auto) {
-    const auto get_value = [&values](const auto& c){ return values.at(c); };
-    const auto get_value_1 = [&get_value](const auto& l){ return l | std::views::transform(get_value) | std::ranges::to<std::vector>(); };
-    const auto get_value_2 = [&get_value_1](const auto& sq){ return sq | std::views::split('/') | std::views::transform(get_value_1) | std::ranges::to<std::vector>(); };
-
-    return s | std::views::split(' ') | std::views::transform(get_value_2) | std::ranges::to<std::vector>();
-  }
-
-  static auto parsePattern(std::string_view s, const std::unordered_map<Symbol, State>& values) -> decltype(auto) {
-    return split(s, ' ')
-        | std::views::transform(bindBack<split>('/'))
+    const auto get_wave_yx = [&get_wave_x](const auto& line){
+      return line
+        | std::views::transform(get_wave_x)
         | std::ranges::to<std::vector>();
+    };
+  
+    const auto get_wave_zyx = [&get_wave_yx](const auto& square){ 
+      return square
+        | std::views::split('/')
+        | std::views::transform(get_wave_yx)
+        | std::ranges::to<std::vector>(); 
+    };
+
+    return block
+      | std::views::split(' ')
+      | std::views::transform(get_wave_zyx)
+      | std::ranges::to<std::vector>();
+  }
+
+  static auto parseOutput(std::string_view block, const std::unordered_map<Symbol, State>& values) -> decltype(auto) {
+    const auto get_wave_x = [&values](const auto& symbol){
+      return values.at(symbol);
+    };
+
+    const auto get_wave_yx = [&get_wave_x](const auto& line){
+      return line
+        | std::views::transform(get_wave_x)
+        | std::ranges::to<std::vector>();
+    };
+  
+    const auto get_wave_zyx = [&get_wave_yx](const auto& square){ 
+      return square
+        | std::views::split('/')
+        | std::views::transform(get_wave_yx)
+        | std::ranges::to<std::vector>(); 
+    };
+
+    return block
+      | std::views::split(' ')
+      | std::views::transform(get_wave_zyx)
+      | std::ranges::to<std::vector>();
   }
 
 public:
+  Rule(
+    Size&& _input_size,
+    Size&& _output_size,
+    std::vector<Wave>&& in,
+    std::vector<State>&& out,
+    double p,
+    auto symbol_count
+  )
+  : input_size{std::move(_input_size)}, output_size{std::move(_output_size)},
+  input{std::move(in)}, output{std::move(out)}, p{p},
+  binput{std::views::repeat(0xffu, std::ranges::size(input)) | std::ranges::to<std::vector>()},
+  ishifts{std::views::iota(0u, symbol_count) | std::views::transform([this](auto c) {
+      return std::views::zip(input, std::views::iota(0u))
+        | std::views::filter([c](const auto& inp){ return std::get<0>(inp).at(c); })
+        | std::views::transform([this](const auto& inp){
+            return math::Vector3I{
+              std::get<1>(inp) % std::get<2>(input_size),
+              (std::get<1>(inp) / std::get<2>(input_size)) % std::get<1>(input_size),
+              (std::get<1>(inp) / (std::get<2>(input_size) * std::get<1>(input_size))) % std::get<0>(input_size),
+            };
+        })
+        | std::ranges::to<std::vector>();
+    }) | std::ranges::to<std::vector>()},
+  oshifts{std::views::repeat(std::vector<math::Vector3I>{}, symbol_count) | std::ranges::to<std::vector>()} {}
+
   static auto parse(const pugi::xml_node &xrule,
-                    const std::unordered_map<Symbol, Wave> &waves,
-                    const std::unordered_map<Symbol, State> &values)
+                    const std::unordered_map<Symbol, Wave>& waves,
+                    const std::unordered_map<Symbol, State>& values)
       -> std::expected<Rule, pugi::xml_parse_result> {
 
     const auto inString = std::string{xrule.attribute("in").as_string()};
@@ -69,23 +124,41 @@ public:
     // auto fileString = xrule.attribute("file").as_string();
     // auto legend = xrule.attribute("legend").as_string();
 
-    auto in = parseInput(inString, waves);
-    auto out = parseOutput(outString, values);
+    auto _in = parseInput(inString, waves);
+    auto input_size = Size{
+          std::ranges::size(_in),
+          std::ranges::size(_in.at(0)),
+          std::ranges::size(_in.at(0).at(0))};
+    auto in = _in
+      | std::views::transform([](auto& square){
+          return square
+            | std::views::join;
+        })
+      | std::views::join
+      | std::ranges::to<std::vector>();
+    
+    auto _out = parseOutput(outString, values);
+    auto output_size = Size{
+          std::ranges::size(_out),
+          std::ranges::size(_out.at(0)),
+          std::ranges::size(_out.at(0).at(0))};
+    auto out = _out
+      | std::views::transform([](auto& square){
+          return square
+            | std::views::join;
+        })
+      | std::views::join
+      | std::ranges::to<std::vector>();
 
     auto p = xrule.attribute("p").as_double(1.0f);
 
     return Rule{
-        {
-          std::ranges::size(in),
-          std::ranges::size(in.at(0)),
-          std::ranges::size(in.at(0).at(0))},
-        {
-          std::ranges::size(out),
-          std::ranges::size(out.at(0)),
-          std::ranges::size(out.at(0).at(0))},
-        in,
-        out,
+        std::move(input_size),
+        std::move(output_size),
+        std::move(in),
+        std::move(out),
         p,
+        std::ranges::size(values)
     };
   }
 

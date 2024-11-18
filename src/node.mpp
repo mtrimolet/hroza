@@ -15,36 +15,55 @@ using namespace stormkit;
 export
 struct RuleNode {
 private:
-  const Grid::Size& grid_size;
+  // const Grid::Size& grid_size = {0u, 0u, 0u};
 
 public:
   std::vector<Rule> rules;
+  UInt counter, steps;
 
 protected:
   using Match = std::tuple<UInt, UInt, UInt, UInt>; 
   std::vector<Match> matches;
   UInt matchCount;
   std::optional<UInt> lastMatchedTurn;
+  // size(matchMask) == size(rules);  
+  // size(matchMask[i]) == grid_size[0] * grid_size[1] * grid_size[2];  
   std::vector<std::vector<Boolean>> matchMask;
 
-public:
-  RuleNode(const Grid::Size& grid_size, std::vector<Rule>&& rules) : grid_size{grid_size}, rules{rules} {};
+  // size(last) == size(rules)
+  std::vector<Boolean> last;
 
-  inline constexpr auto toGridIndex(const math::Vector3I& u) const noexcept {
+public:
+  RuleNode() = default;
+  ~RuleNode() = default;
+  RuleNode(RuleNode&&) = default;
+  auto operator=(RuleNode&&) -> RuleNode& = default;
+  RuleNode(const RuleNode&) = default;
+  auto operator=(const RuleNode&) -> RuleNode& = default;
+
+  RuleNode(const Grid::Size& grid_size, std::vector<Rule>&& _rules, UInt steps) 
+    : rules{std::move(_rules)},
+      matchMask{
+        std::views::repeat(
+          std::views::repeat(
+            Boolean{false},
+            std::get<0>(grid_size) * std::get<1>(grid_size) * std::get<2>(grid_size)
+          ) | std::ranges::to<std::vector>(),
+          std::ranges::size(rules)
+        ) | std::ranges::to<std::vector>()
+      },
+      last(std::ranges::size(rules)), 
+      steps{steps}, counter{} {};
+
+  inline constexpr auto toIndex(const math::Vector3I& u, const Grid::Size& size) const noexcept {
     return  u.x
-          + u.y * std::get<0>(grid_size)
-          + u.z * std::get<0>(grid_size) * std::get<1>(grid_size);
+          + u.y * std::get<2>(size)
+          + u.z * std::get<2>(size) * std::get<1>(size);
   }
 
-  auto add(UInt r, math::Vector3I u, std::vector<Boolean>& maskr) -> void {
-      maskr.at(toGridIndex(u)) = true;
-
-      auto match = std::make_tuple(r, u.x, u.y, u.z);
-      if (matchCount < std::ranges::size(matches))
-        matches.at(matchCount) = std::move(match);
-      else
-        matches.push_back(std::move(match));
-      matchCount++;
+  auto addMatch(const Grid::Size& grid_size, UInt r, math::Vector3I u, std::vector<Boolean>& maskr) -> void {
+      maskr.at(toIndex(u, grid_size)) = true;
+      matches.push_back(std::make_tuple(r, u.x, u.y, u.z));
   }
 
   static inline constexpr auto inBounds(const math::Vector3I& u, const math::Vector3I& b1, const math::Vector3I& b2) noexcept -> Boolean {
@@ -58,13 +77,18 @@ public:
       std::max(b1.y, b2.y),
       std::max(b1.z, b2.z),
     };
-    return  lower.x < u.x and u.x < upper.x
-        and lower.y < u.y and u.y < upper.y
-        and lower.z < u.z and u.z < upper.z;
+    return  lower.x <= u.x and u.x <= upper.x
+        and lower.y <= u.y and u.y <= upper.y
+        and lower.z <= u.z and u.z <= upper.z;
   }
 
   std::optional<RuleNode> operator()(Grid& grid, const std::vector<math::Vector3I>& changes, const std::vector<UInt>& first) noexcept {
-    const auto& [MX, MY, MZ] = grid.size;
+    last.clear();
+    last.resize(std::ranges::size(rules));
+
+    if (steps > 0 and counter >= steps) return std::nullopt;
+
+    const auto& [MZ, MY, MX] = grid.size;
     const auto M = math::Vector3I{MX, MY, MZ};
 
     if (lastMatchedTurn) {
@@ -72,16 +96,16 @@ public:
         const auto& value = grid.at(u);
         for (const auto& [rule, maskr, r]
             : std::views::zip(rules, matchMask, std::views::iota(0u))) {
-          const auto& [IMX, IMY, IMZ] = rule.input_size;
+          const auto& [IMZ, IMY, IMX] = rule.input_size;
           const auto IM = math::Vector3I{IMX, IMY, IMZ};
 
-          for (const auto& shift : rule.ishifts[value]) { 
+          for (const auto& shift : rule.ishifts.at(value)) { 
             const auto s = u - shift;
 
             if (not inBounds(s, {0, 0, 0}, M - IM))
               continue;
-            if (not maskr[toGridIndex(s)] and grid.matches(rule, u))
-              add(r, u, maskr);
+            if (not maskr[toIndex(s, grid.size)] and grid.matches(rule, s))
+              addMatch(grid.size, r, s, maskr);
           }
         }
       }
@@ -89,7 +113,7 @@ public:
     else {
       for (const auto& [rule, maskr, r]
           : std::views::zip(rules, matchMask, std::views::iota(0u))) {
-        const auto& [IMX, IMY, IMZ] = rule.input_size;
+        const auto& [IMZ, IMY, IMX] = rule.input_size;
         const auto IM = math::Vector3I{IMX, IMY, IMZ};
 
         // fot (const auto& [x, y, z] : std::views::cartesian_product(
@@ -98,21 +122,21 @@ public:
         //   std::views::iota(IMZ - 1, MZ) | std::views::stride(IMZ),
         // )) {}
 
-        for (const auto& z : std::views::iota(IMZ - 1, MZ) | std::views::stride(IMZ)) {
-        for (const auto& y : std::views::iota(IMY - 1, MY) | std::views::stride(IMY)) {
+        for (const auto& z : std::views::iota(IMZ - 1, MZ) | std::views::stride(IMZ))
+        for (const auto& y : std::views::iota(IMY - 1, MY) | std::views::stride(IMY))
         for (const auto& x : std::views::iota(IMX - 1, MX) | std::views::stride(IMX)) {
           const auto u = math::Vector3I{x, y, z};
 
           const auto& value = grid.at(u);
-          for (const auto& shift : rule.ishifts[value]) { 
+          for (const auto& shift : rule.ishifts.at(value)) { 
             const auto s = u - shift;
 
             if (not inBounds(s, {0, 0, 0}, M - IM))
               continue;
-            if (grid.matches(rule, u))
-              add(r, u, maskr);
+            if (grid.matches(rule, s))
+              addMatch(grid.size, r, s, maskr);
           }
-        }}}
+        }
       }
     }
 
@@ -122,13 +146,21 @@ public:
 
 export
 struct OneNode : RuleNode {
-  OneNode(const Grid::Size& grid_size, std::vector<Rule>&& rules) : RuleNode{grid_size, std::move(rules)} {};
 
-  static auto parse(const pugi::xml_node &xelem,
+  OneNode() = default;
+  ~OneNode() = default;
+  OneNode(OneNode&&) = default;
+  auto operator=(OneNode&&) -> OneNode& = default;
+  OneNode(const OneNode&) = default;
+  auto operator=(const OneNode&) -> OneNode& = default;
+
+  OneNode(const Grid::Size& grid_size, std::vector<Rule>&& rules, UInt steps) : RuleNode{grid_size, std::move(rules), steps} {};
+
+  static auto parse(const pugi::xml_node &xone,
                     const Grid& grid, const symmetry::subgroup &parentSymmetry)
       -> OneNode {
-    auto xrules = xelem.children("rule") | std::ranges::to<std::vector>();
-    if (std::ranges::empty(xrules)) xrules.push_back(xelem);
+    auto xrules = xone.children("rule") | std::ranges::to<std::vector>();
+    if (std::ranges::empty(xrules)) xrules.push_back(xone);
 
     auto rules = xrules
         | std::views::transform([&grid](auto& xrule) { 
@@ -139,31 +171,66 @@ struct OneNode : RuleNode {
         | std::views::join
         | std::ranges::to<std::vector>();
 
-    return OneNode{grid.size, std::move(rules)};
+    return OneNode{
+      grid.size, 
+      std::move(rules),
+      xone.attribute("steps").as_uint(0u)};
   }
 
-  std::optional<OneNode> operator()(Grid& grid, const std::vector<math::Vector3I>& changes, const std::vector<UInt>& first) noexcept {
-        if (not RuleNode::operator()(grid, changes, first)) return std::nullopt;
-        return *this;
-        // RuleNode::lastMatchedTurn = ip.counter;
+  auto apply(Grid& grid, const Rule& rule, std::vector<math::Vector3I>& changes, const math::Vector3I& u) {
+    for (const auto& val : std::views::zip(rule.output, std::views::iota(0u))) {
+      const auto& [newValue, i] = val;
+      const auto du = math::Vector3I{
+        i % std::get<2>(rule.output_size),
+        (i / std::get<2>(rule.output_size)) % std::get<1>(rule.output_size),
+        (i / (std::get<2>(rule.output_size) * std::get<1>(rule.output_size))) % std::get<0>(rule.output_size)
+      };
 
-        // if (trajectory != null)
+      if (newValue == 0xff) continue;
+      
+      const auto s = u + du;
+      auto& value = grid.at(s);
+      if (newValue == value) continue;
+
+      value = newValue;
+      changes.push_back(s);
+    }
+  }
+
+  auto randomMatch(const Grid& grid) -> std::optional<Match> {
+    while (std::ranges::size(matches) > 0u) {
+      const auto matchIndex = std::rand() % std::ranges::size(matches);
+      auto match = std::move(matches.at(matchIndex));
+      matches.erase(std::ranges::begin(matches) + matchIndex);
+
+      const auto& [r, x, y, z] = match;
+      matchMask.at(r).at(toIndex({x, y, z}, grid.size)) = false;
+      if (grid.matches(rules.at(r), {x, y, z})) return match;
+    }
+    return std::nullopt;
+  }
+
+  std::optional<OneNode> operator()(Grid& grid, std::vector<math::Vector3I>& changes, const std::vector<UInt>& first, const auto turn) noexcept {
+        if (not RuleNode::operator()(grid, changes, first)) return std::nullopt;
+        lastMatchedTurn = turn;
+
+        // if (trajectory != std::nullopt)
         // {
         //     if (counter >= trajectory.Length) return false;
         //     Array.Copy(trajectory[counter], grid.state, grid.state.Length);
         //     counter++;
-        //     return true;
+        //     return *this;
         // }
+        // else 
 
-        // auto [R, X, Y, Z] = RandomMatch(ip.random);
-        // if (R < 0) return std::nullopt;
-        // else
-        // {
-        //     // last[R] = true;
-        //     apply(rules[R], X, Y, Z);
-        //     counter++;
-        //     return true;
-        // }
+        auto m = randomMatch(grid);
+        if (!m) return std::nullopt;
+        const auto& [r, x, y, z] = m.value();
+
+        last[r] = true;
+        apply(grid, rules[r], changes, {x, y, z});
+        counter++;
+        return *this;
   }
 };
 
@@ -190,7 +257,7 @@ struct MarkovNode {
     return MarkovNode{};
   }
 
-  std::optional<MarkovNode> operator()(Grid& grid, const std::vector<math::Vector3I>& changes, const std::vector<UInt>& first) noexcept {
+  std::optional<MarkovNode> operator()(Grid& grid, std::vector<math::Vector3I>& changes, const std::vector<UInt>& first, auto turn) noexcept {
     n = 0;
 
     MarkovNode& current = *this;
@@ -198,10 +265,10 @@ struct MarkovNode {
       if (child.visit(overloads{
         [&](MarkovNode& node) {
           current = std::move(node);
-          return current(grid, changes, first) != std::nullopt;
+          return current(grid, changes, first, turn) != std::nullopt;
         },
         [&](OneNode& node){
-          return node(grid, changes, first) != std::nullopt;
+          return node(grid, changes, first, turn) != std::nullopt;
         },
       }))
         return current;

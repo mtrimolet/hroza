@@ -9,12 +9,12 @@ using namespace stormkit;
 
 export {
   template <meta::IsArithmetic T> auto center(std::array<T, 3> M) -> T {
-    const auto &[MX, MY, MZ] = M;
+    const auto &[MZ, MY, MX] = M;
     return MX / 2 + (MY / 2) * MX + (MZ / 2) * MX * MY;
   }
 
-  template <meta::IsArithmetic T> auto center(T MX, T MY, T MZ) -> T {
-    return center({std::forward(MX), std::forward(MY), std::forward(MZ)});
+  template <meta::IsArithmetic T> auto center(T MZ, T MY, T MX) -> T {
+    return center({std::forward(MZ), std::forward(MY), std::forward(MX)});
   }
 
   template <meta::IsArithmetic T>

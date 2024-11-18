@@ -30,7 +30,7 @@ public:
   std::vector<Symbol> symbols;
   // size(values) == size(symbols)
   std::unordered_map<Symbol, State> values;
-  // size(waves) == size(symbols) + 1
+  // size(waves) >= size(symbols) + 1
   std::unordered_map<Symbol, Wave> waves;
 
   std::string_view folder;
@@ -48,8 +48,6 @@ public:
 
   auto clear() noexcept -> void;
   auto wave(std::string_view _values) const noexcept -> Wave;
-  auto none_wave() const noexcept -> Wave;
-  auto any_wave() const noexcept -> Wave;
 
   auto matches(const Rule& rule, const math::Vector3I& x) const noexcept -> Boolean;
 
@@ -61,11 +59,11 @@ private:
   // std::vector<State> statebuffer;
 };
 
-Grid::Grid(Size &&size, std::vector<Symbol>&& symbols, std::string_view folder, std::string_view _transparent) noexcept
-    : size{size}, states(size[0] * size[1] * size[2]),
+Grid::Grid(Size &&_size, std::vector<Symbol>&& _symbols, std::string_view folder, std::string_view _transparent) noexcept
+    : size{std::move(_size)}, states(std::get<0>(size) * std::get<1>(size) * std::get<2>(size)),
       // statebuffer(size[0] * size[1] * size[2]),
-      mask(size[0] * size[1] * size[2]),
-      symbols{symbols},
+      mask(std::ranges::size(states)),
+      symbols{std::move(_symbols)},
       values{std::views::zip(symbols, std::views::iota(0u))
         | std::ranges::to<std::unordered_map>()},
       waves{symbols
@@ -75,17 +73,6 @@ Grid::Grid(Size &&size, std::vector<Symbol>&& symbols, std::string_view folder, 
         | std::ranges::to<std::unordered_map>()},
       folder{folder},
       transparent{wave(_transparent)} {}
-
-auto Grid::none_wave() const noexcept -> Grid::Wave {
-  return std::views::repeat(Boolean{false})
-      | std::views::take(std::ranges::size(symbols))
-      | std::ranges::to<std::vector>();
-}
-auto Grid::any_wave() const noexcept -> Grid::Wave {
-  return std::views::repeat(Boolean{true})
-      | std::views::take(std::ranges::size(symbols))
-      | std::ranges::to<std::vector>();
-}
 
 export auto parseGrid(const pugi::xml_node &xelem, Grid::Size&& size) -> Grid {
   const auto values = std::string{xelem.attribute("values").as_string()};
@@ -103,7 +90,10 @@ export auto parseGrid(const pugi::xml_node &xelem, Grid::Size&& size) -> Grid {
     xelem.attribute("transparent").as_string(),
   };
 
-  grid.waves.insert({'*', grid.any_wave()});
+  auto w = std::views::repeat(Boolean{true}, std::ranges::size(symbols))
+      | std::ranges::to<std::vector>();
+
+  grid.waves.insert({'*', std::move(w)});
 
   for (auto&& xunion : XMLDepthWalker{xelem}) {
     if (xunion.name() != "union"sv) continue;
@@ -126,11 +116,11 @@ export auto parseGrid(const pugi::xml_node &xelem, Grid::Size&& size) -> Grid {
 }
 
 auto Grid::at(const math::Vector3I& u) noexcept -> Grid::State& {
-  return states.at(u.x + u.y * get<0>(size) + u.z * get<0>(size) * get<1>(size));
+  return states.at(u.x + u.y * get<2>(size) + u.z * get<2>(size) * get<1>(size));
 }
 
 auto Grid::at(const math::Vector3I& u) const noexcept -> const Grid::State& {
-  return states.at(u.x + u.y * get<0>(size) + u.z * get<0>(size) * get<1>(size));
+  return states.at(u.x + u.y * get<2>(size) + u.z * get<2>(size) * get<1>(size));
 }
 
 auto Grid::clear() noexcept -> void {
@@ -139,36 +129,25 @@ auto Grid::clear() noexcept -> void {
 
 auto Grid::wave(std::string_view _values) const noexcept -> Wave {
   ensures(!std::ranges::empty(values), "cannot call 'Grid::wave' before Grid initialization");
-  auto w = none_wave();
-  for (auto &&value : _values) w.at(values.at(value)) = true;
-  return std::move(w);
+  return symbols
+      | std::views::transform([&_values](auto sym){ return Boolean{_values.contains(sym)}; })
+      | std::ranges::to<std::vector>();
 }
 
 auto Grid::matches(const Rule& rule, const math::Vector3I& u) const noexcept -> Boolean {
-  const auto s = get<0>(rule.input_size) * get<1>(rule.input_size) * get<2>(rule.input_size);
   return std::ranges::all_of(
-    std::views::zip(rule.input, std::views::iota(0)),
-    [this, &u, &s](const auto& v) {
-      const auto& [input_square, dz] = v;
-      return std::ranges::all_of(
-        std::views::zip(input_square, std::views::iota(0)),
-        [this, &u, &s, &dz](const auto &v) {
-          const auto& [input_line, dy] = v;
-          return std::ranges::all_of(
-            std::views::zip(input_line, std::views::iota(0)),
-            [this, &u, &s, &dz, &dy](const auto &v) {
-              const auto& [input_wave, dx] = v;
+    std::views::zip(rule.input, std::views::iota(0u)),
+    [&](const auto &wav) {
+      const auto& [input_wave, i] = wav;
+      const auto du = math::Vector3I{
+        i % std::get<2>(rule.input_size),
+        (i / std::get<2>(rule.input_size)) % std::get<1>(rule.input_size),
+        (i / (std::get<2>(rule.input_size) * std::get<1>(rule.input_size))) % std::get<0>(rule.input_size),
+      };
 
-              const auto du = math::Vector3I{dx, dy, dz};
-              const auto w = wave(std::string{symbols.at(at(u + du))});
-
-              return std::ranges::any_of(std::views::zip(input_wave, w), [](const auto& v) {
-                const auto& [a, b] = v;
-                return a and b;
-              });
-            });
-        });
-    });
+      return input_wave.at(at(u + du));
+    }
+  );
 }
 
 auto Grid::center() const noexcept -> decltype(auto) { return ::center(size); }

@@ -68,7 +68,7 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
         //   if (model.gui > 0)
         //     GUI.Draw(model.name, interpreter.root, interpreter.current,
         //              bitmap, width, height, model.palette);
-        draw(bitmap, std::get<0>(s), std::get<1>(s));
+        draw(bitmap, std::get<2>(s), std::get<1>(s));
         std::println();
         //   Graphics.SaveBitmap(bitmap, width, height, std::format("{}.png", outputname);
         // } else

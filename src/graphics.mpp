@@ -15,10 +15,11 @@ export auto render(const Grid &grid, const Model &model) -> decltype(auto) {
       | std::views::transform([&model, &grid](auto s) { return grid.symbols.at(s); })
       | std::ranges::to<std::vector>();
 
+
   return std::make_tuple(std::move(bitmap), grid.size);
 }
 
-export auto draw(std::span<char> bitmap, UInt width, UInt height) -> void {
+export auto draw(std::span<const char> bitmap, UInt width, UInt height) -> void {
   for (auto i = 0u; i < height; i++) {
     for (auto j = 0u; j < width; j++)
       std::print("{} ", bitmap.at(i * width + j));
@@ -28,10 +29,10 @@ export auto draw(std::span<char> bitmap, UInt width, UInt height) -> void {
 }
 
 export auto draw(std::span<UInt32> bitmap, UInt width, UInt height) -> void {
-  for (auto i = 0u; i < height; i++) {
-    for (auto j = 0u; j < width; j++)
-      std::print("{:x} ", bitmap.at(i * width + j));
-    std::println();
-  }
-  std::println();
+  return draw(
+    bitmap
+      | std::views::transform([](auto x){ return std::format("{:x}", x); })
+      | std::views::join
+      | std::ranges::to<std::vector>(),
+    width, height);
 }

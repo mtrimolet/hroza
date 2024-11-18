@@ -42,13 +42,13 @@ private:
 
 public:
   Interpreter(const Model &model)
-      : Interpreter{model.doc.first_child(), {model.MX, model.MY, model.MZ}} {}
+      : Interpreter{model.doc.first_child(), {model.MZ, model.MY, model.MX}} {}
   Interpreter(const pugi::xml_node &xelem, Grid::Size&& size)
       : grid{parseGrid(xelem, std::move(size))},
         origin{xelem.attribute("origin").as_bool(false)} {
 
     const auto symmetry = symmetry::getSymmetry(
-        std::get<2>(grid.size) == 1, xelem.attribute("symmetry").as_string());
+        std::get<0>(grid.size) == 1, xelem.attribute("symmetry").as_string());
 
     std::println("nodes:");
 
@@ -64,12 +64,15 @@ public:
 
       std::println("{}{}", name, attributes);
 
+      auto node = std::optional<std::variant<OneNode, MarkovNode>>{};
       if (name == "one")
-        nodes.push_back(OneNode::parse(xnode, grid, symmetry));
+        node = OneNode::parse(xnode, grid, symmetry);
       // else if (name == "markov")
-      //   node.push_back(MarkovNode::parse(xnode, grid, symmetry));
-      else
-        ensures(false, std::format("failed to load '{}' node [:{}]", name, xnode.offset_debug()));
+      //   node = MarkovNode::parse(xnode, grid, symmetry));
+      
+      ensures(node != std::nullopt,
+              std::format("failed to load '{}' node [:{}]", name, xnode.offset_debug()));
+      nodes.push_back(std::move(node.value()));
     }
     std::println();
 
@@ -89,14 +92,15 @@ public:
 
     auto current = std::optional{root};
     co_yield grid;
-
+    auto counter = 0u;
     while (current != std::nullopt) {
       if (std::holds_alternative<MarkovNode>(current.value())) {
         auto& go = std::get<MarkovNode>(current.value());
-        current = go(grid, changes, first);
+        current = go(grid, changes, first, counter);
         first.push_back(std::ranges::size(changes));
       }
       co_yield grid;
+      counter++;
     }
   }
 };
