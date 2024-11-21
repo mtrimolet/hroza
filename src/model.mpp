@@ -31,35 +31,33 @@ export struct Model {
   std::string_view name;
   UInt linear_size;
   UInt dimension;
-  UInt MX;
-  UInt MY;
-  UInt MZ;
+  std::array<RangeExtent, 3> size;
 
-  Boolean gif;
+  bool gif;
   UInt amount;
   UInt pixelsize;
   // std::vector<Int> seeds;
   Palette palette;
-  Boolean iso;
+  bool iso;
   UInt steps;
   UInt gui;
 
   pugi::xml_document doc;
 
   Model() = default;
-  Model(std::string_view name, UInt linear_size, UInt dimension, UInt MX,
-        UInt MY, UInt MZ, Boolean gif, UInt amount, UInt pixelsize,
-        Palette palette, Boolean iso, UInt steps, UInt gui)
-      : name{name}, linear_size{linear_size}, dimension{dimension}, MX{MX},
-        MY{MY}, MZ{MZ}, gif{gif}, amount{amount}, pixelsize{pixelsize},
+  Model(std::string_view name, UInt linear_size, UInt dimension,
+        std::array<RangeExtent, 3> size, bool gif, UInt amount,
+        UInt pixelsize, Palette palette, bool iso, UInt steps, UInt gui)
+      : name{name}, linear_size{linear_size}, dimension{dimension},
+        size{size}, gif{gif}, amount{amount}, pixelsize{pixelsize},
         palette{palette}, iso{iso}, steps{steps}, gui{gui} {};
 
   Model(Model &&other) = default;
   Model(const Model &other)
-      : Model{other.name,      other.linear_size, other.dimension, other.MX,
-              other.MY,        other.MZ,          other.gif,       other.amount,
-              other.pixelsize, other.palette,     other.iso,       other.steps,
-              other.gui} {
+      : Model{other.name, other.linear_size, other.dimension, 
+              other.size, other.gif, other.amount,
+              other.pixelsize, other.palette, other.iso, 
+              other.steps, other.gui} {
     doc.reset(other.doc);
   }
 
@@ -85,9 +83,9 @@ export struct Model {
       name,
       linearSize,
       dimension,
-      xmodel.attribute("length").as_uint(linearSize),
+      {xmodel.attribute("height").as_uint(dimension == 2 ? 1 : linearSize),
       xmodel.attribute("width").as_uint(linearSize),
-      xmodel.attribute("height").as_uint(dimension == 2 ? 1 : linearSize),
+      xmodel.attribute("length").as_uint(linearSize)},
       gif,
       amount,
       xmodel.attribute("pixelsize").as_uint(4),

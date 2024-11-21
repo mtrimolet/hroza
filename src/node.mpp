@@ -12,268 +12,283 @@ import utils;
 
 using namespace stormkit;
 
+template <class From, class To>
+concept isConstructible = std::is_constructible<To, From>::value;
+
+export template <class T>
+concept hasResetMethod = requires(T& node) {
+  {node.reset()};
+};
+
 export
-struct RuleNode {
-private:
-  // const Grid::Size& grid_size = {0u, 0u, 0u};
+inline constexpr auto reset(hasResetMethod auto& node) noexcept -> decltype(auto) {
+  return node.reset();
+}
+
+export template <class T>
+concept isResetable = requires(T& node) {
+  {reset(node)};
+};
+
+export template <isResetable T>
+inline constexpr auto reset(std::optional<T>& node) noexcept -> decltype(auto) {
+  return node.and_then([](auto& x){ return reset(x); });
+}
+
+export template <isResetable... T>
+inline constexpr auto reset(std::variant<T...>& node) noexcept -> decltype(auto) {
+  return node.visit([](auto& x){ return reset(x); });
+}
+
+export template <class T>
+concept hasStaticParse = requires(pugi::xml_node&& node) {
+  {T::parse(node)} -> isConstructible<std::expected<T, pugi::xml_parse_result>>;
+};
+
+export template <hasStaticParse T>
+inline constexpr auto parse(pugi::xml_node&& node) noexcept -> decltype(auto) {
+  return T::parse(node);
+}
+
+export template <class T>
+concept isParsable = requires(T& node) {
+  {parse(node)};
+};
+
+export template <class T>
+concept hasExecuteMethod = requires(T& node, Grid &grid, 
+    std::vector<math::Vector3I> &changes,
+    const std::vector<math::Vector3I>::iterator &next_change) {
+  {node.execute(grid, changes, next_change)} -> isConstructible<bool>;
+};
+
+export
+inline constexpr auto execute(hasExecuteMethod auto& node, Grid &grid, std::vector<math::Vector3I> &changes,
+             const std::vector<math::Vector3I>::iterator &next_change)
+    noexcept -> decltype(auto) {
+  return node.execute(grid, changes, next_change);
+}
+
+export template <class T>
+concept isExecutable = requires(T& node,
+    Grid &grid, std::vector<math::Vector3I> &changes,
+    const std::vector<math::Vector3I>::iterator &next_change) {
+  {execute(node, grid, changes, next_change)} -> isConstructible<bool>;
+};
+
+export template <isExecutable T>
+inline constexpr auto execute(std::optional<T>& node, Grid &grid, std::vector<math::Vector3I> &changes,
+    const std::vector<math::Vector3I>::iterator &next_change)
+    noexcept -> decltype(auto) {
+  return node.and_then([&](auto& x){
+    return static_cast<bool>(execute(x, grid, changes, next_change));
+  });
+}
+
+export template <isExecutable... T>
+inline constexpr auto execute(std::variant<T...>& node, Grid &grid, std::vector<math::Vector3I> &changes,
+    const std::vector<math::Vector3I>::iterator &next_change)
+    noexcept -> decltype(auto) {
+  return node.visit([&](auto& x){
+    return static_cast<bool>(execute(x, grid, changes, next_change));
+  });
+}
+
+export template <class T>
+concept isExecutionNode = isResetable<T> and isExecutable<T>;
+
+export struct RuleNode {
 
 public:
   std::vector<Rule> rules;
-  UInt counter, steps;
 
 protected:
-  using Match = std::tuple<UInt, UInt, UInt, UInt>; 
+  using Match = std::tuple<UInt, math::Vector3I>;
   std::vector<Match> matches;
-  UInt matchCount;
-  std::optional<UInt> lastMatchedTurn;
-  // size(matchMask) == size(rules);  
-  // size(matchMask[i]) == grid_size[0] * grid_size[1] * grid_size[2];  
-  std::vector<std::vector<Boolean>> matchMask;
+
+  // std::optional<UInt> lastMatchedTurn;
+  // size(matchMask) == size(rules);
+  // size(matchMask[i]) == grid_size[0] * grid_size[1] * grid_size[2];
+  std::vector<std::vector<bool>> matchMask;
 
   // size(last) == size(rules)
-  std::vector<Boolean> last;
+  // std::vector<bool> last;
 
 public:
-  RuleNode() = default;
-  ~RuleNode() = default;
-  RuleNode(RuleNode&&) = default;
-  auto operator=(RuleNode&&) -> RuleNode& = default;
-  RuleNode(const RuleNode&) = default;
-  auto operator=(const RuleNode&) -> RuleNode& = default;
+  RuleNode(const Size &grid_size, std::vector<Rule> &&_rules, auto steps) noexcept
+      : rules{std::move(_rules)},
+        matchMask(std::ranges::size(rules)) {
+    const auto s = std::get<0>(grid_size) * std::get<1>(grid_size) * std::get<2>(grid_size);
+    for (auto& m : matchMask) m.resize(s);
+  };
 
-  RuleNode(const Grid::Size& grid_size, std::vector<Rule>&& _rules, UInt steps) 
-    : rules{std::move(_rules)},
-      matchMask{
-        std::views::repeat(
-          std::views::repeat(
-            Boolean{false},
-            std::get<0>(grid_size) * std::get<1>(grid_size) * std::get<2>(grid_size)
-          ) | std::ranges::to<std::vector>(),
-          std::ranges::size(rules)
-        ) | std::ranges::to<std::vector>()
-      },
-      last(std::ranges::size(rules)), 
-      steps{steps}, counter{} {};
-
-  inline constexpr auto toIndex(const math::Vector3I& u, const Grid::Size& size) const noexcept {
-    return  u.x
-          + u.y * std::get<2>(size)
-          + u.z * std::get<2>(size) * std::get<1>(size);
+  inline constexpr auto addMatch(const Size &grid_size, UInt r, math::Vector3I u) noexcept -> void {
+    matchMask[r][toIndex(u, grid_size)] = true;
+    matches.push_back(std::make_tuple(r, u));
   }
 
-  auto addMatch(const Grid::Size& grid_size, UInt r, math::Vector3I u, std::vector<Boolean>& maskr) -> void {
-      maskr.at(toIndex(u, grid_size)) = true;
-      matches.push_back(std::make_tuple(r, u.x, u.y, u.z));
-  }
-
-  static inline constexpr auto inBounds(const math::Vector3I& u, const math::Vector3I& b1, const math::Vector3I& b2) noexcept -> Boolean {
+  static inline constexpr auto inBounds(const math::Vector3I &u,
+                                        const math::Vector3I &b1,
+                                        const math::Vector3I &b2) noexcept
+      -> bool {
     const auto lower = math::Vector3I{
-      std::min(b1.x, b2.x),
-      std::min(b1.y, b2.y),
-      std::min(b1.z, b2.z),
+        std::min(b1.x, b2.x),
+        std::min(b1.y, b2.y),
+        std::min(b1.z, b2.z),
     };
     const auto upper = math::Vector3I{
-      std::max(b1.x, b2.x),
-      std::max(b1.y, b2.y),
-      std::max(b1.z, b2.z),
+        std::max(b1.x, b2.x),
+        std::max(b1.y, b2.y),
+        std::max(b1.z, b2.z),
     };
-    return  lower.x <= u.x and u.x <= upper.x
-        and lower.y <= u.y and u.y <= upper.y
-        and lower.z <= u.z and u.z <= upper.z;
+    return lower.x <= u.x and u.x <= upper.x
+       and lower.y <= u.y and u.y <= upper.y
+       and lower.z <= u.z and u.z <= upper.z;
   }
 
-  std::optional<RuleNode> operator()(Grid& grid, const std::vector<math::Vector3I>& changes, const std::vector<UInt>& first) noexcept {
-    last.clear();
-    last.resize(std::ranges::size(rules));
+  inline constexpr auto reset() noexcept -> void {
+    matches.clear();
 
-    if (steps > 0 and counter >= steps) return std::nullopt;
+    for (auto& m : matchMask) {
+      const auto l = std::ranges::size(m);
+      m.clear();
+      m.resize(l);
+    }
+  }
 
-    const auto& [MZ, MY, MX] = grid.size;
+  inline constexpr auto loadMatches(Grid &grid, const std::vector<math::Vector3I> &changes,
+                    const std::vector<math::Vector3I>::iterator &next_change)
+      noexcept -> bool {
+
+    const auto &[MZ, MY, MX] = grid.size;
     const auto M = math::Vector3I{MX, MY, MZ};
 
-    if (lastMatchedTurn) {
-      for (const auto& u : changes | std::views::drop(first[lastMatchedTurn.value()])) {
-        const auto& value = grid.at(u);
-        for (const auto& [rule, maskr, r]
-            : std::views::zip(rules, matchMask, std::views::iota(0u))) {
-          const auto& [IMZ, IMY, IMX] = rule.input_size;
+    if (next_change != std::ranges::end(changes)) {
+      for (const auto &u : std::ranges::subrange(next_change, std::ranges::end(changes))) {
+        const auto &value = grid.at(u);
+        for (const auto &[rule, r] : std::views::zip(rules, std::views::iota(0u))) {
+          const auto &[IMZ, IMY, IMX] = rule.input_size;
           const auto IM = math::Vector3I{IMX, IMY, IMZ};
 
-          for (const auto& shift : rule.ishifts.at(value)) { 
+          for (const auto &shift : rule.ishifts.at(value)) {
             const auto s = u - shift;
 
             if (not inBounds(s, {0, 0, 0}, M - IM))
               continue;
-            if (not maskr[toIndex(s, grid.size)] and grid.matches(rule, s))
-              addMatch(grid.size, r, s, maskr);
+            if (not matchMask.at(r).at(toIndex(s, grid.size)) and grid.matches(rule, s))
+              addMatch(grid.size, r, s);
           }
         }
       }
-    }
-    else {
-      for (const auto& [rule, maskr, r]
-          : std::views::zip(rules, matchMask, std::views::iota(0u))) {
-        const auto& [IMZ, IMY, IMX] = rule.input_size;
+    } else {
+      matches.clear();
+      for (const auto &[rule, r] : std::views::zip(rules, std::views::iota(0u))) {
+        const auto &[IMZ, IMY, IMX] = rule.input_size;
         const auto IM = math::Vector3I{IMX, IMY, IMZ};
 
-        // fot (const auto& [x, y, z] : std::views::cartesian_product(
-        //   std::views::iota(IMX - 1, MX) | std::views::stride(IMX),
-        //   std::views::iota(IMY - 1, MY) | std::views::stride(IMY),
-        //   std::views::iota(IMZ - 1, MZ) | std::views::stride(IMZ),
-        // )) {}
-
-        for (const auto& z : std::views::iota(IMZ - 1, MZ) | std::views::stride(IMZ))
-        for (const auto& y : std::views::iota(IMY - 1, MY) | std::views::stride(IMY))
-        for (const auto& x : std::views::iota(IMX - 1, MX) | std::views::stride(IMX)) {
+        for (const auto &z : std::views::iota(IMZ - 1, MZ) | std::views::stride(IMZ))
+        for (const auto &y : std::views::iota(IMY - 1, MY) | std::views::stride(IMY))
+        for (const auto &x : std::views::iota(IMX - 1, MX) | std::views::stride(IMX)) {
           const auto u = math::Vector3I{x, y, z};
 
-          const auto& value = grid.at(u);
-          for (const auto& shift : rule.ishifts.at(value)) { 
+          const auto &value = grid.at(u);
+          for (const auto &shift : rule.ishifts.at(value)) {
             const auto s = u - shift;
 
             if (not inBounds(s, {0, 0, 0}, M - IM))
               continue;
             if (grid.matches(rule, s))
-              addMatch(grid.size, r, s, maskr);
+              addMatch(grid.size, r, s);
           }
         }
       }
     }
 
-    return *this;
+    return true;
   }
 };
 
-export
-struct OneNode : RuleNode {
+export struct OneNode : RuleNode {
 
-  OneNode() = default;
-  ~OneNode() = default;
-  OneNode(OneNode&&) = default;
-  auto operator=(OneNode&&) -> OneNode& = default;
-  OneNode(const OneNode&) = default;
-  auto operator=(const OneNode&) -> OneNode& = default;
+  OneNode(const Size &grid_size, std::vector<Rule> &&rules, UInt steps) noexcept
+      : RuleNode{grid_size, std::move(rules), steps} {};
 
-  OneNode(const Grid::Size& grid_size, std::vector<Rule>&& rules, UInt steps) : RuleNode{grid_size, std::move(rules), steps} {};
-
-  static auto parse(const pugi::xml_node &xone,
-                    const Grid& grid, const symmetry::subgroup &parentSymmetry)
-      -> OneNode {
+  static inline constexpr auto parse(const pugi::xml_node &xone, const Grid &grid,
+                    const symmetry::subgroup &parentSymmetry) noexcept -> OneNode {
     auto xrules = xone.children("rule") | std::ranges::to<std::vector>();
-    if (std::ranges::empty(xrules)) xrules.push_back(xone);
+    if (std::ranges::empty(xrules))
+      xrules.push_back(xone);
 
     auto rules = xrules
-        | std::views::transform([&grid](auto& xrule) { 
-            auto r = Rule::parse(xrule, grid.waves, grid.values);
-            ensures(static_cast<bool>(r), std::format("parse_result: {}", r.error().description()));
-            return std::views::single(r.value());
-          })
-        | std::views::join
-        | std::ranges::to<std::vector>();
+      | std::views::transform([&grid, &parentSymmetry](auto &xrule) {
+          auto r = Rule::parse(xrule, grid.waves, grid.values);
+          ensures(static_cast<bool>(r),
+                  std::format("parse_result: {}", r.error().description()));
+          auto& rule = r.value();
 
-    return OneNode{
-      grid.size, 
-      std::move(rules),
-      xone.attribute("steps").as_uint(0u)};
+          const auto symmetry_string =
+              std::string{xrule.attribute("symmetry").as_string()};
+          const auto &subgroup = std::empty(symmetry_string)
+              ? parentSymmetry
+              : symmetry::getSymmetry(std::get<0>(grid.size) == 1,
+                                      symmetry_string);
+
+          return rule.symmetries(std::get<0>(grid.size) == 1, subgroup);
+        })
+      | std::views::join
+      | std::ranges::to<std::vector>();
+
+    return OneNode{grid.size, std::move(rules),
+                   xone.attribute("steps").as_uint(0u)};
   }
 
-  auto apply(Grid& grid, const Rule& rule, std::vector<math::Vector3I>& changes, const math::Vector3I& u) {
-    for (const auto& val : std::views::zip(rule.output, std::views::iota(0u))) {
-      const auto& [newValue, i] = val;
-      const auto du = math::Vector3I{
-        i % std::get<2>(rule.output_size),
-        (i / std::get<2>(rule.output_size)) % std::get<1>(rule.output_size),
-        (i / (std::get<2>(rule.output_size) * std::get<1>(rule.output_size))) % std::get<0>(rule.output_size)
-      };
-
-      if (newValue == 0xff) continue;
-      
-      const auto s = u + du;
-      auto& value = grid.at(s);
-      if (newValue == value) continue;
-
-      value = newValue;
-      changes.push_back(s);
-    }
+  static inline constexpr auto apply(Grid& grid, const Rule &rule, const math::Vector3I &u) 
+      noexcept -> std::vector<math::Vector3I> {
+    return std::views::zip(rule.output, std::views::iota(0u)
+        | std::views::transform([&rule, &u](auto i){ return u + fromIndex(i, rule.output_size); }))
+      | std::views::filter([&grid](const auto& v){
+          const auto& [newValue, s] = v;
+          return newValue != 0xff and newValue != grid.at(s);
+      })
+      | std::views::transform([&grid](const auto v){
+          const auto& [newValue, s] = v;
+          grid[s] = newValue;
+          return s;
+      })
+      | std::ranges::to<std::vector>();
   }
 
-  auto randomMatch(const Grid& grid) -> std::optional<Match> {
-    while (std::ranges::size(matches) > 0u) {
+  auto inline constexpr randomMatch(const Grid &grid) noexcept -> std::optional<Match> {
+    auto trashed = trash{matches};
+    
+    while (std::ranges::size(matches) > 0) {
       const auto matchIndex = std::rand() % std::ranges::size(matches);
-      auto match = std::move(matches.at(matchIndex));
-      matches.erase(std::ranges::begin(matches) + matchIndex);
 
-      const auto& [r, x, y, z] = match;
-      matchMask.at(r).at(toIndex({x, y, z}, grid.size)) = false;
-      if (grid.matches(rules.at(r), {x, y, z})) return match;
+      auto match = trashed.pop(matchIndex);
+      const auto &[r, u] = match;
+      matchMask[r][toIndex(u, grid.size)] = false;
+      if (grid.matches(rules.at(r), u))
+        return match;
     }
     return std::nullopt;
   }
 
-  std::optional<OneNode> operator()(Grid& grid, std::vector<math::Vector3I>& changes, const std::vector<UInt>& first, const auto turn) noexcept {
-        if (not RuleNode::operator()(grid, changes, first)) return std::nullopt;
-        lastMatchedTurn = turn;
+  inline constexpr auto execute(Grid &grid, std::vector<math::Vector3I> &changes,
+                  const std::vector<math::Vector3I>::iterator &next_change)
+      noexcept -> bool {
+    if (not loadMatches(grid, changes, next_change)) return false;
 
-        // if (trajectory != std::nullopt)
-        // {
-        //     if (counter >= trajectory.Length) return false;
-        //     Array.Copy(trajectory[counter], grid.state, grid.state.Length);
-        //     counter++;
-        //     return *this;
-        // }
-        // else 
+    auto m = randomMatch(grid);
+    if (not m) return false;
+    const auto &[r, u] = m.value();
 
-        auto m = randomMatch(grid);
-        if (!m) return std::nullopt;
-        const auto& [r, x, y, z] = m.value();
+    changes.insert_range(
+      std::ranges::end(changes),
+      apply(grid, rules.at(r), u));
 
-        last[r] = true;
-        apply(grid, rules[r], changes, {x, y, z});
-        counter++;
-        return *this;
+    return true;
   }
 };
 
-template<class... Ts>
-struct overloads : Ts... { using Ts::operator()...; };
-
-export
-struct MarkovNode {
-  std::vector<std::variant<OneNode, MarkovNode>> children;
-  // std::optional<MarkovNode> parent;
-  Int n;
-
-  MarkovNode() = default;
-  ~MarkovNode() = default;
-  MarkovNode(MarkovNode&&) = default;
-  auto operator=(MarkovNode&&) -> MarkovNode& = default;
-  MarkovNode(const MarkovNode&) = default;
-  auto operator=(const MarkovNode&) -> MarkovNode& = default;
-
-  MarkovNode(std::variant<OneNode, MarkovNode> child) : children{child} {}
-  static auto parse(const pugi::xml_node &xelem,
-                    const Grid& grid, const symmetry::subgroup &parentSymmetry)
-      -> MarkovNode {
-    return MarkovNode{};
-  }
-
-  std::optional<MarkovNode> operator()(Grid& grid, std::vector<math::Vector3I>& changes, const std::vector<UInt>& first, auto turn) noexcept {
-    n = 0;
-
-    MarkovNode& current = *this;
-    for (auto& child : children | std::views::drop(n)) {
-      if (child.visit(overloads{
-        [&](MarkovNode& node) {
-          current = std::move(node);
-          return current(grid, changes, first, turn) != std::nullopt;
-        },
-        [&](OneNode& node){
-          return node(grid, changes, first, turn) != std::nullopt;
-        },
-      }))
-        return current;
-    }
-    return std::nullopt;
-    // return current.parent;
-  }
-};
+static_assert(isExecutionNode<OneNode>);
+static_assert(isExecutionNode<std::variant<OneNode>>);

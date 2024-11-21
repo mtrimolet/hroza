@@ -14,9 +14,9 @@ constexpr inline auto square = 8z;
 constexpr inline auto cube = 48z;
 }; // namespace subgroup_length
 
-using square_subgroup = std::array<Boolean, subgroup_length::square>;
-using cube_subgroup = std::array<Boolean, subgroup_length::cube>;
-using subgroup = std::vector<Boolean>;
+using square_subgroup = std::array<bool, subgroup_length::square>;
+using cube_subgroup = std::array<bool, subgroup_length::cube>;
+using subgroup = std::vector<bool>;
 } // namespace symmetry
 
 namespace {
@@ -31,125 +31,139 @@ constexpr auto square_subgroups =
 
 constexpr auto cube_subgroups =
     frozen::make_unordered_map<frozen::string, symmetry::cube_subgroup>({
-        {"()", iotaArray<Boolean, symmetry::subgroup_length::cube>(
+        {"()", iotaArray<bool, symmetry::subgroup_length::cube>(
                    [](auto i) { return false; })},
-        {"(x)", iotaArray<Boolean, symmetry::subgroup_length::cube>(
+        {"(x)", iotaArray<bool, symmetry::subgroup_length::cube>(
                     [](auto i) { return i == 0 || i == 1; })},
-        {"(z)", iotaArray<Boolean, symmetry::subgroup_length::cube>(
+        {"(z)", iotaArray<bool, symmetry::subgroup_length::cube>(
                     [](auto i) { return i == 0 || i == 17; })},
-        {"(xy)", iotaArray<Boolean, symmetry::subgroup_length::cube>(
+        {"(xy)", iotaArray<bool, symmetry::subgroup_length::cube>(
                      [](auto i) { return i < 8; })},
-        {"(xyz+)", iotaArray<Boolean, symmetry::subgroup_length::cube>(
+        {"(xyz+)", iotaArray<bool, symmetry::subgroup_length::cube>(
                        [](auto i) { return i % 2 == 0; })},
-        {"(xyz)", iotaArray<Boolean, symmetry::subgroup_length::cube>(
+        {"(xyz)", iotaArray<bool, symmetry::subgroup_length::cube>(
                       [](auto i) { return true; })},
-        // {"(xy)(z)", iotaArray<Boolean, symmetry::subgroup_length::cube>(
+        // {"(xy)(z)", iotaArray<bool, symmetry::subgroup_length::cube>(
         //             [](auto i) { return i < 8 || i == 17 || ...; })},
     });
 } // namespace
 
+export template<class T>
+concept hashable = std::equality_comparable<T> 
+  and requires(T t) {
+    std::hash<T>{}(t);
+  };
+
 export namespace symmetry {
-constexpr auto getSymmetry(Boolean, std::string_view s) noexcept
+
+template <class T>
+using endomorphism = std::function<T(const T&)>;
+
+inline constexpr auto getSymmetry(bool, std::string_view s) noexcept
     -> decltype(auto);
 
-template <typename T>
-auto squareSymmetries(T &&thing, auto rotation, auto reflection, auto same,
-                      auto subgroup = square_subgroups.at("(xy)"))
-    -> decltype(auto);
+template <hashable T>
+inline constexpr auto squareSymmetries(const T& thing,
+    auto zrotation,
+    auto xreflection,
+    const subgroup& subgroup = square_subgroups.at("(xy)") | std::ranges::to<std::vector>())
+    noexcept -> decltype(auto);
 constexpr auto getSquareSymmetry(std::string_view s) noexcept -> decltype(auto);
 
-template <typename T>
-auto cubeSymmetries(T &&thing, auto a, auto b, auto r, auto same,
-                    auto subgroup = cube_subgroups.at("(xyz)"))
-    -> decltype(auto);
-constexpr auto getCubeSymmetry(std::string_view s) noexcept -> decltype(auto);
+template <hashable T>
+inline constexpr auto cubeSymmetries(const T& thing,
+    auto zrotation,
+    auto yrotation,
+    auto xreflection,
+    const subgroup& subgroup = cube_subgroups.at("(xyz)") | std::ranges::to<std::vector>())
+    noexcept -> decltype(auto);
+inline constexpr auto getCubeSymmetry(std::string_view s) noexcept -> decltype(auto);
 
 } // namespace symmetry
 
-template <typename T>
-auto symmetry::squareSymmetries(T &&thing, auto rotation, auto reflection,
-                                auto same, auto subgroup) -> decltype(auto) {
-  static constexpr auto images =
-      std::array<T, symmetry::subgroup_length::square>{
-          thing,                                           //    e
-          reflection(thing),                               //    b
-          rotation(thing),                                 //    a
-          reflection(rotation(thing)),                     //   ba
-          rotation(rotation(thing)),                       //   aa
-          reflection(rotation(rotation(thing))),           //  baa
-          rotation(rotation(rotation(thing))),             //  aaa
-          reflection(rotation(rotation(rotation(thing)))), // baaa
-      };
+template <hashable T>
+inline constexpr auto symmetry::squareSymmetries(const T& thing, auto a, auto r, const subgroup& subgroup) noexcept -> decltype(auto) {
+  static const auto syms =
+    std::array<endomorphism<T>, symmetry::subgroup_length::square>{
+      [&a, &r](const auto& t){ return         t;     },
+      [&a, &r](const auto& t){ return       r(t);    },
+      [&a, &r](const auto& t){ return       a(t);    },
+      [&a, &r](const auto& t){ return     r(a(t));   },
+      [&a, &r](const auto& t){ return     a(a(t));   },
+      [&a, &r](const auto& t){ return   r(a(a(t)));  },
+      [&a, &r](const auto& t){ return   a(a(a(t)));  },
+      [&a, &r](const auto& t){ return r(a(a(a(t)))); },
+    };
 
-  return std::views::zip(images, subgroup)
+  return std::views::zip(syms, subgroup)
       | std::views::filter(monadic::get<1>())
-      | std::views::transform(monadic::get<0>())
-      | std::ranges::to<std::vector>();
+      | std::views::transform([&thing](const auto& f) { return std::get<0>(f)(thing); })
+      | std::ranges::to<std::unordered_set>();
+}
+
+template <hashable T>
+inline constexpr auto symmetry::cubeSymmetries(const T& thing, auto a, auto b, auto r, const subgroup& subgroup) noexcept -> decltype(auto) {
+  static const auto syms =
+    std::array<endomorphism<T>, symmetry::subgroup_length::cube>{
+      [&a, &b, &r](const auto& t){ return                 t;         },
+      [&a, &b, &r](const auto& t){ return               r(t);        },
+      [&a, &b, &r](const auto& t){ return               a(t);        },
+      [&a, &b, &r](const auto& t){ return             r(a(t));       },
+      [&a, &b, &r](const auto& t){ return             a(a(t));       },
+      [&a, &b, &r](const auto& t){ return           r(a(a(t)));      },
+      [&a, &b, &r](const auto& t){ return           a(a(a(t)));      },
+      [&a, &b, &r](const auto& t){ return         r(a(a(a(t))));     },
+      [&a, &b, &r](const auto& t){ return               b(t);        },
+      [&a, &b, &r](const auto& t){ return             r(b(t));       },
+      [&a, &b, &r](const auto& t){ return             b(a(t));       },
+      [&a, &b, &r](const auto& t){ return           r(b(a(t)));      },
+      [&a, &b, &r](const auto& t){ return           b(a(a(t)));      },
+      [&a, &b, &r](const auto& t){ return         r(b(a(a(t))));     },
+      [&a, &b, &r](const auto& t){ return         b(a(a(a(t))));     },
+      [&a, &b, &r](const auto& t){ return       r(b(a(a(a(t)))));    },
+      [&a, &b, &r](const auto& t){ return             b(b(t));       },
+      [&a, &b, &r](const auto& t){ return           r(b(b(t)));      },
+      [&a, &b, &r](const auto& t){ return           b(b(a(t)));      },
+      [&a, &b, &r](const auto& t){ return         r(b(b(a(t))));     },
+      [&a, &b, &r](const auto& t){ return         b(b(a(a(t))));     },
+      [&a, &b, &r](const auto& t){ return       r(b(b(a(a(t)))));    },
+      [&a, &b, &r](const auto& t){ return       b(b(a(a(a(t)))));    },
+      [&a, &b, &r](const auto& t){ return     r(b(b(a(a(a(t))))));   },
+      [&a, &b, &r](const auto& t){ return           b(b(b(t)));      },
+      [&a, &b, &r](const auto& t){ return         r(b(b(b(t))));     },
+      [&a, &b, &r](const auto& t){ return         b(b(b(a(t))));     },
+      [&a, &b, &r](const auto& t){ return       r(b(b(b(a(t)))));    },
+      [&a, &b, &r](const auto& t){ return       b(b(b(a(a(t)))));    },
+      [&a, &b, &r](const auto& t){ return     r(b(b(b(a(a(t))))));   },
+      [&a, &b, &r](const auto& t){ return     b(b(b(a(a(a(t))))));   },
+      [&a, &b, &r](const auto& t){ return   r(b(b(b(a(a(a(t)))))));  },
+      [&a, &b, &r](const auto& t){ return             a(b(t));       },
+      [&a, &b, &r](const auto& t){ return           r(a(b(t)));      },
+      [&a, &b, &r](const auto& t){ return           a(b(a(t)));      },
+      [&a, &b, &r](const auto& t){ return         r(a(b(a(t))));     },
+      [&a, &b, &r](const auto& t){ return         a(b(a(a(t))));     },
+      [&a, &b, &r](const auto& t){ return       r(a(b(a(a(t)))));    },
+      [&a, &b, &r](const auto& t){ return       a(b(a(a(a(t)))));    },
+      [&a, &b, &r](const auto& t){ return     r(a(b(a(a(a(t))))));   },
+      [&a, &b, &r](const auto& t){ return         a(b(b(b(t))));     },
+      [&a, &b, &r](const auto& t){ return       r(a(b(b(b(t)))));    },
+      [&a, &b, &r](const auto& t){ return       a(b(b(b(a(t)))));    },
+      [&a, &b, &r](const auto& t){ return     r(a(b(b(b(a(t))))));   },
+      [&a, &b, &r](const auto& t){ return     a(b(b(b(a(a(t))))));   },
+      [&a, &b, &r](const auto& t){ return   r(a(b(b(b(a(a(t)))))));  },
+      [&a, &b, &r](const auto& t){ return   a(b(b(b(a(a(a(t)))))));  },
+      [&a, &b, &r](const auto& t){ return r(a(b(b(b(a(a(a(t)))))))); },
+    };
+
+  return std::views::zip(syms, subgroup)
+      | std::views::filter(monadic::get<1>())
+      | std::views::transform([&thing](const auto& f) { return std::get<0>(f)(thing); })
+      | std::ranges::to<std::unordered_set>();
 }
 
 template <typename T>
-auto symmetry::cubeSymmetries(T &&thing, auto a, auto b, auto r, auto same,
-                              auto subgroup) -> decltype(auto) {
-  static constexpr auto images = std::array<T, symmetry::subgroup_length::cube>{
-      thing,                         // e
-      r(thing),                      //
-      a(thing),                      // a
-      r(a(thing)),                   //
-      a(a(thing)),                   // a2
-      r(a(a(thing))),                //
-      a(a(a(thing))),                // a3
-      r(a(a(a(thing)))),             //
-      b(thing),                      // b
-      r(b(thing)),                   //
-      b(a(thing)),                   // b a
-      r(b(a(thing))),                //
-      b(a(a(thing))),                // b a2
-      r(b(a(a(thing)))),             //
-      b(a(a(a(thing)))),             // b a3
-      r(b(a(a(a(thing))))),          //
-      b(b(thing)),                   // b2
-      r(b(b(thing))),                //
-      b(b(a(thing))),                // b2 a
-      r(b(b(a(thing)))),             //
-      b(b(a(a(thing)))),             // b2 a2
-      r(b(b(a(a(thing))))),          //
-      b(b(a(a(a(thing))))),          // b2 a3
-      r(b(b(a(a(a(thing)))))),       //
-      b(b(b(thing))),                // b3
-      r(b(b(b(thing)))),             //
-      b(b(b(a(thing)))),             // b3 a
-      r(b(b(b(a(thing))))),          //
-      b(b(b(a(a(thing))))),          // b3 a2
-      r(b(b(b(a(a(thing)))))),       //
-      b(b(b(a(a(a(thing)))))),       // b3 a3
-      r(b(b(b(a(a(a(thing))))))),    //
-      a(b(thing)),                   // a b
-      r(a(b(thing))),                //
-      a(b(a(thing))),                // a b a
-      r(a(b(a(thing)))),             //
-      a(b(a(a(thing)))),             // a b a2
-      r(a(b(a(a(thing))))),          //
-      a(b(a(a(a(thing))))),          // a b a3
-      r(a(b(a(a(a(thing)))))),       //
-      a(b(b(b(thing)))),             // a3 b a2 = a b3
-      r(a(b(b(b(thing))))),          //
-      a(b(b(b(a(thing))))),          // a3 b a3 = a b3 a
-      r(a(b(b(b(a(thing)))))),       //
-      a(b(b(b(a(a(thing)))))),       // a3 b = a b3 a2
-      r(a(b(b(b(a(a(thing))))))),    //
-      a(b(b(b(a(a(a(thing))))))),    // a3 b a = a b3 a3
-      r(a(b(b(b(a(a(a(thing)))))))), //
-  };
-
-  return std::views::zip(images, subgroup)
-      | std::views::filter(monadic::get<1>())
-      | std::views::transform(monadic::get<0>())
-      | std::ranges::to<std::vector>();
-}
-
-template <typename T>
-constexpr auto get_symmetry(const T &subgroups, std::string_view s,
-                            std::string_view default_key) noexcept {
+inline constexpr auto get_symmetry(const T &subgroups, std::string_view s,
+                            std::string_view default_key) noexcept -> decltype(auto) {
   const auto key = std::empty(s) ? default_key : s;
   const auto it = subgroups.find(key);
   ensures(it != std::ranges::cend(subgroups),
@@ -157,17 +171,17 @@ constexpr auto get_symmetry(const T &subgroups, std::string_view s,
   return it->second;
 }
 
-constexpr auto symmetry::getSquareSymmetry(std::string_view s) noexcept
+inline constexpr auto symmetry::getSquareSymmetry(std::string_view s) noexcept
     -> decltype(auto) {
   return get_symmetry(square_subgroups, s, "(xy)");
 }
 
-constexpr auto symmetry::getCubeSymmetry(std::string_view s) noexcept
+inline constexpr auto symmetry::getCubeSymmetry(std::string_view s) noexcept
     -> decltype(auto) {
   return get_symmetry(cube_subgroups, s, "(xyz)");
 }
 
-constexpr auto symmetry::getSymmetry(Boolean d2, std::string_view s) noexcept
+inline constexpr auto symmetry::getSymmetry(bool d2, std::string_view s) noexcept
     -> decltype(auto) {
   if (d2)
     return symmetry::getSquareSymmetry(s) | std::ranges::to<subgroup>();

@@ -8,6 +8,7 @@ import model;
 import interpreter;
 import graphics;
 import utils;
+import stride_view;
 
 using namespace std::literals;
 using namespace stormkit;
@@ -29,9 +30,9 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   const auto xmodels = models_doc.child("models");
   ensures(xmodels, std::format("models not found [:{}]", xmodels.offset_debug()));
 
-  const auto models = xmodels 
+  const auto models = xmodels
       | std::views::filter([args{args.subspan(1)}](const auto &m) {
-        return std::ranges::contains(args, m.attribute("name").as_string());
+          return std::ranges::contains(args, m.attribute("name").as_string());
       })
       | std::views::transform(bindBack<Model::parse>(palette))
       | std::views::filter([](const auto &e) {
@@ -45,35 +46,39 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
       | std::ranges::to<std::vector>();
 
   std::ranges::for_each(models, [](const auto &model) {
-    std::println("{}[{}x{}x{}]:", model.name, model.MX, model.MY, model.MZ);
+    std::println("{}[{}x{}x{}]:", model.name, std::get<0>(model.size), std::get<1>(model.size), std::get<2>(model.size));
 
-    auto interpreter = Interpreter{model};
+    if (std::get<0>(model.size) != 1) {
+      std::println("cannot render 3d grid in console mode");
+      return;
+    }
+
+    auto interpreter = Interpreter::parse(model.doc.first_child(), auto{model.size});
 
     std::ranges::for_each(std::views::iota(0u, model.amount), [&](auto k) {
+      std::println("generation: {}", k);
+
       const auto seed = std::rand();
 
       auto ticks = interpreter.run(seed)
-          | std::views::take(model.steps)
+          | std::views::take(model.steps);
           // mandatory to get real size
-          | std::ranges::to<std::vector>();
 
-      auto frames = ticks
-          | std::views::drop(model.gif ? 0 : std::ranges::size(ticks) - 1);
-
-      std::println("generation: {}, ticks: {}", k, std::ranges::size(ticks));
+      auto frames = std::move(ticks)
+          // | std::views::drop(model.gif ? 0 : std::ranges::size(ticks) - 1);
+          | std::views::stride(model.gif ? 0 : 10);
 
       std::ranges::for_each(frames, [&model](const auto &grid) {
-        // if (grid.MZ == 1 || model.iso) {
-        auto [bitmap, s] = render(grid, model);
-        //   if (model.gui > 0)
-        //     GUI.Draw(model.name, interpreter.root, interpreter.current,
-        //              bitmap, width, height, model.palette);
-        draw(bitmap, std::get<2>(s), std::get<1>(s));
-        std::println();
-        //   Graphics.SaveBitmap(bitmap, width, height, std::format("{}.png", outputname);
+        // if (std::get<0>(grid.size) == 1 or model.iso) {
+          auto [bitmap, s] = render(grid, model);
+          //   if (model.gui > 0)
+          //     GUI.Draw(model.name, interpreter.root, interpreter.current,
+          //              bitmap, width, height, model.palette);
+          draw(bitmap, std::get<2>(s), std::get<1>(s));
+          std::println();
+          //   Graphics.SaveBitmap(bitmap, width, height, std::format("{}.png", outputname);
         // } else
-        //   VoxHelper.SaveVox(grid, std::format("{}.vox", outputname);
-        // }
+            // VoxHelper.SaveVox(grid, std::format("{}.vox", outputname));
       });
     });
   });

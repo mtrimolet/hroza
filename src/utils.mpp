@@ -3,22 +3,47 @@ module;
 export module utils;
 
 import std;
+import glm;
 import stormkit.Core;
 
 using namespace stormkit;
 
 export {
-  template <meta::IsArithmetic T> auto center(std::array<T, 3> M) -> T {
-    const auto &[MZ, MY, MX] = M;
-    return MX / 2 + (MY / 2) * MX + (MZ / 2) * MX * MY;
-  }
+  template <typename T>
+  struct Disposable {
+    T t;
+    ~Disposable() { t(); }
+  };
 
-  template <meta::IsArithmetic T> auto center(T MZ, T MY, T MX) -> T {
-    return center({std::forward(MZ), std::forward(MY), std::forward(MX)});
-  }
+  template<class T>
+  struct trash {
+    std::vector<T> coll;
+    std::vector<T>::iterator rm_it;
+
+    trash(std::vector<T>& _coll) noexcept : coll{_coll}, rm_it{std::ranges::end(coll)} {}
+    ~trash() noexcept {
+      coll.erase(begin(), end());
+    }
+
+    inline constexpr auto pop(RangeOffset i) noexcept -> decltype(auto) {
+      rm_it = std::remove(
+        std::ranges::begin(coll) + i, 
+        std::ranges::begin(coll) + i + 1,
+        coll[i]);
+      return *rm_it;
+    }
+
+    inline constexpr auto begin() noexcept -> decltype(auto) {
+      return rm_it;
+    }
+    
+    inline constexpr auto end() noexcept -> decltype(auto) {
+      return std::ranges::end(coll);
+    }
+  };
 
   template <meta::IsArithmetic T>
-  auto fromBase(std::string_view x, Int8 base) -> T {
+  inline constexpr auto fromBase(std::string_view x, Int8 base) noexcept -> T {
     auto out = T{};
     const auto result =
         std::from_chars(std::ranges::cbegin(x), std::ranges::cend(x), out, base);
@@ -29,7 +54,31 @@ export {
   }
 
   template <typename T, RangeExtent N, typename F>
-  constexpr auto iotaArray(F && func) -> decltype(auto);
+  inline constexpr auto iotaArray(F && func) noexcept -> decltype(auto);
+
+  using Size = std::array<RangeExtent, 3>;
+
+  inline constexpr auto toIndex(const math::Vector3I& u, const Size& size) noexcept -> UInt {
+    return  u.x
+          + u.y * std::get<2>(size)
+          + u.z * std::get<2>(size) * std::get<1>(size);
+  }
+
+  inline constexpr auto fromIndex(UInt i, const Size& size) noexcept -> math::Vector3I {
+    return  math::Vector3I{
+      i % std::get<2>(size),
+      (i / std::get<2>(size)) % std::get<1>(size),
+      (i / (std::get<2>(size) * std::get<1>(size))) % std::get<0>(size),
+    };
+  }
+
+  template <class T>
+  inline constexpr auto subvolume(const std::vector<T>& coll, const Size& coll_size, const math::Vector3I& u, const Size& size) noexcept -> decltype(auto) {
+    return std::views::iota(0u, std::get<0>(size) * std::get<1>(size) * std::get<2>(size))
+      | std::views::transform([&](auto i){
+            return coll.at(toIndex(u + fromIndex(i, size), coll_size));
+        });
+  }
 }
 
 template <typename T, RangeExtent N, typename F, RangeExtent... I>
@@ -38,7 +87,7 @@ constexpr auto iota_array_impl(F &&func, std::index_sequence<I...>) {
 }
 
 template <typename T, RangeExtent N, typename F>
-constexpr auto iotaArray(F &&func) -> decltype(auto) {
+inline constexpr auto iotaArray(F &&func) noexcept -> decltype(auto) {
   return iota_array_impl<T, N>(std::forward<F>(func),
                                std::make_index_sequence<N>{});
 }

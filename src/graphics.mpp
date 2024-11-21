@@ -7,7 +7,7 @@ import model;
 
 using namespace stormkit;
 
-export auto render(const Grid &grid, const Model &model) -> decltype(auto) {
+export inline constexpr auto render(const Grid &grid, const Model &model) noexcept -> decltype(auto) {
   // const auto width = /*model.gui +*/ grid.MX * model.pixelsize,
   //            height = grid.MY * model.pixelsize;
   auto bitmap = grid.states
@@ -19,7 +19,7 @@ export auto render(const Grid &grid, const Model &model) -> decltype(auto) {
   return std::make_tuple(std::move(bitmap), grid.size);
 }
 
-export auto draw(std::span<const char> bitmap, UInt width, UInt height) -> void {
+export inline constexpr auto draw(std::span<const char> bitmap, UInt width, UInt height) noexcept -> decltype(auto) {
   for (auto i = 0u; i < height; i++) {
     for (auto j = 0u; j < width; j++)
       std::print("{} ", bitmap.at(i * width + j));
@@ -28,7 +28,7 @@ export auto draw(std::span<const char> bitmap, UInt width, UInt height) -> void 
   std::println();
 }
 
-export auto draw(std::span<UInt32> bitmap, UInt width, UInt height) -> void {
+export inline constexpr auto draw(std::span<UInt32> bitmap, UInt width, UInt height) noexcept -> decltype(auto) {
   return draw(
     bitmap
       | std::views::transform([](auto x){ return std::format("{:x}", x); })

@@ -15,11 +15,7 @@ using namespace stormkit;
 using namespace std::literals;
 
 export struct Interpreter {
-private:
-  Grid grid;
-  std::variant<MarkovNode> root;
-  Boolean origin;
-
+public:
   static constexpr auto node_types = frozen::set{ 
     "one"sv,
     // "all"sv,
@@ -40,67 +36,64 @@ private:
     // "wfc"sv
   };
 
-public:
-  Interpreter(const Model &model)
-      : Interpreter{model.doc.first_child(), {model.MZ, model.MY, model.MX}} {}
-  Interpreter(const pugi::xml_node &xelem, Grid::Size&& size)
-      : grid{parseGrid(xelem, std::move(size))},
-        origin{xelem.attribute("origin").as_bool(false)} {
+  Grid grid;
+  std::vector<std::variant<OneNode>> nodes;
+  // std::vector<ExecutionNode> nodes;
+  // std::vector<std::variant<MarkovNode, OneNode>> nodes;
+
+  static inline constexpr auto parse(const pugi::xml_node &xelem, Size&& size) noexcept -> decltype(auto) {
+    auto grid = Grid::parse(xelem, std::move(size));
 
     const auto symmetry = symmetry::getSymmetry(
         std::get<0>(grid.size) == 1, xelem.attribute("symmetry").as_string());
 
     std::println("nodes:");
 
-    auto nodes = std::vector<std::variant<MarkovNode, OneNode>>{};
-    for (auto &&xnode : XMLDepthWalker{xelem}) {
-      const auto attributes = xnode.attributes() 
-          | std::views::transform([](auto attr) {
-              return std::format("{}={}", attr.name(), attr.value());
-            });
+    const auto& xnode = xelem;
+    const auto attributes = xnode.attributes()
+        | std::views::transform([](auto attr) {
+            return std::format("{}={}", attr.name(), attr.value());
+          });
 
-      const auto name = std::string{xnode.name()};
-      ensures(node_types.contains(name), std::format("unknown node name '{}' [:{}]", name, xnode.offset_debug()));
+    const auto name = std::string{xnode.name()};
+    ensures(node_types.contains(name), std::format("unknown node name '{}' [:{}]", name, xnode.offset_debug()));
 
-      std::println("{}{}", name, attributes);
+    std::println("{}{}", name, attributes);
 
-      auto node = std::optional<std::variant<OneNode, MarkovNode>>{};
-      if (name == "one")
-        node = OneNode::parse(xnode, grid, symmetry);
-      // else if (name == "markov")
-      //   node = MarkovNode::parse(xnode, grid, symmetry));
-      
-      ensures(node != std::nullopt,
-              std::format("failed to load '{}' node [:{}]", name, xnode.offset_debug()));
-      nodes.push_back(std::move(node.value()));
-    }
+    auto node = std::optional<std::variant<OneNode>>{};
+    if (name == "one")
+      node = OneNode::parse(xnode, grid, symmetry);
+    // else if (name == "markov")
+    //   node = MarkovNode::parse(xnode, grid, symmetry));
+    
+    ensures(node != std::nullopt,
+            std::format("failed to load '{}' node [:{}]", name, xnode.offset_debug()));
+    
     std::println();
 
-    auto& _root = nodes.at(0);
-    root = std::holds_alternative<MarkovNode>(_root)
-      ? std::get<MarkovNode>(_root)
-      : MarkovNode{std::get<OneNode>(_root)};
+    return Interpreter{std::move(grid), {node.value()}};
   }
 
-  auto run(UInt seed) -> std::generator<const Grid&> {
+  inline auto run(UInt seed) noexcept -> std::generator<const Grid&> {
     auto random = std::mt19937{seed};
 
     auto changes = std::vector<math::Vector3I>{};
-    auto first = std::vector<UInt>{0u};
 
-    if (origin) grid.states.at(grid.center()) = 1;
-
-    auto current = std::optional{root};
+    reset(grid);
     co_yield grid;
-    auto counter = 0u;
-    while (current != std::nullopt) {
-      if (std::holds_alternative<MarkovNode>(current.value())) {
-        auto& go = std::get<MarkovNode>(current.value());
-        current = go(grid, changes, first, counter);
-        first.push_back(std::ranges::size(changes));
-      }
+
+    for (auto& node : nodes) reset(node);
+    auto current = std::ranges::begin(nodes);
+    // reset(*current);
+
+    while (current != std::ranges::end(nodes)) {
+
+      if (not execute(
+          *current, grid, changes, 
+          std::ranges::end(changes)))
+        current++;
+
       co_yield grid;
-      counter++;
     }
   }
 };
