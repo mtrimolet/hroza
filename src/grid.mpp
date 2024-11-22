@@ -38,7 +38,7 @@ public:
   Grid(auto &&_size, auto&& _symbols, auto folder, auto _transparent, auto origin) noexcept
     : size{_size}, states{}, symbols{_symbols},
       values{std::views::zip(symbols, std::views::iota(0u))
-        | std::ranges::to<std::unordered_map>()},
+        | std::ranges::to<std::unordered_map<Symbol, State>>()},
       waves{symbols
         | std::views::transform([this](auto&& symbol) {
             return std::make_pair(symbol, wave(std::string{symbol}));
