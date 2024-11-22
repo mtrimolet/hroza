@@ -16,62 +16,36 @@ using namespace std::literals;
 
 export struct Interpreter {
 public:
-  static constexpr auto node_types = frozen::set{ 
-    "one"sv,
-    // "all"sv,
-    // "prl"sv,
-    "markov"sv,
-    // "sequence"sv,
-    // "path"sv,
-    // "map"sv,
-    // "convolution"sv,
-    // "convchain"sv,
-    // "wfc"sv
-  };
-
-  static constexpr auto branch_types = frozen::set{ 
-    "markov"sv,
-    // "sequence"sv,
-    // "map"sv,
-    // "wfc"sv
-  };
 
   Grid grid;
-  std::vector<std::variant<OneNode>> nodes;
+  std::variant<MarkovNode> root;
   // std::vector<ExecutionNode> nodes;
   // std::vector<std::variant<MarkovNode, OneNode>> nodes;
 
-  static inline constexpr auto parse(const pugi::xml_node &xelem, Size&& size) noexcept -> decltype(auto) {
-    auto grid = Grid::parse(xelem, std::move(size));
-
-    const auto symmetry = symmetry::getSymmetry(
-        std::get<0>(grid.size) == 1, xelem.attribute("symmetry").as_string());
+  static inline constexpr auto parse(const pugi::xml_node &xroot, Size&& size) noexcept -> decltype(auto) {
+    auto grid = Grid::parse(xroot, std::move(size));
 
     std::println("nodes:");
 
-    const auto& xnode = xelem;
-    const auto attributes = xnode.attributes()
-        | std::views::transform([](auto attr) {
-            return std::format("{}={}", attr.name(), attr.value());
-          });
+    const auto symmetry = symmetry::getSymmetry(
+        std::get<0>(grid.size) == 1, xroot.attribute("symmetry").as_string());
 
-    const auto name = std::string{xnode.name()};
-    ensures(node_types.contains(name), std::format("unknown node name '{}' [:{}]", name, xnode.offset_debug()));
+    const auto name = std::string{xroot.name()};
 
-    std::println("{}{}", name, attributes);
-
-    auto node = std::optional<std::variant<OneNode>>{};
+    auto node = std::optional<std::variant<OneNode, MarkovNode>>{};
     if (name == "one")
-      node = OneNode::parse(xnode, grid, symmetry);
-    // else if (name == "markov")
-    //   node = MarkovNode::parse(xnode, grid, symmetry));
+      node = OneNode::parse(xroot, grid, symmetry);
+    else if (name == "markov")
+      node = MarkovNode::parse(xroot, grid, symmetry);
     
-    ensures(node != std::nullopt,
-            std::format("failed to load '{}' node [:{}]", name, xnode.offset_debug()));
+    ensures(node != std::nullopt, std::format("unknown node name '{}' [:{}]", name, xroot.offset_debug()));
     
     std::println();
 
-    return Interpreter{std::move(grid), {node.value()}};
+    return Interpreter{std::move(grid), node.value().visit(Visitor{
+      [](MarkovNode& n) { return n; }, 
+      [](auto& n){ return MarkovNode{{n}}; },
+    })};
   }
 
   inline auto run(UInt seed) noexcept -> std::generator<const Grid&> {
@@ -79,21 +53,12 @@ public:
 
     auto changes = std::vector<math::Vector3I>{};
 
-    reset(grid);
+    grid.reset();
     co_yield grid;
 
-    for (auto& node : nodes) reset(node);
-    auto current = std::ranges::begin(nodes);
-    // reset(*current);
-
-    while (current != std::ranges::end(nodes)) {
-
-      if (not execute(
-          *current, grid, changes, 
-          std::ranges::end(changes)))
-        current++;
-
+    for (const auto success : root.visit([&](MarkovNode& n){
+      return n.execute(grid, changes, std::ranges::end(changes));
+    }))
       co_yield grid;
-    }
   }
 };

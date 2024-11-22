@@ -15,6 +15,9 @@ export {
     ~Disposable() { t(); }
   };
 
+  template <class... T>
+  struct Visitor : T... { using T::operator()...; };
+
   template<class T>
   struct trash {
     std::vector<T> coll;

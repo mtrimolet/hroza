@@ -82,7 +82,7 @@ public:
   inline static constexpr auto parse(const pugi::xml_node &xrule,
                     const std::unordered_map<Symbol, Wave>& waves,
                     const std::unordered_map<Symbol, State>& values)
-      noexcept -> std::expected<Rule, pugi::xml_parse_result> {
+      noexcept -> Rule {
 
     const auto inString = std::string{xrule.attribute("in").as_string()};
     ensures(!std::ranges::empty(inString),

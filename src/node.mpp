@@ -12,91 +12,6 @@ import utils;
 
 using namespace stormkit;
 
-template <class From, class To>
-concept isConstructible = std::is_constructible<To, From>::value;
-
-export template <class T>
-concept hasResetMethod = requires(T& node) {
-  {node.reset()};
-};
-
-export
-inline constexpr auto reset(hasResetMethod auto& node) noexcept -> decltype(auto) {
-  return node.reset();
-}
-
-export template <class T>
-concept isResetable = requires(T& node) {
-  {reset(node)};
-};
-
-export template <isResetable T>
-inline constexpr auto reset(std::optional<T>& node) noexcept -> decltype(auto) {
-  return node.and_then([](auto& x){ return reset(x); });
-}
-
-export template <isResetable... T>
-inline constexpr auto reset(std::variant<T...>& node) noexcept -> decltype(auto) {
-  return node.visit([](auto& x){ return reset(x); });
-}
-
-export template <class T>
-concept hasStaticParse = requires(pugi::xml_node&& node) {
-  {T::parse(node)} -> isConstructible<std::expected<T, pugi::xml_parse_result>>;
-};
-
-export template <hasStaticParse T>
-inline constexpr auto parse(pugi::xml_node&& node) noexcept -> decltype(auto) {
-  return T::parse(node);
-}
-
-export template <class T>
-concept isParsable = requires(T& node) {
-  {parse(node)};
-};
-
-export template <class T>
-concept hasExecuteMethod = requires(T& node, Grid &grid, 
-    std::vector<math::Vector3I> &changes,
-    const std::vector<math::Vector3I>::iterator &next_change) {
-  {node.execute(grid, changes, next_change)} -> isConstructible<bool>;
-};
-
-export
-inline constexpr auto execute(hasExecuteMethod auto& node, Grid &grid, std::vector<math::Vector3I> &changes,
-             const std::vector<math::Vector3I>::iterator &next_change)
-    noexcept -> decltype(auto) {
-  return node.execute(grid, changes, next_change);
-}
-
-export template <class T>
-concept isExecutable = requires(T& node,
-    Grid &grid, std::vector<math::Vector3I> &changes,
-    const std::vector<math::Vector3I>::iterator &next_change) {
-  {execute(node, grid, changes, next_change)} -> isConstructible<bool>;
-};
-
-export template <isExecutable T>
-inline constexpr auto execute(std::optional<T>& node, Grid &grid, std::vector<math::Vector3I> &changes,
-    const std::vector<math::Vector3I>::iterator &next_change)
-    noexcept -> decltype(auto) {
-  return node.and_then([&](auto& x){
-    return static_cast<bool>(execute(x, grid, changes, next_change));
-  });
-}
-
-export template <isExecutable... T>
-inline constexpr auto execute(std::variant<T...>& node, Grid &grid, std::vector<math::Vector3I> &changes,
-    const std::vector<math::Vector3I>::iterator &next_change)
-    noexcept -> decltype(auto) {
-  return node.visit([&](auto& x){
-    return static_cast<bool>(execute(x, grid, changes, next_change));
-  });
-}
-
-export template <class T>
-concept isExecutionNode = isResetable<T> and isExecutable<T>;
-
 export struct RuleNode {
 
 public:
@@ -215,16 +130,19 @@ export struct OneNode : RuleNode {
 
   static inline constexpr auto parse(const pugi::xml_node &xone, const Grid &grid,
                     const symmetry::subgroup &parentSymmetry) noexcept -> OneNode {
+    const auto attributes = xone.attributes()
+        | std::views::transform([](auto attr) {
+            return std::format("{}={}", attr.name(), attr.value());
+          });
+    std::println("one{}", attributes);
+
     auto xrules = xone.children("rule") | std::ranges::to<std::vector>();
     if (std::ranges::empty(xrules))
       xrules.push_back(xone);
 
     auto rules = xrules
       | std::views::transform([&grid, &parentSymmetry](auto &xrule) {
-          auto r = Rule::parse(xrule, grid.waves, grid.values);
-          ensures(static_cast<bool>(r),
-                  std::format("parse_result: {}", r.error().description()));
-          auto& rule = r.value();
+          auto rule = Rule::parse(xrule, grid.waves, grid.values);
 
           const auto symmetry_string =
               std::string{xrule.attribute("symmetry").as_string()};
@@ -290,5 +208,60 @@ export struct OneNode : RuleNode {
   }
 };
 
-static_assert(isExecutionNode<OneNode>);
-static_assert(isExecutionNode<std::variant<OneNode>>);
+export struct MarkovNode {
+  std::vector<std::variant<OneNode, MarkovNode>> children;
+
+  static inline constexpr auto parse(pugi::xml_node xmarkov, const Grid& grid,
+      const symmetry::subgroup &parentSymmetry) noexcept -> MarkovNode {
+    const auto attributes = xmarkov.attributes()
+        | std::views::transform([](auto attr) {
+            return std::format("{}={}", attr.name(), attr.value());
+          });
+    std::println("markov{}", attributes);
+
+    const auto symmetry_string =
+        std::string{xmarkov.attribute("symmetry").as_string()};
+    const auto &subgroup = std::empty(symmetry_string)
+        ? parentSymmetry
+        : symmetry::getSymmetry(std::get<0>(grid.size) == 1,
+                                symmetry_string);
+
+    auto children = xmarkov.children()
+      | std::views::transform([&](const auto& xnode){
+          const auto name = std::string{xnode.name()};
+
+          auto node = std::optional<std::variant<OneNode, MarkovNode>>{};
+          if (name == "one")
+            node = OneNode::parse(xnode, grid, subgroup);
+          else if (name == "markov")
+            node = MarkovNode::parse(xnode, grid, subgroup);
+
+          ensures(node != std::nullopt, std::format("unknown node name '{}' [:{}]", name, xnode.offset_debug()));
+          return node.value();
+        })
+        | std::ranges::to<std::vector>();
+
+      return MarkovNode{children};
+  }
+
+  inline constexpr auto reset() noexcept -> void {
+    for (auto& node : children) node.visit([](auto& n){ n.reset(); });
+  }
+
+  inline auto execute(Grid &grid, std::vector<math::Vector3I> &changes,
+                  const std::vector<math::Vector3I>::iterator &next_change)
+      noexcept -> std::generator<bool> {
+    reset();
+    auto child = std::ranges::begin(children);
+    while (child != std::ranges::end(children)) {
+      for (const auto success : child->visit(Visitor{
+        [&](OneNode& n) -> std::generator<bool> { co_yield n.execute(grid, changes, std::ranges::end(changes)); },
+        [&](MarkovNode& n) { return n.execute(grid, changes, std::ranges::end(changes)); },
+      }))
+        if (success) co_yield true;
+        else { child++; break; }
+    }
+    co_yield false;
+  }
+};
+};
