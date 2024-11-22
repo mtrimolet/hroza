@@ -6,6 +6,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #ifndef _LIBCPP___RANGES_STRIDE_VIEW_H
 #define _LIBCPP___RANGES_STRIDE_VIEW_H
 
@@ -34,7 +35,6 @@
 #include <__ranges/enable_borrowed_range.h>
 #include <__ranges/range_adaptor.h>
 #include <__ranges/view_interface.h>
-
 #include <__type_traits/make_unsigned.h>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
@@ -71,7 +71,7 @@ class stride_view : public view_interface<stride_view<_View>> {
 public:
   _LIBCPP_HIDE_FROM_ABI constexpr explicit stride_view(_View __base, range_difference_t<_View> __stride)
       : __base_(std::move(__base)), __stride_(__stride) {
-    _LIBCPP_ASSERT_UNCATEGORIZED(__stride > 0, "The value of stride must be greater than 0");
+    _LIBCPP_ASSERT_ARGUMENT_WITHIN_DOMAIN(__stride > 0, "The value of stride must be greater than 0");
   }
 
   [[nodiscard]] _LIBCPP_HIDE_FROM_ABI constexpr _View base() const&
@@ -210,19 +210,19 @@ public:
   }
 
   _LIBCPP_HIDE_FROM_ABI constexpr __iterator& operator++() {
-    _LIBCPP_ASSERT_UNCATEGORIZED(__current_ != __end_, "Cannot increment an iterator already at the end.");
+    _LIBCPP_ASSERT_VALID_ELEMENT_ACCESS(__current_ != __end_, "Cannot increment an iterator already at the end.");
     __missing_ = ranges::advance(__current_, __stride_, __end_);
     return *this;
   }
 
   _LIBCPP_HIDE_FROM_ABI constexpr void operator++(int) {
-    _LIBCPP_ASSERT_UNCATEGORIZED(__current_ != __end_, "Cannot increment an iterator already at the end.");
+    _LIBCPP_ASSERT_VALID_ELEMENT_ACCESS(__current_ != __end_, "Cannot increment an iterator already at the end.");
     ++*this;
   }
   _LIBCPP_HIDE_FROM_ABI constexpr __iterator operator++(int)
     requires forward_range<_Base>
   {
-    _LIBCPP_ASSERT_UNCATEGORIZED(__current_ != __end_, "Cannot increment an iterator already at the end.");
+    _LIBCPP_ASSERT_VALID_ELEMENT_ACCESS(__current_ != __end_, "Cannot increment an iterator already at the end.");
     auto __tmp = *this;
     ++*this;
     return __tmp;
@@ -247,8 +247,8 @@ public:
     requires random_access_range<_Base>
   {
     if (__n > 0) {
-      _LIBCPP_ASSERT_UNCATEGORIZED(ranges::distance(__current_, __end_) > __stride_ * (__n - 1),
-                                   "Advancing the iterator beyond the end is not allowed.");
+      _LIBCPP_ASSERT_VALID_ELEMENT_ACCESS(ranges::distance(__current_, __end_) > __stride_ * (__n - 1),
+                                          "Advancing the iterator beyond the end is not allowed.");
       ranges::advance(__current_, __stride_ * (__n - 1));
       __missing_ = ranges::advance(__current_, __stride_, __end_);
 
@@ -336,16 +336,12 @@ public:
 
   [[nodiscard]] _LIBCPP_HIDE_FROM_ABI friend constexpr difference_type
   operator-(__iterator const& __x, __iterator const& __y)
-    requires sized_sentinel_for<iterator_t<_Base>, iterator_t<_Base>> && forward_range<_Base>
-  {
-    auto __n = __x.__current_ - __y.__current_;
-    return (__n + __x.__missing_ - __y.__missing_) / __x.__stride_;
-  }
-
-  [[nodiscard]] _LIBCPP_HIDE_FROM_ABI friend constexpr difference_type
-  operator-(__iterator const& __x, __iterator const& __y)
     requires sized_sentinel_for<iterator_t<_Base>, iterator_t<_Base>>
   {
+    if constexpr (forward_range<_Base>) {
+      auto __n = __x.__current_ - __y.__current_;
+      return (__n + __x.__missing_ - __y.__missing_) / __x.__stride_;
+    }
     auto __n = __x.__current_ - __y.__current_;
     if (__n < 0) {
       return -ranges::__div_ceil(-__n, __x.__stride_);
@@ -397,7 +393,7 @@ struct __fn {
 
   template <class _Np>
   [[nodiscard]] _LIBCPP_HIDE_FROM_ABI constexpr auto operator()(_Np&& __n) const {
-    return __range_adaptor_closure_t(std::__bind_back(*this, std::forward<_Np>(__n)));
+    return __pipeable(std::__bind_back(*this, std::forward<_Np>(__n)));
   }
 };
 } // namespace __stride_view
