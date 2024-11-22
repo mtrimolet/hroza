@@ -64,7 +64,8 @@ export struct Model {
   static auto parse(const pugi::xml_node &xmodel, const Palette &default_palette)
       -> std::expected<Model, pugi::xml_parse_result> {
     auto name = xmodel.attribute("name").as_string();
-    auto linearSize = xmodel.attribute("size").as_uint(-1);
+    // auto linearSize = xmodel.attribute("size").as_uint(-1);
+    auto linearSize = 19u;
     auto dimension = xmodel.attribute("d").as_uint(2);
     auto gif = xmodel.attribute("gif").as_bool(false);
     auto amount = gif ? 1 : xmodel.attribute("amount").as_uint(2);
