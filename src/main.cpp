@@ -64,9 +64,9 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
           | std::views::take(model.steps);
           // mandatory to get real size
 
-      auto frames = std::move(ticks)
+      auto frames = std::move(ticks);
           // | std::views::drop(model.gif ? 0 : std::ranges::size(ticks) - 1);
-          | std::views::stride(model.gif ? 0 : 10);
+          // | std::views::stride(model.gif ? 0 : 10);
 
       std::ranges::for_each(frames, [&model](const auto &grid) {
         // if (std::get<0>(grid.size) == 1 or model.iso) {
