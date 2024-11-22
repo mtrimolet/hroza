@@ -1,0 +1,84 @@
+export module sequencenode;
+
+import std;
+import glm;
+import stormkit.Core;
+import pugixml;
+import grid;
+import symmetry;
+import utils;
+
+import onenode;
+import allnode;
+import markovnode;
+
+using namespace stormkit;
+using namespace std::literals;
+
+export
+struct SequenceNode {
+  using Node = std::variant<OneNode, AllNode, MarkovNode, SequenceNode>;
+  std::vector<Node> children;
+  std::vector<Node>::iterator current = std::ranges::begin(children);
+
+  static inline constexpr auto parse(pugi::xml_node xseq, const Grid& grid,
+      const symmetry::subgroup &parentSymmetry) noexcept -> SequenceNode {
+    const auto attributes = xseq.attributes()
+        | std::views::transform([](auto attr) {
+            return std::format("{}={}", attr.name(), attr.value());
+          });
+    std::println("sequence{}", attributes);
+
+    const auto symmetry_string =
+        std::string{xseq.attribute("symmetry").as_string()};
+    const auto &subgroup = std::empty(symmetry_string)
+        ? parentSymmetry
+        : symmetry::getSymmetry(std::get<0>(grid.size) == 1,
+                                symmetry_string);
+
+    auto children = xseq.children()
+      | std::views::filter([](const auto& xnode){ return xnode.name() != "union"sv; })
+      | std::views::transform([&](const auto& xnode){
+          const auto name = std::string{xnode.name()};
+
+          auto node = std::optional<Node>{};
+          if (name == "one")
+            node = OneNode::parse(xnode, grid, subgroup);
+          else if (name == "all")
+            node = AllNode::parse(xnode, grid, subgroup);
+          else if (name == "markov")
+            node = MarkovNode::parse(xnode, grid, subgroup);
+          else if (name == "sequence")
+            node = SequenceNode::parse(xnode, grid, subgroup);
+
+          ensures(node != std::nullopt, std::format("unknown node name '{}' [:{}]", name, xnode.offset_debug()));
+          return node.value();
+        })
+        | std::ranges::to<std::vector>();
+
+      return SequenceNode{children};
+  }
+
+  inline constexpr auto reset() noexcept -> void {
+    for (auto& node : children) node.visit([](auto& n){ n.reset(); });
+    current = std::ranges::begin(children);
+  }
+
+  inline auto execute(Grid &grid, std::vector<math::Vector3I> &changes,
+                  const std::vector<math::Vector3I>::iterator &next_change,
+                  std::mt19937& rg)
+      noexcept -> std::generator<bool> {
+    reset();
+    // auto child = std::ranges::begin(children);
+    while (current != std::ranges::end(children)) {
+      for (const auto success : current->visit(Visitor{
+        [&](OneNode& n) -> std::generator<bool> { co_yield n.execute(grid, changes, std::ranges::end(changes), rg); },
+        [&](AllNode& n) -> std::generator<bool> { co_yield n.execute(grid, changes, std::ranges::end(changes), rg); },
+        [&](auto& n) { return n.execute(grid, changes, std::ranges::end(changes), rg); },
+      }))
+        if (success) co_yield true;
+        else { current++; break; }
+    }
+    co_yield false;
+  }
+};

@@ -15,7 +15,6 @@ export inline constexpr auto render(const Grid &grid, const Model &model) noexce
       | std::views::transform([&model, &grid](auto s) { return grid.symbols.at(s); })
       | std::ranges::to<std::vector>();
 
-
   return std::make_tuple(std::move(bitmap), grid.size);
 }
 

@@ -1,0 +1,94 @@
+export module allnode;
+
+import std;
+import glm;
+import stormkit.Core;
+import pugixml;
+import grid;
+import rule;
+import rulenode;
+import symmetry;
+import utils;
+
+using namespace stormkit;
+
+export struct AllNode : RuleNode {
+
+  AllNode(const Size &grid_size, std::vector<Rule> &&_rules, UInt steps) noexcept
+      : RuleNode{grid_size, std::move(_rules), steps} {};
+
+  inline constexpr auto reset() -> void {
+    // last.clear();
+    // last.resize(std::ranges::size(rules), true);
+  }
+
+  static inline constexpr auto parse(const pugi::xml_node &xall, const Grid &grid,
+                    const symmetry::subgroup &parentSymmetry) noexcept -> AllNode {
+    const auto attributes = xall.attributes()
+        | std::views::transform([](auto attr) {
+            return std::format("{}={}", attr.name(), attr.value());
+          });
+    std::println("all{}", attributes);
+
+    auto xrules = xall.children("rule") | std::ranges::to<std::vector>();
+    if (std::ranges::empty(xrules))
+      xrules.push_back(xall);
+
+    auto rules = xrules
+      | std::views::transform([&grid, &parentSymmetry](auto &xrule) {
+          auto rule = Rule::parse(xrule, grid.waves, grid.values);
+
+          const auto symmetry_string =
+              std::string{xrule.attribute("symmetry").as_string()};
+          const auto &subgroup = std::empty(symmetry_string)
+              ? parentSymmetry
+              : symmetry::getSymmetry(std::get<0>(grid.size) == 1,
+                                      symmetry_string);
+
+          return rule.symmetries(std::get<0>(grid.size) == 1, subgroup);
+        })
+      | std::views::join
+      | std::ranges::to<std::vector>();
+
+    return AllNode{grid.size, std::move(rules),
+                   xall.attribute("steps").as_uint(0u)};
+  }
+
+  static inline constexpr auto apply(Grid& grid, const Rule &rule, const math::Vector3I &u) 
+      noexcept -> std::vector<math::Vector3I> {
+    auto changed = std::unordered_set<math::Vector3I>{};
+    return std::views::zip(rule.output, std::views::iota(0u)
+        | std::views::transform([&rule, &u](auto i){ return u + fromIndex(i, rule.output_size); }))
+      | std::views::filter([&grid, &changed](const auto& v){
+          const auto& [newState, s] = v;
+          if (changed.contains(s) or newState == std::nullopt) return false;
+          changed.insert(s);
+          return newState.value() != grid.at(s);
+      })
+      | std::views::transform([&grid](const auto v){
+          const auto& [newState, s] = v;
+          grid[s] = newState.value();
+          return s;
+      })
+      | std::ranges::to<std::vector>();
+  }
+
+  inline constexpr auto execute(Grid &grid, std::vector<math::Vector3I> &changes,
+                  const std::vector<math::Vector3I>::iterator &next_change,
+                  std::mt19937& rg)
+      noexcept -> bool {
+    if (not loadMatches(grid, changes, next_change)) return false;
+
+    if (std::empty(matches)) return false;
+    std::ranges::shuffle(matches, rg);
+    for (const auto& [r, u] : matches) {
+      matchMask[r][toIndex(u, grid.size)] = false;
+      changes.insert_range(
+        std::ranges::end(changes),
+        apply(grid, rules.at(r), u));
+    }
+
+    matches.clear();
+    return true;
+  }
+};
