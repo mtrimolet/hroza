@@ -41,7 +41,7 @@ private:
   ) noexcept
   : input_size{std::move(_input_size)}, output_size{std::move(_output_size)},
   input{std::move(in)}, output{std::move(out)}, p{p},
-  binput{std::views::repeat(0xffu, std::ranges::size(input)) | std::ranges::to<std::vector>()},
+  binput{std::views::repeat(as<State>(0xff), std::ranges::size(input)) | std::ranges::to<std::vector>()},
   ishifts{std::views::iota(0u, symbol_count) | std::views::transform([this](auto c) {
       return std::views::zip(input, std::views::iota(0u))
         | std::views::filter([c](const auto& inp){ return std::get<0>(inp).at(c); })

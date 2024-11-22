@@ -23,8 +23,6 @@ public:
 
   // size(states) == size[0] * size[1] * size[2]
   std::vector<State> states;
-  // size(mask) == size(states)
-  // std::vector<bool> mask;
 
   std::vector<Symbol> symbols;
   // size(values) == size(symbols)
@@ -37,7 +35,7 @@ public:
 
   Grid(auto &&_size, auto&& _symbols, auto folder, auto _transparent, auto origin) noexcept
     : size{_size}, states{}, symbols{_symbols},
-      values{std::views::zip(symbols, std::views::iota(0u))
+      values{std::views::zip(symbols, std::views::iota(as<State>(0)))
         | std::ranges::to<std::unordered_map<Symbol, State>>()},
       waves{symbols
         | std::views::transform([this](auto&& symbol) {
