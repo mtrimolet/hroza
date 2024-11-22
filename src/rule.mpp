@@ -21,7 +21,7 @@ public:
   std::vector<Wave> input;
 
   // size(output) == output_size[0] * output_size[1] * output_size[2];
-  std::vector<State> output;
+  std::vector<std::optional<State>> output;
 
   double p;
   // size(binput) == size(input);
@@ -35,8 +35,8 @@ public:
 
 private:
   Rule(
-    auto&& _input_size,     auto&& _output_size,
-    std::vector<Wave>&& in, std::vector<State>&& out,
+    auto&& _input_size, auto&& _output_size,
+    auto&& in, auto&& out,
     auto p, auto original, auto symbol_count
   ) noexcept
   : input_size{std::move(_input_size)}, output_size{std::move(_output_size)},
@@ -101,11 +101,11 @@ public:
     return Rule{
         input_size,
         output_size,
-        input 
+        input
           | std::views::transform([&waves](const auto& symbol) { return waves.at(symbol); })
           | std::ranges::to<std::vector>(),
-        output 
-          | std::views::transform([&values](const auto& symbol) { return values.at(symbol); })
+        output
+          | std::views::transform([&values](const auto& symbol) { return symbol == '*' ? std::nullopt : std::optional{values.at(symbol)}; })
           | std::ranges::to<std::vector>(),
         xrule.attribute("p").as_double(1.0f),
         true, std::ranges::size(values)

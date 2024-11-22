@@ -11,6 +11,7 @@ import stride_view;
 import utils;
 
 using namespace stormkit;
+using namespace std::literals;
 
 export struct RuleNode {
 
@@ -59,16 +60,6 @@ public:
     return lower.x <= u.x and u.x <= upper.x
        and lower.y <= u.y and u.y <= upper.y
        and lower.z <= u.z and u.z <= upper.z;
-  }
-
-  inline constexpr auto reset() noexcept -> void {
-    matches.clear();
-
-    for (auto& m : matchMask) {
-      const auto l = std::ranges::size(m);
-      m.clear();
-      m.resize(l);
-    }
   }
 
   inline constexpr auto loadMatches(Grid &grid, const std::vector<math::Vector3I> &changes,
@@ -128,6 +119,17 @@ export struct OneNode : RuleNode {
   OneNode(const Size &grid_size, std::vector<Rule> &&rules, UInt steps) noexcept
       : RuleNode{grid_size, std::move(rules), steps} {};
 
+  inline constexpr auto reset() noexcept -> void {
+    if (std::empty(matches)) return;
+    matches.clear();
+
+    for (auto& m : matchMask) {
+      const auto l = std::ranges::size(m);
+      m.clear();
+      m.resize(l);
+    }
+  }
+
   static inline constexpr auto parse(const pugi::xml_node &xone, const Grid &grid,
                     const symmetry::subgroup &parentSymmetry) noexcept -> OneNode {
     const auto attributes = xone.attributes()
@@ -160,27 +162,27 @@ export struct OneNode : RuleNode {
                    xone.attribute("steps").as_uint(0u)};
   }
 
-  static inline constexpr auto apply(Grid& grid, const Rule &rule, const math::Vector3I &u) 
+  static inline constexpr auto apply(Grid& grid, Rule rule, const math::Vector3I &u) 
       noexcept -> std::vector<math::Vector3I> {
     return std::views::zip(rule.output, std::views::iota(0u)
         | std::views::transform([&rule, &u](auto i){ return u + fromIndex(i, rule.output_size); }))
       | std::views::filter([&grid](const auto& v){
-          const auto& [newValue, s] = v;
-          return newValue != 0xff and newValue != grid.at(s);
+          const auto& [newState, s] = v;
+          return newState != std::nullopt and newState.value() != grid.at(s);
       })
       | std::views::transform([&grid](const auto v){
-          const auto& [newValue, s] = v;
-          grid[s] = newValue;
+          const auto& [newState, s] = v;
+          grid[s] = newState.value();
           return s;
       })
       | std::ranges::to<std::vector>();
   }
 
-  auto inline constexpr randomMatch(const Grid &grid) noexcept -> std::optional<Match> {
+  auto inline constexpr randomMatch(const Grid &grid, std::mt19937& rg) noexcept -> std::optional<Match> {
     auto trashed = trash{matches};
     
     while (std::ranges::size(matches) > 0) {
-      const auto matchIndex = std::rand() % std::ranges::size(matches);
+      const auto matchIndex = rg() % std::ranges::size(matches);
 
       auto match = trashed.pop(matchIndex);
       const auto &[r, u] = match;
@@ -192,11 +194,12 @@ export struct OneNode : RuleNode {
   }
 
   inline constexpr auto execute(Grid &grid, std::vector<math::Vector3I> &changes,
-                  const std::vector<math::Vector3I>::iterator &next_change)
+                  const std::vector<math::Vector3I>::iterator &next_change,
+                  std::mt19937& rg)
       noexcept -> bool {
     if (not loadMatches(grid, changes, next_change)) return false;
 
-    auto m = randomMatch(grid);
+    auto m = randomMatch(grid, rg);
     if (not m) return false;
     const auto &[r, u] = m.value();
 
@@ -208,8 +211,90 @@ export struct OneNode : RuleNode {
   }
 };
 
+export struct AllNode : RuleNode {
+
+  AllNode(const Size &grid_size, std::vector<Rule> &&_rules, UInt steps) noexcept
+      : RuleNode{grid_size, std::move(_rules), steps} {};
+
+  inline constexpr auto reset() -> void {
+    // last.clear();
+    // last.resize(std::ranges::size(rules), true);
+  }
+
+  static inline constexpr auto parse(const pugi::xml_node &xall, const Grid &grid,
+                    const symmetry::subgroup &parentSymmetry) noexcept -> AllNode {
+    const auto attributes = xall.attributes()
+        | std::views::transform([](auto attr) {
+            return std::format("{}={}", attr.name(), attr.value());
+          });
+    std::println("all{}", attributes);
+
+    auto xrules = xall.children("rule") | std::ranges::to<std::vector>();
+    if (std::ranges::empty(xrules))
+      xrules.push_back(xall);
+
+    auto rules = xrules
+      | std::views::transform([&grid, &parentSymmetry](auto &xrule) {
+          auto rule = Rule::parse(xrule, grid.waves, grid.values);
+
+          const auto symmetry_string =
+              std::string{xrule.attribute("symmetry").as_string()};
+          const auto &subgroup = std::empty(symmetry_string)
+              ? parentSymmetry
+              : symmetry::getSymmetry(std::get<0>(grid.size) == 1,
+                                      symmetry_string);
+
+          return rule.symmetries(std::get<0>(grid.size) == 1, subgroup);
+        })
+      | std::views::join
+      | std::ranges::to<std::vector>();
+
+    return AllNode{grid.size, std::move(rules),
+                   xall.attribute("steps").as_uint(0u)};
+  }
+
+  static inline constexpr auto apply(Grid& grid, const Rule &rule, const math::Vector3I &u) 
+      noexcept -> std::vector<math::Vector3I> {
+    auto changed = std::unordered_set<math::Vector3I>{};
+    return std::views::zip(rule.output, std::views::iota(0u)
+        | std::views::transform([&rule, &u](auto i){ return u + fromIndex(i, rule.output_size); }))
+      | std::views::filter([&grid, &changed](const auto& v){
+          const auto& [newState, s] = v;
+          if (changed.contains(s) or newState == std::nullopt) return false;
+          changed.insert(s);
+          return newState.value() != grid.at(s);
+      })
+      | std::views::transform([&grid](const auto v){
+          const auto& [newState, s] = v;
+          grid[s] = newState.value();
+          return s;
+      })
+      | std::ranges::to<std::vector>();
+  }
+
+  inline constexpr auto execute(Grid &grid, std::vector<math::Vector3I> &changes,
+                  const std::vector<math::Vector3I>::iterator &next_change,
+                  std::mt19937& rg)
+      noexcept -> bool {
+    if (not loadMatches(grid, changes, next_change)) return false;
+
+    if (std::empty(matches)) return false;
+    std::ranges::shuffle(matches, rg);
+    for (const auto& [r, u] : matches) {
+      matchMask[r][toIndex(u, grid.size)] = false;
+      changes.insert_range(
+        std::ranges::end(changes),
+        apply(grid, rules.at(r), u));
+    }
+
+    matches.clear();
+    return true;
+  }
+};
+
 export struct MarkovNode {
-  std::vector<std::variant<OneNode, MarkovNode>> children;
+  using Node = std::variant<OneNode, AllNode, MarkovNode>;
+  std::vector<Node> children;
 
   static inline constexpr auto parse(pugi::xml_node xmarkov, const Grid& grid,
       const symmetry::subgroup &parentSymmetry) noexcept -> MarkovNode {
@@ -230,9 +315,11 @@ export struct MarkovNode {
       | std::views::transform([&](const auto& xnode){
           const auto name = std::string{xnode.name()};
 
-          auto node = std::optional<std::variant<OneNode, MarkovNode>>{};
+          auto node = std::optional<Node>{};
           if (name == "one")
             node = OneNode::parse(xnode, grid, subgroup);
+          else if (name == "all")
+            node = AllNode::parse(xnode, grid, subgroup);
           else if (name == "markov")
             node = MarkovNode::parse(xnode, grid, subgroup);
 
@@ -249,19 +336,89 @@ export struct MarkovNode {
   }
 
   inline auto execute(Grid &grid, std::vector<math::Vector3I> &changes,
-                  const std::vector<math::Vector3I>::iterator &next_change)
+                  const std::vector<math::Vector3I>::iterator &next_change,
+                  std::mt19937& rg)
       noexcept -> std::generator<bool> {
     reset();
-    auto child = std::ranges::begin(children);
-    while (child != std::ranges::end(children)) {
-      for (const auto success : child->visit(Visitor{
-        [&](OneNode& n) -> std::generator<bool> { co_yield n.execute(grid, changes, std::ranges::end(changes)); },
-        [&](MarkovNode& n) { return n.execute(grid, changes, std::ranges::end(changes)); },
+    auto current = std::ranges::begin(children);
+    while (current != std::ranges::end(children)) {
+      for (const auto success : current->visit(Visitor{
+        [&](OneNode& n) -> std::generator<bool> { co_yield n.execute(grid, changes, std::ranges::end(changes), rg); },
+        [&](AllNode& n) -> std::generator<bool> { co_yield n.execute(grid, changes, std::ranges::end(changes), rg); },
+        [&](auto& n) { return n.execute(grid, changes, std::ranges::end(changes), rg); },
       }))
         if (success) co_yield true;
-        else { child++; break; }
+        else { current++; break; }
     }
     co_yield false;
   }
 };
+
+/* --- */
+
+export struct SequenceNode {
+  using Node = std::variant<OneNode, AllNode, MarkovNode, SequenceNode>;
+  std::vector<Node> children;
+  std::vector<Node>::iterator current = std::ranges::begin(children);
+
+  static inline constexpr auto parse(pugi::xml_node xseq, const Grid& grid,
+      const symmetry::subgroup &parentSymmetry) noexcept -> SequenceNode {
+    const auto attributes = xseq.attributes()
+        | std::views::transform([](auto attr) {
+            return std::format("{}={}", attr.name(), attr.value());
+          });
+    std::println("sequence{}", attributes);
+
+    const auto symmetry_string =
+        std::string{xseq.attribute("symmetry").as_string()};
+    const auto &subgroup = std::empty(symmetry_string)
+        ? parentSymmetry
+        : symmetry::getSymmetry(std::get<0>(grid.size) == 1,
+                                symmetry_string);
+
+    auto children = xseq.children()
+      | std::views::filter([](const auto& xnode){ return xnode.name() != "union"sv; })
+      | std::views::transform([&](const auto& xnode){
+          const auto name = std::string{xnode.name()};
+
+          auto node = std::optional<Node>{};
+          if (name == "one")
+            node = OneNode::parse(xnode, grid, subgroup);
+          else if (name == "all")
+            node = AllNode::parse(xnode, grid, subgroup);
+          else if (name == "markov")
+            node = MarkovNode::parse(xnode, grid, subgroup);
+          else if (name == "sequence")
+            node = SequenceNode::parse(xnode, grid, subgroup);
+
+          ensures(node != std::nullopt, std::format("unknown node name '{}' [:{}]", name, xnode.offset_debug()));
+          return node.value();
+        })
+        | std::ranges::to<std::vector>();
+
+      return SequenceNode{children};
+  }
+
+  inline constexpr auto reset() noexcept -> void {
+    for (auto& node : children) node.visit([](auto& n){ n.reset(); });
+    current = std::ranges::begin(children);
+  }
+
+  inline auto execute(Grid &grid, std::vector<math::Vector3I> &changes,
+                  const std::vector<math::Vector3I>::iterator &next_change,
+                  std::mt19937& rg)
+      noexcept -> std::generator<bool> {
+    reset();
+    // auto child = std::ranges::begin(children);
+    while (current != std::ranges::end(children)) {
+      for (const auto success : current->visit(Visitor{
+        [&](OneNode& n) -> std::generator<bool> { co_yield n.execute(grid, changes, std::ranges::end(changes), rg); },
+        [&](AllNode& n) -> std::generator<bool> { co_yield n.execute(grid, changes, std::ranges::end(changes), rg); },
+        [&](auto& n) { return n.execute(grid, changes, std::ranges::end(changes), rg); },
+      }))
+        if (success) co_yield true;
+        else { current++; break; }
+    }
+    co_yield false;
+  }
 };

@@ -16,11 +16,11 @@ using namespace std::literals;
 
 export struct Interpreter {
 public:
+  using Node = std::variant<OneNode, AllNode, MarkovNode, SequenceNode>;
+  using BranchNode = std::variant<MarkovNode, SequenceNode>;
 
   Grid grid;
-  std::variant<MarkovNode> root;
-  // std::vector<ExecutionNode> nodes;
-  // std::vector<std::variant<MarkovNode, OneNode>> nodes;
+  BranchNode root;
 
   static inline constexpr auto parse(const pugi::xml_node &xroot, Size&& size) noexcept -> decltype(auto) {
     auto grid = Grid::parse(xroot, std::move(size));
@@ -32,32 +32,36 @@ public:
 
     const auto name = std::string{xroot.name()};
 
-    auto node = std::optional<std::variant<OneNode, MarkovNode>>{};
+    auto node = std::optional<Node>{};
     if (name == "one")
       node = OneNode::parse(xroot, grid, symmetry);
+    else if (name == "all")
+      node = AllNode::parse(xroot, grid, symmetry);
     else if (name == "markov")
       node = MarkovNode::parse(xroot, grid, symmetry);
+    else if (name == "sequence")
+      node = SequenceNode::parse(xroot, grid, symmetry);
     
     ensures(node != std::nullopt, std::format("unknown node name '{}' [:{}]", name, xroot.offset_debug()));
     
     std::println();
 
     return Interpreter{std::move(grid), node.value().visit(Visitor{
-      [](MarkovNode& n) { return n; }, 
-      [](auto& n){ return MarkovNode{{n}}; },
+      [](OneNode& n){ return BranchNode{MarkovNode{{n}}}; },
+      [](AllNode& n){ return BranchNode{MarkovNode{{n}}}; },
+      [](auto& n) { return BranchNode{n}; },
     })};
   }
 
   inline auto run(UInt seed) noexcept -> std::generator<const Grid&> {
-    auto random = std::mt19937{seed};
-
+    auto rg = std::mt19937{seed};
     auto changes = std::vector<math::Vector3I>{};
 
     grid.reset();
     co_yield grid;
 
-    for (const auto success : root.visit([&](MarkovNode& n){
-      return n.execute(grid, changes, std::ranges::end(changes));
+    for (const auto success : root.visit([&](auto& n){
+      return n.execute(grid, changes, std::ranges::end(changes), rg);
     }))
       co_yield grid;
   }

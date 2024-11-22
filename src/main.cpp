@@ -58,7 +58,7 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
     std::ranges::for_each(std::views::iota(0u, model.amount), [&](auto k) {
       std::println("generation: {}", k);
 
-      const auto seed = std::rand();
+      const auto seed = std::random_device{}();
 
       auto ticks = interpreter.run(seed)
           | std::views::take(model.steps);

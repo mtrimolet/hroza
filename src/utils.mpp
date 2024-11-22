@@ -32,7 +32,7 @@ export {
       rm_it = std::remove(
         std::ranges::begin(coll) + i, 
         std::ranges::begin(coll) + i + 1,
-        coll[i]);
+        coll.at(i));
       return *rm_it;
     }
 
