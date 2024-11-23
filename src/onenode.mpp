@@ -30,11 +30,11 @@ export struct OneNode : RuleNode {
 
   static inline constexpr auto parse(const pugi::xml_node &xone, const Grid &grid,
                     const symmetry::subgroup &parentSymmetry) noexcept -> OneNode {
-    const auto attributes = xone.attributes()
-        | std::views::transform([](auto attr) {
-            return std::format("{}={}", attr.name(), attr.value());
-          });
-    std::println("one{}", attributes);
+    // const auto attributes = xone.attributes()
+    //     | std::views::transform([](auto attr) {
+    //         return std::format("{}={}", attr.name(), attr.value());
+    //       });
+    // std::println("one{}", attributes);
 
     auto xrules = xone.children("rule") | std::ranges::to<std::vector>();
     if (std::ranges::empty(xrules))

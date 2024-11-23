@@ -24,11 +24,11 @@ export struct AllNode : RuleNode {
 
   static inline constexpr auto parse(const pugi::xml_node& xall, const Grid& grid,
                     const symmetry::subgroup &parentSymmetry) noexcept -> AllNode {
-    const auto attributes = xall.attributes()
-        | std::views::transform([](const auto& attr) {
-            return std::format("{}={}", attr.name(), attr.value());
-          });
-    std::println("all{}", attributes);
+    // const auto attributes = xall.attributes()
+    //     | std::views::transform([](const auto& attr) {
+    //         return std::format("{}={}", attr.name(), attr.value());
+    //       });
+    // std::println("all{}", attributes);
 
     auto xrules = xall.children("rule") | std::ranges::to<std::vector>();
     if (std::ranges::empty(xrules))

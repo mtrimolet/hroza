@@ -2,6 +2,7 @@ export module graphics;
 
 import std;
 import stormkit.Core;
+import ncurses;
 import grid;
 import model;
 
@@ -12,26 +13,34 @@ export inline constexpr auto render(const Grid &grid, const Model &model) noexce
   //            height = grid.MY * model.pixelsize;
   auto bitmap = grid.states
       // | std::views::transform([&model, &grid](auto s) { return model.palette.at(grid.symbols.at(s)); })
-      | std::views::transform([&model, &grid](auto s) { return grid.symbols.at(s); })
+      // | std::views::transform([&model, &grid](auto s) { return grid.symbols.at(s); })
       | std::ranges::to<std::vector>();
 
   return std::make_tuple(std::move(bitmap), grid.size);
 }
 
-export inline constexpr auto draw(std::span<const char> bitmap, UInt width, UInt height) noexcept -> decltype(auto) {
-  for (auto i = 0u; i < height; i++) {
-    for (auto j = 0u; j < width; j++)
-      std::print("{} ", bitmap.at(i * width + j));
-    std::println();
-  }
-  std::println();
-}
+// export inline constexpr auto draw(std::span<const char> bitmap, auto width, auto height) noexcept -> decltype(auto) {
+//   for (auto i = 0u; i < height; i++) {
+//     for (auto j = 0u; j < width; j++)
+//       std::print("{} ", bitmap.at(i * width + j));
+//     std::println();
+//   }
+//   std::println();
+// }
 
-export inline constexpr auto draw(std::span<UInt32> bitmap, UInt width, UInt height) noexcept -> decltype(auto) {
-  return draw(
-    bitmap
-      | std::views::transform([](auto x){ return std::format("{:x}", x); })
-      | std::views::join
-      | std::ranges::to<std::vector>(),
-    width, height);
+// export inline constexpr auto draw(std::span<UInt32> bitmap, auto width, auto height) noexcept -> decltype(auto) {
+//   return draw(
+//     bitmap
+//       | std::views::transform([](auto x){ return std::format("{:x}", x); })
+//       | std::views::join
+//       | std::ranges::to<std::vector>(),
+//     width, height);
+// }
+
+export inline constexpr auto draw(ncurses::window& w, std::span<const Grid::State> bitmap, auto width, auto height) noexcept -> decltype(auto) {
+  // auto w = ncurses::window{height, width};
+  for (const auto& [ch, i] : std::views::zip(bitmap, std::views::iota(0u, height * width))) {
+    w.addch(i / width, i % width, ch ? '*' : ' ', ch);
+  }
+  // w.refresh();
 }

@@ -38,11 +38,11 @@ export struct Node : std::variant<OneNode, AllNode, MarkovNode<Node>, SequenceNo
 
     const auto name = std::string{xnode.name()};
 
-    const auto attributes = xnode.attributes()
-        | std::views::transform([](auto attr) {
-            return std::format("{}={}", attr.name(), attr.value());
-          });
-    std::println("{}{}", name, attributes);
+    // const auto attributes = xnode.attributes()
+    //     | std::views::transform([](auto attr) {
+    //         return std::format("{}={}", attr.name(), attr.value());
+    //       });
+    // std::println("{}{}", name, attributes);
 
     if (name == "one")
       return OneNode::parse(xnode, grid, subgroup);

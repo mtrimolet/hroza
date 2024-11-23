@@ -1,0 +1,120 @@
+module;
+#include <ncurses.h>
+#undef getmaxyx
+#undef inchstr
+#undef addch
+#undef addchstr
+export module ncurses;
+
+import std;
+
+
+export namespace ncurses {
+struct window {
+public:
+  window(auto height, auto width) : window{0, 0, height, width} {}
+  window(auto start_y, auto start_x, auto height, auto width) {
+    if (!windows++) {
+      initscr();   // init ncurses root window
+      cbreak();    // don't wait for line break, receive each character
+      noecho();    // disable input echo
+      curs_set(0); // hide cursor
+      
+      start_color();
+      init_pair(1, COLOR_BLACK, COLOR_GREEN);
+      init_pair(2, COLOR_BLACK, COLOR_BLUE);
+      init_pair(3, COLOR_BLACK, COLOR_WHITE);
+      init_pair(4, COLOR_BLACK, COLOR_MAGENTA);
+    }
+    win = newwin(height + 2, width + 2, start_y, start_x);
+    ::refresh(); // refresh root window
+
+    // keypad(win, true); // capture non-textual keys (arrows, numpad, ...)
+    nodelay(win, true);
+    leaveok(win, true);
+    // keys = std::vector<int>{};
+
+    clear();
+  }
+
+  ~window() {
+    delwin(win);
+    if (!--windows) {
+      // wgetch(stdscr);
+      endwin();
+    }
+  }
+
+  inline constexpr auto getmaxyx() const -> decltype(auto) {
+    return std::make_tuple(getmaxy(win) - 2, getmaxx(win) - 2);
+  }
+
+  inline constexpr auto say(std::string_view txt) -> decltype(auto) {
+    const auto [row, col] = getmaxyx();
+    clear();
+    mvwaddstr(win, row / 2, (col - std::size(txt)) / 2, std::data(txt));
+    refresh();
+  }
+
+  inline constexpr auto refresh() -> void {
+    wrefresh(win);
+  }
+
+  inline constexpr auto inchstr(auto y, auto x, auto width) -> decltype(auto) {
+    const auto [rows, cols] = getmaxyx();
+
+    y = (y % rows) + 1;
+    x = (x % cols) + 1;
+
+    const auto overflow = std::max(0, x + width - cols);
+    auto data           = std::vector<chtype>(width + 1);
+
+    mvwinchnstr(win, y, x, std::data(data), width - overflow);
+    if (overflow) {
+      mvwinchnstr(win, y, 1, std::data(data) + width - overflow, overflow);
+      wmove(win, y, x);
+    }
+
+    data.resize(width);
+    return data;
+  }
+
+  inline constexpr auto addch(auto y, auto x, chtype ch) -> void {
+    mvwaddch(win, y, x, ch);
+  }
+
+  inline constexpr auto addch(auto y, auto x, chtype ch, auto c) -> void {
+    wattron(win, COLOR_PAIR(c));
+    mvwaddch(win, y, x, ch);
+    wattroff(win, COLOR_PAIR(c));
+  }
+
+  inline constexpr auto addchstr(auto y, auto x, std::span<const chtype> data) -> void {
+    const auto [rows, cols] = getmaxyx();
+
+    y = (y % rows) + 1;
+    x = (x % cols) + 1;
+
+    const auto width    = std::size(data);
+    const auto overflow = std::max(0, x + width - cols);
+
+    mvwaddchnstr(win, y, x, std::data(data), width - overflow);
+    if (overflow) {
+      mvwaddchnstr(win, y, 1, std::data(data) + width - overflow, overflow);
+    }
+  }
+
+  inline constexpr auto getchar(auto ch) -> decltype(auto) { return has_key(ch) != 0; }
+
+  inline constexpr auto waitchar() -> decltype(auto) {
+    nodelay(win, false);
+    const auto c = wgetch(win);
+    nodelay(win, true);
+    return c;
+  }
+
+private:
+  inline static auto windows = 0u;
+  WINDOW *win;
+};
+}

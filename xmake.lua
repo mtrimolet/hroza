@@ -14,6 +14,7 @@ add_requires("stormkit develop", {
         components = { "core", "main" },
     },
 })
+
 -- stormkit deps, remove when handled by xmake
 add_requires("glm", "frozen", "unordered_dense", "magic_enum", "tl_function_ref", "cpptrace")
 add_frameworks(is_plat("macosx") and { "Foundation" } or {})
@@ -21,6 +22,7 @@ add_frameworks(is_plat("macosx") and { "Foundation" } or {})
 add_defines("PUGIXML_USE_STD_MODULE")
 add_requires(
     "pugixml",
+    "ncurses",
     {system=false}
 )
 
@@ -39,7 +41,8 @@ target("hroza")
         -- stormkit deps, remove when handled by xmake
         "glm", "frozen", "unordered_dense", "magic_enum", "tl_function_ref", "cpptrace",
 
-        "pugixml"
+        "pugixml",
+        "ncurses"
     )
 
     add_files("lib/**.mpp")

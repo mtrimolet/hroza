@@ -22,14 +22,14 @@ public:
   static inline constexpr auto parse(const pugi::xml_node &xroot, Size&& size) noexcept -> decltype(auto) {
     auto grid = Grid::parse(xroot, std::move(size));
 
-    std::println("nodes:");
+    // std::println("nodes:");
 
     const auto symmetry = symmetry::getSymmetry(
         std::get<0>(grid.size) == 1, xroot.attribute("symmetry").as_string());
 
     auto node = Node::parse(xroot, grid, symmetry);
     
-    std::println();
+    // std::println();
 
     return Interpreter{std::move(grid), std::move(node)};
   }
