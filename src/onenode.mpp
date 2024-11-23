@@ -14,7 +14,7 @@ using namespace stormkit;
 
 export struct OneNode : RuleNode {
 
-  OneNode(const Size &grid_size, std::vector<Rule> &&rules, UInt steps) noexcept
+  OneNode(const Size &grid_size, auto&& rules, auto&& steps) noexcept
       : RuleNode{grid_size, std::move(rules), steps} {};
 
   inline constexpr auto reset() noexcept -> void {

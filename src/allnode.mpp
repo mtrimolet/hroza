@@ -14,7 +14,7 @@ using namespace stormkit;
 
 export struct AllNode : RuleNode {
 
-  AllNode(const Size &grid_size, std::vector<Rule> &&_rules, UInt steps) noexcept
+  AllNode(const auto& grid_size, auto&& _rules, auto steps) noexcept
       : RuleNode{grid_size, std::move(_rules), steps} {};
 
   inline constexpr auto reset() -> void {
@@ -22,10 +22,10 @@ export struct AllNode : RuleNode {
     // last.resize(std::ranges::size(rules), true);
   }
 
-  static inline constexpr auto parse(const pugi::xml_node &xall, const Grid &grid,
+  static inline constexpr auto parse(const pugi::xml_node& xall, const Grid& grid,
                     const symmetry::subgroup &parentSymmetry) noexcept -> AllNode {
     const auto attributes = xall.attributes()
-        | std::views::transform([](auto attr) {
+        | std::views::transform([](const auto& attr) {
             return std::format("{}={}", attr.name(), attr.value());
           });
     std::println("all{}", attributes);
@@ -54,7 +54,7 @@ export struct AllNode : RuleNode {
                    xall.attribute("steps").as_uint(0u)};
   }
 
-  static inline constexpr auto apply(Grid& grid, const Rule &rule, const math::Vector3I &u) 
+  static inline constexpr auto apply(Grid& grid, const Rule& rule, const math::Vector3I& u) 
       noexcept -> std::vector<math::Vector3I> {
     auto changed = std::unordered_set<math::Vector3I>{};
     return std::views::zip(rule.output, std::views::iota(0u)
@@ -73,10 +73,8 @@ export struct AllNode : RuleNode {
       | std::ranges::to<std::vector>();
   }
 
-  inline constexpr auto execute(Grid &grid, std::vector<math::Vector3I> &changes,
-                  const std::vector<math::Vector3I>::iterator &next_change,
-                  std::mt19937& rg)
-      noexcept -> bool {
+  inline constexpr auto execute(Grid& grid, std::vector<math::Vector3I>& changes,
+                  const auto& next_change, auto& rg) noexcept -> bool {
     if (not loadMatches(grid, changes, next_change)) return false;
 
     if (std::empty(matches)) return false;

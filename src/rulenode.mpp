@@ -28,14 +28,13 @@ protected:
   // std::vector<bool> last;
 
 public:
-  RuleNode(const Size &grid_size, std::vector<Rule> &&_rules, auto steps) noexcept
-      : rules{std::move(_rules)},
-        matchMask(std::ranges::size(rules)) {
+  RuleNode(auto&& grid_size, auto&& _rules, auto&& steps) noexcept
+      : rules{_rules}, matchMask(std::ranges::size(rules)) {
     const auto s = std::get<0>(grid_size) * std::get<1>(grid_size) * std::get<2>(grid_size);
     for (auto& m : matchMask) m.resize(s);
   };
 
-  inline constexpr auto addMatch(const Size &grid_size, UInt r, math::Vector3I u) noexcept -> void {
+  inline constexpr auto addMatch(auto&& grid_size, auto&& r, auto&& u) noexcept -> void {
     matchMask[r][toIndex(u, grid_size)] = true;
     matches.push_back(std::make_tuple(r, u));
   }
@@ -59,8 +58,7 @@ public:
        and lower.z <= u.z and u.z <= upper.z;
   }
 
-  inline constexpr auto loadMatches(Grid &grid, const std::vector<math::Vector3I> &changes,
-                    const std::vector<math::Vector3I>::iterator &next_change)
+  inline constexpr auto loadMatches(Grid& grid, const std::vector<math::Vector3I>& changes, const auto& next_change)
       noexcept -> bool {
 
     const auto &[MZ, MY, MX] = grid.size;

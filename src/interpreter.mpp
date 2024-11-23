@@ -16,9 +16,6 @@ using namespace std::literals;
 
 export struct Interpreter {
 public:
-  using Node = std::variant<OneNode, AllNode, MarkovNode, SequenceNode>;
-  using BranchNode = std::variant<MarkovNode, SequenceNode>;
-
   Grid grid;
   BranchNode root;
 
@@ -30,27 +27,11 @@ public:
     const auto symmetry = symmetry::getSymmetry(
         std::get<0>(grid.size) == 1, xroot.attribute("symmetry").as_string());
 
-    const auto name = std::string{xroot.name()};
-
-    auto node = std::optional<Node>{};
-    if (name == "one")
-      node = OneNode::parse(xroot, grid, symmetry);
-    else if (name == "all")
-      node = AllNode::parse(xroot, grid, symmetry);
-    else if (name == "markov")
-      node = MarkovNode::parse(xroot, grid, symmetry);
-    else if (name == "sequence")
-      node = SequenceNode::parse(xroot, grid, symmetry);
-    
-    ensures(node != std::nullopt, std::format("unknown node name '{}' [:{}]", name, xroot.offset_debug()));
+    auto node = Node::parse(xroot, grid, symmetry);
     
     std::println();
 
-    return Interpreter{std::move(grid), node.value().visit(Visitor{
-      [](OneNode& n){ return BranchNode{MarkovNode{{n}}}; },
-      [](AllNode& n){ return BranchNode{MarkovNode{{n}}}; },
-      [](auto& n) { return BranchNode{n}; },
-    })};
+    return Interpreter{std::move(grid), std::move(node)};
   }
 
   inline auto run(UInt seed) noexcept -> std::generator<const Grid&> {
@@ -60,9 +41,7 @@ public:
     grid.reset();
     co_yield grid;
 
-    for (const auto success : root.visit([&](auto& n){
-      return n.execute(grid, changes, std::ranges::end(changes), rg);
-    }))
-      co_yield grid;
+    for (const auto success : root.execute(grid, changes, std::ranges::end(changes), rg))
+      if (success) co_yield grid;
   }
 };

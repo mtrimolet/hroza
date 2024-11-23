@@ -1,6 +1,83 @@
 export module node;
 
-export import onenode;
-export import allnode;
-export import markovnode;
-export import sequencenode;
+import onenode;
+import allnode;
+import markovnode;
+import sequencenode;
+
+import std;
+import glm;
+import stormkit.Core;
+import pugixml;
+import grid;
+import symmetry;
+import utils;
+
+using namespace stormkit;
+
+export template <class T>
+concept has_execute_generator = requires(T&& n, 
+    Grid& grid, std::vector<math::Vector3I>& changes,
+    const std::vector<math::Vector3I>::iterator& next_change,
+    std::mt19937& rg) {
+  {n.execute(grid, changes, next_change, rg)} -> std::same_as<std::generator<bool>>;
+};
+
+export struct Node : std::variant<OneNode, AllNode, MarkovNode<Node>, SequenceNode<Node>> {
+  Node(auto&& n) noexcept : std::variant<OneNode, AllNode, MarkovNode<Node>, SequenceNode<Node>>{n} {}
+
+  static inline constexpr auto parse(const pugi::xml_node& xnode, const Grid& grid,
+      const symmetry::subgroup &parentSymmetry) noexcept -> Node {
+
+    const auto symmetry_string =
+        std::string{xnode.attribute("symmetry").as_string()};
+    const auto &subgroup = std::empty(symmetry_string)
+        ? parentSymmetry
+        : symmetry::getSymmetry(std::get<0>(grid.size) == 1,
+                                symmetry_string);
+
+    const auto name = std::string{xnode.name()};
+
+    const auto attributes = xnode.attributes()
+        | std::views::transform([](auto attr) {
+            return std::format("{}={}", attr.name(), attr.value());
+          });
+    std::println("{}{}", name, attributes);
+
+    if (name == "one")
+      return OneNode::parse(xnode, grid, subgroup);
+    else if (name == "all")
+      return AllNode::parse(xnode, grid, subgroup);
+    else if (name == "markov")
+      return MarkovNode<Node>::parse(xnode, grid, subgroup);
+    else if (name == "sequence")
+      return SequenceNode<Node>::parse(xnode, grid, subgroup);
+    
+    ensures(false, std::format("unknown node name '{}' [:{}]", name, xnode.offset_debug()));
+    std::unreachable();
+  }
+
+  inline constexpr auto execute(auto& grid, auto& changes, const auto& next_change, auto& rg) noexcept -> decltype(auto) {
+    return visit(Visitor{
+      [&](has_execute_generator auto& n) { return n.execute(grid, changes, std::ranges::end(changes), rg); },
+      [&](auto& n) {
+        return ([&n](auto& grid, auto& changes, const auto& next_change, auto& rg) -> std::generator<bool> {
+          co_yield n.execute(grid, changes, std::ranges::end(changes), rg);
+        })(grid, changes, next_change, rg);
+      }
+    });
+  }
+
+  inline constexpr auto reset() noexcept -> void {
+    visit([](auto& n){ n.reset(); });
+  }
+};
+
+export struct BranchNode : std::variant<MarkovNode<Node>, SequenceNode<Node>> {
+  BranchNode(auto&& n) noexcept : std::variant<MarkovNode<Node>, SequenceNode<Node>>{n} {}
+  BranchNode(Node&& n) noexcept : std::variant<MarkovNode<Node>, SequenceNode<Node>>{MarkovNode<Node>{{n}}} {}
+
+  inline constexpr auto execute(auto& grid, auto& changes, const auto& next_change, auto& rg) noexcept -> decltype(auto) {
+    return visit([&](auto& n){ return n.execute(grid, changes, std::ranges::end(changes), rg); });
+  }
+};

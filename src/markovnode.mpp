@@ -1,53 +1,21 @@
 export module markovnode;
 
 import std;
-import glm;
 import stormkit.Core;
 import pugixml;
-import grid;
-import symmetry;
-import utils;
-
-import onenode;
-import allnode;
 
 using namespace stormkit;
+using namespace std::literals;
 
-export struct MarkovNode {
-  using Node = std::variant<OneNode, AllNode, MarkovNode>;
+export template <class Node>
+struct MarkovNode {
   std::vector<Node> children;
 
-  static inline constexpr auto parse(pugi::xml_node xmarkov, const Grid& grid,
-      const symmetry::subgroup &parentSymmetry) noexcept -> MarkovNode {
-    const auto attributes = xmarkov.attributes()
-        | std::views::transform([](auto attr) {
-            return std::format("{}={}", attr.name(), attr.value());
-          });
-    std::println("markov{}", attributes);
-
-    const auto symmetry_string =
-        std::string{xmarkov.attribute("symmetry").as_string()};
-    const auto &subgroup = std::empty(symmetry_string)
-        ? parentSymmetry
-        : symmetry::getSymmetry(std::get<0>(grid.size) == 1,
-                                symmetry_string);
-
+  static inline constexpr auto parse(const pugi::xml_node& xmarkov, const auto& grid, const auto&parentSymmetry) noexcept -> MarkovNode {
     auto children = xmarkov.children()
-      | std::views::transform([&](const auto& xnode){
-          const auto name = std::string{xnode.name()};
-
-          auto node = std::optional<Node>{};
-          if (name == "one")
-            node = OneNode::parse(xnode, grid, subgroup);
-          else if (name == "all")
-            node = AllNode::parse(xnode, grid, subgroup);
-          else if (name == "markov")
-            node = MarkovNode::parse(xnode, grid, subgroup);
-
-          ensures(node != std::nullopt, std::format("unknown node name '{}' [:{}]", name, xnode.offset_debug()));
-          return node.value();
-        })
-        | std::ranges::to<std::vector>();
+      | std::views::filter([](const auto& xnode){ return xnode.name() != "union"sv; })
+      | std::views::transform([&grid, &parentSymmetry](const auto& xnode){ return Node::parse(xnode, grid, parentSymmetry); })
+      | std::ranges::to<std::vector>();
 
       return MarkovNode{children};
   }
@@ -56,18 +24,11 @@ export struct MarkovNode {
     for (auto& node : children) node.visit([](auto& n){ n.reset(); });
   }
 
-  inline auto execute(Grid &grid, std::vector<math::Vector3I> &changes,
-                  const std::vector<math::Vector3I>::iterator &next_change,
-                  std::mt19937& rg)
-      noexcept -> std::generator<bool> {
+  inline auto execute(auto& grid, auto& changes, const auto& next_change, auto& rg) noexcept -> std::generator<bool> {
     reset();
     auto current = std::ranges::begin(children);
     while (current != std::ranges::end(children)) {
-      for (const auto success : current->visit(Visitor{
-        [&](OneNode& n) -> std::generator<bool> { co_yield n.execute(grid, changes, std::ranges::end(changes), rg); },
-        [&](AllNode& n) -> std::generator<bool> { co_yield n.execute(grid, changes, std::ranges::end(changes), rg); },
-        [&](auto& n) { return n.execute(grid, changes, std::ranges::end(changes), rg); },
-      }))
+      for (const auto success : current->execute(grid, changes, std::ranges::end(changes), rg))
         if (success) co_yield true;
         else { current++; break; }
     }

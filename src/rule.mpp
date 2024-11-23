@@ -34,11 +34,10 @@ public:
   bool original;
 
 private:
-  Rule(
-    auto&& _input_size, auto&& _output_size,
-    auto&& in, auto&& out,
-    auto p, auto original, auto symbol_count
-  ) noexcept
+  Rule(auto&& _input_size, auto&& _output_size,
+       auto&& in, auto&& out,
+       auto p, auto original, auto symbol_count)
+  noexcept
   : input_size{std::move(_input_size)}, output_size{std::move(_output_size)},
   input{std::move(in)}, output{std::move(out)}, p{p},
   binput{std::views::repeat(as<State>(0xff), std::ranges::size(input)) | std::ranges::to<std::vector>()},
