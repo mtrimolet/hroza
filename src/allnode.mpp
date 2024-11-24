@@ -74,10 +74,10 @@ export struct AllNode : RuleNode {
       | std::ranges::to<std::vector>();
   }
 
-  inline constexpr auto execute(Grid& grid, std::vector<math::Vector3I>& changes,
-                  const auto& next_change, auto& rg) noexcept -> bool {
+  inline constexpr auto execute(Grid& grid, std::vector<math::Vector3I>& changes, auto& rg)
+      noexcept -> bool {
     if (steps > 0 and counter >= steps) return false;
-    if (not loadMatches(grid, changes, next_change)) return false;
+    if (not loadMatches(grid, changes)) return false;
 
     if (std::empty(matches)) return false;
     std::ranges::shuffle(matches, rg);

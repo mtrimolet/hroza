@@ -54,8 +54,8 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
 
   std::ranges::for_each(models, [&w](const auto &model) {
     const auto s = std::format("{}[{}x{}x{}]", model.name, std::get<0>(model.size), std::get<1>(model.size), std::get<2>(model.size));
-    // w.say(s);
-    // w.waitchar();
+    w.say(s);
+    w.waitchar();
   
     if (std::get<0>(model.size) != 1) {
       std::println("cannot render 3d grid in console mode");
@@ -77,14 +77,15 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
       auto frames = std::move(ticks);
           // | std::views::drop(model.gif ? 0 : std::ranges::size(ticks) - 1);
           // | std::views::stride(model.gif ? 0 : 10);
-
-      std::ranges::for_each(frames, [&w, &model](const auto &grid) {
+      w.clear();
+      std::ranges::for_each(frames, [&w, &model](const auto &data) {
+        const auto& [grid, changes] = data;
         // if (std::get<0>(grid.size) == 1 or model.iso) {
-          auto [bitmap, s] = render(grid, model);
+          // auto [bitmap, s] = render(grid, model);
           //   if (model.gui > 0)
           //     GUI.Draw(model.name, interpreter.root, interpreter.current,
           //              bitmap, width, height, model.palette);
-          draw(w, bitmap, std::get<2>(s), std::get<1>(s));
+          draw(w, grid.states, changes, grid.size);
           w.refresh();
           //   Graphics.SaveBitmap(bitmap, width, height, std::format("{}.png", outputname);
         // } else

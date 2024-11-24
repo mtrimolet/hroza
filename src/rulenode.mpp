@@ -59,14 +59,14 @@ public:
        and lower.z <= u.z and u.z <= upper.z;
   }
 
-  inline constexpr auto loadMatches(Grid& grid, const std::vector<math::Vector3I>& changes, const auto& next_change)
+  inline constexpr auto loadMatches(Grid& grid, const auto& changes)
       noexcept -> bool {
 
     const auto &[MZ, MY, MX] = grid.size;
     const auto M = math::Vector3I{MX, MY, MZ};
 
-    if (next_change != std::ranges::end(changes)) {
-      for (const auto &u : std::ranges::subrange(next_change, std::ranges::end(changes))) {
+    if (not std::empty(changes)) {
+      for (const auto &u : changes) {
         const auto &value = grid.at(u);
         for (const auto &[rule, r] : std::views::zip(rules, std::views::iota(0u))) {
           const auto &[IMZ, IMY, IMX] = rule.input_size;

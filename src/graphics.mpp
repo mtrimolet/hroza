@@ -1,10 +1,12 @@
 export module graphics;
 
 import std;
+import glm;
 import stormkit.Core;
 import ncurses;
 import grid;
 import model;
+import utils;
 
 using namespace stormkit;
 
@@ -37,10 +39,12 @@ export inline constexpr auto render(const Grid &grid, const Model &model) noexce
 //     width, height);
 // }
 
-export inline constexpr auto draw(ncurses::window& w, std::span<const Grid::State> bitmap, auto width, auto height) noexcept -> decltype(auto) {
+export inline constexpr auto draw(ncurses::window& w, std::span<const Grid::State> bitmap, 
+    const std::vector<math::Vector3I>& changes, const Size& size) noexcept -> decltype(auto) {
   // auto w = ncurses::window{height, width};
-  for (const auto& [ch, i] : std::views::zip(bitmap, std::views::iota(0u, height * width))) {
-    w.addch(i / width, i % width, ch ? '*' : ' ', ch);
+  for (const auto& [ch, u] : changes | std::views::transform([&](const auto& u){
+      return std::make_pair(bitmap.at(toIndex(u, size)), u); })) {
+    w.addch(u.y, u.x, ' ', ch);
   }
   // w.refresh();
 }

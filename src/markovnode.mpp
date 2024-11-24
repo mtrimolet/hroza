@@ -24,11 +24,11 @@ struct MarkovNode {
     for (auto& node : children) node.visit([](auto& n){ n.reset(); });
   }
 
-  inline auto execute(auto& grid, auto& changes, const auto& next_change, auto& rg) noexcept -> std::generator<bool> {
+  inline auto execute(auto& grid, auto& changes, auto& rg) noexcept -> std::generator<bool> {
     reset();
     auto current = std::ranges::begin(children);
     while (current != std::ranges::end(children)) {
-      for (const auto success : current->execute(grid, changes, std::ranges::end(changes), rg))
+      for (const auto success : current->execute(grid, changes, rg))
         if (success) co_yield true;
         else { current++; break; }
     }

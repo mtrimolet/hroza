@@ -92,11 +92,10 @@ export struct OneNode : RuleNode {
     return std::nullopt;
   }
 
-  inline constexpr auto execute(Grid &grid, std::vector<math::Vector3I> &changes,
-                  const std::vector<math::Vector3I>::iterator &next_change,
-                  std::mt19937& rg)
+  inline constexpr auto execute(Grid& grid, auto& changes, auto& rg)
       noexcept -> bool {
     if (steps > 0 and counter >= steps) return false;
+    if (not loadMatches(grid, changes)) return false;
 
     auto m = randomMatch(grid, rg);
     if (not m) return false;

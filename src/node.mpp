@@ -16,11 +16,9 @@ import utils;
 using namespace stormkit;
 
 export template <class T>
-concept has_execute_generator = requires(T&& n, 
-    Grid& grid, std::vector<math::Vector3I>& changes,
-    const std::vector<math::Vector3I>::iterator& next_change,
-    std::mt19937& rg) {
-  {n.execute(grid, changes, next_change, rg)} -> std::same_as<std::generator<bool>>;
+concept has_execute_generator = requires(T&& n, Grid& grid,
+    std::vector<math::Vector3I>& changes, std::mt19937& rg) {
+  {n.execute(grid, changes, rg)} -> std::same_as<std::generator<bool>>;
 };
 
 export struct Node : std::variant<OneNode, AllNode, MarkovNode<Node>, SequenceNode<Node>> {
@@ -57,13 +55,13 @@ export struct Node : std::variant<OneNode, AllNode, MarkovNode<Node>, SequenceNo
     std::unreachable();
   }
 
-  inline constexpr auto execute(auto& grid, auto& changes, const auto& next_change, auto& rg) noexcept -> decltype(auto) {
+  inline constexpr auto execute(auto& grid, auto& changes, auto& rg) noexcept -> decltype(auto) {
     return visit(Visitor{
-      [&](has_execute_generator auto& n) { return n.execute(grid, changes, std::ranges::end(changes), rg); },
+      [&](has_execute_generator auto& n) { return n.execute(grid, changes, rg); },
       [&](auto& n) {
-        return ([&n](auto& grid, auto& changes, const auto& next_change, auto& rg) -> std::generator<bool> {
-          co_yield n.execute(grid, changes, std::ranges::end(changes), rg);
-        })(grid, changes, next_change, rg);
+        return ([&n](auto& grid, auto& changes, auto& rg) -> std::generator<bool> {
+          co_yield n.execute(grid, changes, rg);
+        })(grid, changes, rg);
       }
     });
   }
@@ -77,7 +75,7 @@ export struct BranchNode : std::variant<MarkovNode<Node>, SequenceNode<Node>> {
   BranchNode(auto&& n) noexcept : std::variant<MarkovNode<Node>, SequenceNode<Node>>{n} {}
   BranchNode(Node&& n) noexcept : std::variant<MarkovNode<Node>, SequenceNode<Node>>{MarkovNode<Node>{{n}}} {}
 
-  inline constexpr auto execute(auto& grid, auto& changes, const auto& next_change, auto& rg) noexcept -> decltype(auto) {
-    return visit([&](auto& n){ return n.execute(grid, changes, std::ranges::end(changes), rg); });
+  inline constexpr auto execute(auto& grid, auto& changes, auto& rg) noexcept -> decltype(auto) {
+    return visit([&](auto& n){ return n.execute(grid, changes, rg); });
   }
 };
