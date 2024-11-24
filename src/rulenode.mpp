@@ -18,6 +18,7 @@ public:
 protected:
   using Match = std::tuple<UInt, math::Vector3I>;
   std::vector<Match> matches;
+  UInt steps, counter;
 
   // std::optional<UInt> lastMatchedTurn;
   // size(matchMask) == size(rules);
@@ -29,7 +30,7 @@ protected:
 
 public:
   RuleNode(auto&& grid_size, auto&& _rules, auto&& steps) noexcept
-      : rules{_rules}, matchMask(std::ranges::size(rules)) {
+      : rules{_rules}, matchMask(std::ranges::size(rules)), steps{steps} {
     const auto s = std::get<0>(grid_size) * std::get<1>(grid_size) * std::get<2>(grid_size);
     for (auto& m : matchMask) m.resize(s);
   };

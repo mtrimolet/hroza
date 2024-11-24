@@ -18,6 +18,7 @@ export struct OneNode : RuleNode {
       : RuleNode{grid_size, std::move(rules), steps} {};
 
   inline constexpr auto reset() noexcept -> void {
+    counter = 0;
     if (std::empty(matches)) return;
     matches.clear();
 
@@ -95,7 +96,7 @@ export struct OneNode : RuleNode {
                   const std::vector<math::Vector3I>::iterator &next_change,
                   std::mt19937& rg)
       noexcept -> bool {
-    if (not loadMatches(grid, changes, next_change)) return false;
+    if (steps > 0 and counter >= steps) return false;
 
     auto m = randomMatch(grid, rg);
     if (not m) return false;
@@ -105,6 +106,7 @@ export struct OneNode : RuleNode {
       std::ranges::end(changes),
       apply(grid, rules.at(r), u));
 
+    counter++;
     return true;
   }
 };
