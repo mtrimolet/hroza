@@ -11,11 +11,14 @@ import symmetry;
 import utils;
 
 using namespace stormkit;
+using namespace std::literals;
 
 export struct OneNode : RuleNode {
 
-  OneNode(const Size &grid_size, auto&& rules, auto&& steps) noexcept
-      : RuleNode{grid_size, std::move(rules), steps} {};
+  static constexpr auto name = "one"s;
+
+  OneNode(auto&& grid_size, auto&& rules, auto&& steps) noexcept
+      : RuleNode{grid_size, rules, steps} {};
 
   inline constexpr auto reset() noexcept -> void {
     counter = 0;
@@ -29,47 +32,38 @@ export struct OneNode : RuleNode {
     }
   }
 
-  static inline constexpr auto parse(const pugi::xml_node &xone, const Grid &grid,
-                    const symmetry::subgroup &parentSymmetry) noexcept -> OneNode {
-    // const auto attributes = xone.attributes()
-    //     | std::views::transform([](auto attr) {
-    //         return std::format("{}={}", attr.name(), attr.value());
-    //       });
-    // std::println("one{}", attributes);
+  static inline constexpr auto parse(const pugi::xml_node &xone, const Grid &grid, auto&& parentSymmetry) noexcept -> OneNode {
 
     auto xrules = xone.children("rule") | std::ranges::to<std::vector>();
     if (std::ranges::empty(xrules))
       xrules.push_back(xone);
 
     auto rules = xrules
-      | std::views::transform([&grid, &parentSymmetry](auto &xrule) {
+      | std::views::transform([&grid, &parentSymmetry](auto&& xrule) constexpr {
           auto rule = Rule::parse(xrule, grid.waves, grid.values);
 
-          const auto symmetry_string =
-              std::string{xrule.attribute("symmetry").as_string()};
-          const auto &subgroup = std::empty(symmetry_string)
-              ? parentSymmetry
-              : symmetry::getSymmetry(std::get<0>(grid.size) == 1,
-                                      symmetry_string);
+          const auto symmetry = std::string_view{xrule.attribute("symmetry").as_string()};
+          if (not std::empty(symmetry)) ensures(
+            symmetry::isSymmetry(std::get<0>(grid.size) == 1, symmetry),
+            std::format("unknown symmetry '{}' [:{}]", symmetry, xrule.offset_debug()));
 
-          return rule.symmetries(std::get<0>(grid.size) == 1, subgroup);
+          return rule.symmetries(std::get<0>(grid.size) == 1, std::empty(symmetry) ? parentSymmetry : symmetry);
         })
       | std::views::join
       | std::ranges::to<std::vector>();
 
-    return OneNode{grid.size, std::move(rules),
-                   xone.attribute("steps").as_uint(0u)};
+    return OneNode{grid.size, rules, xone.attribute("steps").as_uint(0u)};
   }
 
   static inline constexpr auto apply(Grid& grid, Rule rule, const math::Vector3I &u) 
       noexcept -> std::vector<math::Vector3I> {
     return std::views::zip(rule.output, std::views::iota(0u)
-        | std::views::transform([&rule, &u](auto i){ return u + fromIndex(i, rule.output_size); }))
-      | std::views::filter([&grid](const auto& v){
+        | std::views::transform([&rule, &u](auto i) constexpr { return u + fromIndex(i, rule.output_size); }))
+      | std::views::filter([&grid](const auto& v) constexpr {
           const auto& [newState, s] = v;
           return newState != std::nullopt and newState.value() != grid.at(s);
       })
-      | std::views::transform([&grid](const auto v){
+      | std::views::transform([&grid](const auto v) constexpr {
           const auto& [newState, s] = v;
           grid[s] = newState.value();
           return s;
@@ -81,7 +75,7 @@ export struct OneNode : RuleNode {
     auto trashed = trash{matches};
     
     while (std::ranges::size(matches) > 0) {
-      const auto matchIndex = rg() % std::ranges::size(matches);
+      const auto matchIndex = std::uniform_int_distribution{0ul, std::ranges::size(matches)}(rg);
 
       auto match = trashed.pop(matchIndex);
       const auto &[r, u] = match;
@@ -92,10 +86,14 @@ export struct OneNode : RuleNode {
     return std::nullopt;
   }
 
-  inline constexpr auto execute(Grid& grid, auto& changes, auto& rg)
+  inline constexpr auto execute(auto& grid, auto& changes, auto& rg)
       noexcept -> bool {
     if (steps > 0 and counter >= steps) return false;
-    if (not loadMatches(grid, changes)) return false;
+
+    std::ranges::for_each(loadMatches(grid, changes, rg), [this, &grid](const auto& m) constexpr {
+      matchMask[std::get<0>(m)][toIndex(std::get<1>(m), grid.size)] = true;
+      matches.push_back(m);
+    });
 
     auto m = randomMatch(grid, rg);
     if (not m) return false;

@@ -7,25 +7,40 @@ import pugixml;
 using namespace stormkit;
 using namespace std::literals;
 
+template <class T>
+concept has_reset_method = requires(T&& n) {
+  {n.reset()};
+};
+
+template <class T, class... Args>
+concept has_parse_member = requires(Args... args) {
+  {T::parse(args...)} -> std::same_as<T>;
+};
+
 export template <class Node>
 struct MarkovNode {
+
+  static constexpr auto name = "markov"s;
+
   std::vector<Node> children;
 
-  static inline constexpr auto parse(const pugi::xml_node& xmarkov, const auto& grid, const auto&parentSymmetry) noexcept -> MarkovNode {
+  template <class... Args>
+  static inline constexpr auto parse(const pugi::xml_node& xmarkov, Args... args) noexcept -> MarkovNode 
+  requires (has_parse_member<Node, decltype(xmarkov), decltype(args)...>) {
     auto children = xmarkov.children()
-      | std::views::filter([](const auto& xnode){ return xnode.name() != "union"sv; })
-      | std::views::transform([&grid, &parentSymmetry](const auto& xnode){ return Node::parse(xnode, grid, parentSymmetry); })
+      | std::views::filter([](const auto& xnode) constexpr { return xnode.name() != "union"sv; })
+      | std::views::transform([&args...](const auto& xnode) constexpr { return Node::parse(xnode, args...); })
       | std::ranges::to<std::vector>();
 
-      return MarkovNode{children};
+      return MarkovNode{std::move(children)};
   }
 
-  inline constexpr auto reset() noexcept -> void {
-    for (auto& node : children) node.visit([](auto& n){ n.reset(); });
+  inline constexpr auto reset() noexcept -> void requires(has_reset_method<Node>) {
+    for (auto& node : children) node.reset();
   }
 
   inline auto execute(auto& grid, auto& changes, auto& rg) noexcept -> std::generator<bool> {
-    reset();
+    if constexpr (has_reset_method<Node>) reset();
     auto current = std::ranges::begin(children);
     while (current != std::ranges::end(children)) {
       for (const auto success : current->execute(grid, changes, rg))

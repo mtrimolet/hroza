@@ -38,13 +38,13 @@ private:
        auto&& in, auto&& out,
        auto p, auto original, auto symbol_count)
   noexcept
-  : input_size{std::move(_input_size)}, output_size{std::move(_output_size)},
-  input{std::move(in)}, output{std::move(out)}, p{p},
+  : input_size{_input_size}, output_size{_output_size},
+  input{in}, output{out}, p{p},
   binput{std::views::repeat(as<State>(0xff), std::ranges::size(input)) | std::ranges::to<std::vector>()},
-  ishifts{std::views::iota(0u, symbol_count) | std::views::transform([this](auto c) {
+  ishifts{std::views::iota(0u, symbol_count) | std::views::transform([this](auto c) constexpr {
       return std::views::zip(input, std::views::iota(0u))
-        | std::views::filter([c](const auto& inp){ return std::get<0>(inp).at(c); })
-        | std::views::transform([this](const auto& inp) { return fromIndex(std::get<1>(inp), input_size); })
+        | std::views::filter([c](const auto& inp) constexpr { return std::get<0>(inp).at(c); })
+        | std::views::transform([this](const auto& inp) constexpr { return fromIndex(std::get<1>(inp), input_size); })
         | std::ranges::to<std::vector>();
     }) | std::ranges::to<std::vector>()},
   oshifts{std::views::repeat(std::vector<math::Vector3I>{}, symbol_count) | std::ranges::to<std::vector>()},
@@ -54,7 +54,7 @@ private:
   inline static constexpr auto split(std::string_view str) noexcept -> decltype(auto) {
     const auto block = str
       | std::views::split(Zsep)
-      | std::views::transform([](const auto& square){ 
+      | std::views::transform([](const auto& square) constexpr { 
           return square
             | std::views::split(Ysep)
             | std::views::transform([](const auto& line){
@@ -70,7 +70,7 @@ private:
         std::ranges::size(block.at(0)),
         std::ranges::size(block.at(0).at(0))},
       block
-        | std::views::transform([](auto& square){
+        | std::views::transform([](auto& square) constexpr {
           return square | std::views::join;
         })
         | std::views::join
@@ -101,10 +101,10 @@ public:
         input_size,
         output_size,
         input
-          | std::views::transform([&waves](const auto& symbol) { return waves.at(symbol); })
+          | std::views::transform([&waves](const auto& symbol) constexpr { return waves.at(symbol); })
           | std::ranges::to<std::vector>(),
         output
-          | std::views::transform([&values](const auto& symbol) { return symbol == '*' ? std::nullopt : std::optional{values.at(symbol)}; })
+          | std::views::transform([&values](const auto& symbol) constexpr { return symbol == '*' ? std::nullopt : std::optional{values.at(symbol)}; })
           | std::ranges::to<std::vector>(),
         xrule.attribute("p").as_double(1.0f),
         true, std::ranges::size(values)
@@ -117,12 +117,9 @@ public:
       std::get<2>(input_size),
       std::get<1>(input_size)};
     auto new_input = std::views::iota(0u, std::ranges::size(input))
-      | std::views::transform([&](auto i){
+      | std::views::transform([&](auto i) constexpr {
           const auto u = fromIndex(i, new_input_size);
-          const auto from_u = math::Vector3I{
-            std::get<1>(new_input_size) - 1 - u.y,
-            u.x,
-            u.z};
+          const auto from_u = math::Vector3I{std::get<1>(new_input_size) - 1 - u.y, u.x, u.z};
           return input.at(toIndex(from_u, input_size));
       })
       | std::ranges::to<std::vector>();
@@ -132,21 +129,18 @@ public:
       std::get<2>(output_size),
       std::get<1>(output_size)};
     auto new_output = std::views::iota(0u, std::ranges::size(output))
-      | std::views::transform([&](auto i){
+      | std::views::transform([&](auto i) constexpr {
           const auto u = fromIndex(i, new_output_size);
-          const auto from_u = math::Vector3I{
-            std::get<1>(new_output_size) - 1 - u.y,
-            u.x,
-            u.z};
+          const auto from_u = math::Vector3I{std::get<1>(new_output_size) - 1 - u.y, u.x, u.z};
           return output.at(toIndex(from_u, output_size));
       })
       | std::ranges::to<std::vector>();
 
     return Rule{
-      std::move(new_input_size), 
-      std::move(new_output_size), 
-      std::move(new_input),
-      std::move(new_output),
+      new_input_size,
+      new_output_size,
+      new_input,
+      new_output,
       p, false,
       std::ranges::size(ishifts),
     };
@@ -158,9 +152,10 @@ public:
       std::get<1>(input_size),
       std::get<0>(input_size)};
     auto new_input = std::views::iota(0u, std::ranges::size(input))
-      | std::views::transform([&](UInt i){
+      | std::views::transform([&](auto i) constexpr {
           const auto u = fromIndex(i, new_input_size);
-          return input.at(toIndex({std::get<2>(input_size) - 1 - u.z, u.y, u.x}, input_size));
+          const auto from_u = math::Vector3I{std::get<2>(input_size) - 1 - u.z, u.y, u.x};
+          return input.at(toIndex(from_u, input_size));
       })
       | std::ranges::to<std::vector>();
 
@@ -169,17 +164,18 @@ public:
       std::get<1>(output_size),
       std::get<0>(output_size)};
     auto new_output = std::views::iota(0u, std::ranges::size(output))
-      | std::views::transform([&](auto i){
+      | std::views::transform([&](auto i) constexpr {
           const auto u = fromIndex(i, new_output_size);
-          return output.at(toIndex({std::get<2>(output_size) - 1 - u.z, u.y, u.x}, output_size));
+          const auto from_u = math::Vector3I{std::get<2>(output_size) - 1 - u.z, u.y, u.x};
+          return output.at(toIndex(from_u, output_size));
       })
       | std::ranges::to<std::vector>();
 
     return Rule{
-      std::move(new_input_size), 
-      std::move(new_output_size), 
-      std::move(new_input),
-      std::move(new_output),
+      new_input_size,
+      new_output_size,
+      new_input,
+      new_output,
       p, false,
       std::ranges::size(ishifts),
     };
@@ -188,25 +184,27 @@ public:
   inline constexpr auto xreflected() const noexcept -> Rule {
     auto new_input_size = auto{input_size};
     auto new_input = std::views::iota(0u, std::ranges::size(input))
-      | std::views::transform([&](UInt i){
+      | std::views::transform([&](auto i) constexpr{
           const auto u = fromIndex(i, new_input_size);
-          return input.at(toIndex({std::get<2>(input_size) - 1 - u.x, u.y, u.z}, input_size));
+          const auto from_u = math::Vector3I{std::get<2>(input_size) - 1 - u.x, u.y, u.z};
+          return input.at(toIndex(from_u, input_size));
       })
       | std::ranges::to<std::vector>();
 
     auto new_output_size = auto{output_size};
     auto new_output = std::views::iota(0u, std::ranges::size(output))
-      | std::views::transform([&](auto i){
+      | std::views::transform([&] (auto i) constexpr {
           const auto u = fromIndex(i, new_output_size);
-          return output.at(toIndex({std::get<2>(output_size) - 1 - u.x, u.y, u.z}, output_size));
+          const auto from_u = math::Vector3I{std::get<2>(output_size) - 1 - u.x, u.y, u.z};
+          return output.at(toIndex(from_u, output_size));
       })
       | std::ranges::to<std::vector>();
 
     return Rule{
-      std::move(new_input_size), 
-      std::move(new_output_size), 
-      std::move(new_input),
-      std::move(new_output),
+      new_input_size,
+      new_output_size,
+      new_input,
+      new_output,
       p, false,
       std::ranges::size(ishifts),
     };
@@ -214,25 +212,32 @@ public:
 
   inline constexpr auto operator==(const Rule&) const noexcept -> bool = default;
 
-  constexpr auto symmetries(bool d2, const symmetry::subgroup& symmetry) const noexcept -> decltype(auto);
+  constexpr auto symmetries(bool d2, auto&& symmetry) const noexcept -> decltype(auto);
 };
 
 export template<>
 struct std::hash<Rule> {
-  std::size_t operator()(const Rule& rule) const noexcept {
+  std::size_t operator()(auto&& rule) const noexcept {
     return 0;
   }
 };
 
-constexpr auto Rule::symmetries(bool d2, const symmetry::subgroup& symmetry) const noexcept -> decltype(auto) {
+export template<>
+struct std::hash<const Rule&> {
+  std::size_t operator()(auto&& rule) const noexcept {
+    return 0;
+  }
+};
+
+constexpr auto Rule::symmetries(bool d2, auto&& symmetry) const noexcept -> decltype(auto) {
   if (d2) return symmetry::squareSymmetries(*this, 
-    [](const Rule& r){ return r.zrotated();   },
-    [](const Rule& r){ return r.xreflected(); },
+    [](const Rule& r) constexpr { return r.zrotated();   },
+    [](const Rule& r) constexpr { return r.xreflected(); },
     symmetry);
 
   return symmetry::cubeSymmetries(*this,
-    [](const Rule& r){ return r.zrotated();   },
-    [](const Rule& r){ return r.yrotated();   },
-    [](const Rule& r){ return r.xreflected(); },
+    [](const Rule& r) constexpr { return r.zrotated();   },
+    [](const Rule& r) constexpr { return r.yrotated();   },
+    [](const Rule& r) constexpr { return r.xreflected(); },
     symmetry);
 }

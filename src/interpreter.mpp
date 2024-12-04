@@ -14,24 +14,33 @@ import frozen;
 using namespace stormkit;
 using namespace std::literals;
 
+
 export struct Interpreter {
+  struct Node : ::Node<bool,
+    OneNode,
+    AllNode,
+    ParallelNode,
+    MarkovNode<Node>,
+    SequenceNode<Node>
+  > {};
+
+  struct BranchNode : ::BranchNode<bool,
+    MarkovNode<Node>,
+    SequenceNode<Node>
+  > {};
+
 public:
   Grid grid;
   BranchNode root;
 
-  static inline constexpr auto parse(const pugi::xml_node &xroot, Size&& size) noexcept -> decltype(auto) {
-    auto grid = Grid::parse(xroot, std::move(size));
+  static inline constexpr auto parse(const pugi::xml_node &xroot, auto&& size) noexcept -> decltype(auto) {
+    auto grid = Grid::parse(xroot, size);
+    auto root = Node::parse(xroot, grid, ""s);
 
-    // std::println("nodes:");
-
-    const auto symmetry = symmetry::getSymmetry(
-        std::get<0>(grid.size) == 1, xroot.attribute("symmetry").as_string());
-
-    auto node = Node::parse(xroot, grid, symmetry);
-    
-    // std::println();
-
-    return Interpreter{std::move(grid), std::move(node)};
+    return Interpreter{grid, root.visit(Visitor{
+      [](BranchNode& n) constexpr { return std::move(n); },
+      [](auto& n) constexpr { return MarkovNode<Node>{{Node{std::move(n)}}}; }
+    })};
   }
 
   inline auto run(UInt seed) noexcept -> std::generator<std::tuple<const Grid&, std::vector<math::Vector3I>>> {

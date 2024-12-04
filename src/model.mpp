@@ -11,7 +11,7 @@ export using Palette = HashMap<char, UInt32>;
 
 export auto parsePalette(auto&& xcolors) -> Palette {
   return xcolors
-      | std::views::transform([](const auto& xcolor) {
+      | std::views::transform([](const auto& xcolor) constexpr {
           const auto symbol_str = std::string{xcolor.attribute("symbol").as_string()};
           ensures(!std::ranges::empty(symbol_str),
                   std::format("missing '{}' attribute in '{}' node [:{}]", "symbol", "color", xcolor.offset_debug()));
@@ -47,13 +47,13 @@ export struct Model {
   Model() = default;
   Model(auto&& name, auto&& linear_size, auto&& dimension,
         auto&& size, auto&& gif, auto&& amount,
-        auto&& pixelsize, auto&& palette, auto&& iso, auto&& steps, auto&& gui)
+        auto&& pixelsize, auto&& palette, auto&& iso, auto&& steps, auto&& gui) noexcept
       : name{name}, linear_size{linear_size}, dimension{dimension},
         size{size}, gif{gif}, amount{amount}, pixelsize{pixelsize},
         palette{palette}, iso{iso}, steps{steps}, gui{gui} {};
 
-  Model(Model&& other) = default;
-  Model(const Model& other)
+  Model(Model&& other) noexcept = default;
+  Model(const Model& other) noexcept
       : Model{other.name, other.linear_size, other.dimension, 
               other.size, other.gif, other.amount,
               other.pixelsize, other.palette, other.iso, 
@@ -62,9 +62,9 @@ export struct Model {
   }
 
   static auto parse(const pugi::xml_node& xmodel, const Palette& default_palette)
-      -> std::expected<Model, pugi::xml_parse_result> {
+      noexcept -> std::expected<Model, pugi::xml_parse_result> {
     auto name = xmodel.attribute("name").as_string();
-    auto linearSize = xmodel.attribute("size").as_uint(-1);
+    auto linearSize = std::min(xmodel.attribute("size").as_uint(0), 40u);
     // auto linearSize = 19u;
     auto dimension = xmodel.attribute("d").as_uint(2);
     auto gif = xmodel.attribute("gif").as_bool(false);
@@ -77,7 +77,7 @@ export struct Model {
     auto palette = auto{default_palette};
     std::ranges::for_each(parsePalette(xmodel.children("color")), [&palette](auto&& v){
       auto &&[symbol, value] = v;
-      palette.insert_or_assign(symbol, std::move(value));
+      palette.insert_or_assign(symbol, value);
     });
 
     auto model = Model{
@@ -90,7 +90,7 @@ export struct Model {
       gif,
       amount,
       xmodel.attribute("pixelsize").as_uint(4),
-      std::move(palette),
+      palette,
       xmodel.attribute("iso").as_bool(false),
       xmodel.attribute("steps").as_uint(gif ? 1000 : 50000),
       xmodel.attribute("gui").as_uint(0)
@@ -100,6 +100,6 @@ export struct Model {
         !load_result)
       return std::unexpected{load_result};
 
-    return std::move(model);
+    return model;
   }
 };

@@ -13,7 +13,7 @@ export struct XMLDepthWalker {
 
     Iterator() {}
     Iterator(pugi::xml_node &&_cur)
-        : cur{std::move(_cur)}, depth{cur ? 1u : 0u} {}
+        : cur{_cur}, depth{cur ? 1u : 0u} {}
 
     auto go_in() -> void {
       ++depth;

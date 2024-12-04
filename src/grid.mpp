@@ -38,7 +38,7 @@ public:
       values{std::views::zip(symbols, std::views::iota(as<State>(0)))
         | std::ranges::to<std::unordered_map<Symbol, State>>()},
       waves{symbols
-        | std::views::transform([this](auto&& symbol) {
+        | std::views::transform([this](auto&& symbol) constexpr {
             return std::make_pair(symbol, wave(std::string{symbol}));
           })
         | std::ranges::to<std::unordered_map>()},
@@ -58,8 +58,8 @@ public:
             std::format("duplicated symbols in '{}' attribute of '{}' node [:{}]", "values", "grid", xelem.offset_debug()));
 
     auto grid = Grid{
-      std::move(size),
-      std::move(symbols),
+      size,
+      symbols,
       xelem.attribute("folder").as_string(),
       xelem.attribute("transparent").as_string(),
       xelem.attribute("origin").as_bool(false),
@@ -68,7 +68,7 @@ public:
     auto any_wave = std::views::repeat(true, std::ranges::size(symbols))
         | std::ranges::to<std::vector>();
 
-    grid.waves.insert({'*', std::move(any_wave)});
+    grid.waves.insert({'*', any_wave});
 
     for (const auto& xunion : XMLDepthWalker{xelem}) {
       if (xunion.name() != "union"sv) continue;
@@ -128,7 +128,7 @@ public:
   inline constexpr auto matches(const Rule& rule, const math::Vector3I& u) const noexcept -> bool {
     return std::ranges::all_of(
       std::views::zip(rule.input, subvolume(u, rule.input_size)),
-      [](const auto &wav) {
+      [](const auto &wav) constexpr {
         const auto& [input_wave, state] = wav;
         return input_wave.at(state);
       }
