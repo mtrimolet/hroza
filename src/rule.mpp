@@ -1,243 +1,138 @@
 export module rule;
 
 import std;
-import glm;
 import stormkit.Core;
-import pugixml;
-import symmetry;
-import utils;
+
+import grid;
 
 using namespace stormkit;
 
-export struct Rule {
-public:
-  using State = UInt;
-  using Symbol = char;
-  using Wave = std::vector<bool>;
+export {
 
-  Size input_size, output_size;
-
-  // size(input) == input_size[0] * input_size[1] * input_size[2];
-  std::vector<Wave> input;
-
-  // size(output) == output_size[0] * output_size[1] * output_size[2];
-  std::vector<std::optional<State>> output;
-
-  double p;
-  // size(binput) == size(input);
-  std::vector<State> binput;
-  // size(ishifts) == size(oshifts) == size(grid.symbols);
-  // size(ishifts[i]) == size(input);
-  // size(oshifts[i]) == size(output);
-  std::vector<std::vector<math::Vector3I>> ishifts, oshifts;
-
-  bool original;
-
-private:
-  Rule(auto&& _input_size, auto&& _output_size,
-       auto&& in, auto&& out,
-       auto p, auto original, auto symbol_count)
-  noexcept
-  : input_size{_input_size}, output_size{_output_size},
-  input{in}, output{out}, p{p},
-  binput{std::views::repeat(as<State>(0xff), std::ranges::size(input)) | std::ranges::to<std::vector>()},
-  ishifts{std::views::iota(0u, symbol_count) | std::views::transform([this](auto c) constexpr {
-      return std::views::zip(input, std::views::iota(0u))
-        | std::views::filter([c](const auto& inp) constexpr { return std::get<0>(inp).at(c); })
-        | std::views::transform([this](const auto& inp) constexpr { return fromIndex(std::get<1>(inp), input_size); })
-        | std::ranges::to<std::vector>();
-    }) | std::ranges::to<std::vector>()},
-  oshifts{std::views::repeat(std::vector<math::Vector3I>{}, symbol_count) | std::ranges::to<std::vector>()},
-  original{original} {}
-
-  template <char Zsep, char Ysep>
-  inline static constexpr auto split(std::string_view str) noexcept -> decltype(auto) {
-    const auto block = str
-      | std::views::split(Zsep)
-      | std::views::transform([](const auto& square) constexpr { 
-          return square
-            | std::views::split(Ysep)
-            | std::views::transform([](const auto& line){
-                return line | std::ranges::to<std::vector>();
-              })
-            | std::ranges::to<std::vector>(); 
-        })
-      | std::ranges::to<std::vector>();
-
-    return std::make_tuple(
-      Size{
-        std::ranges::size(block),
-        std::ranges::size(block.at(0)),
-        std::ranges::size(block.at(0).at(0))},
-      block
-        | std::views::transform([](auto& square) constexpr {
-          return square | std::views::join;
-        })
-        | std::views::join
-        | std::ranges::to<std::vector>());
-  }
-
-public:
-  inline static constexpr auto parse(const pugi::xml_node &xrule,
-                    const std::unordered_map<Symbol, Wave>& waves,
-                    const std::unordered_map<Symbol, State>& values)
-      noexcept -> Rule {
-
-    const auto inString = std::string{xrule.attribute("in").as_string()};
-    ensures(!std::ranges::empty(inString),
-            std::format("missing '{}' attribute in '{}' node [:{}]", "in", "rule", xrule.offset_debug()));
-    const auto outString = std::string{xrule.attribute("out").as_string()};
-    ensures(!std::ranges::empty(outString),
-            std::format("missing '{}' attribute in '{}' node [:{}]", "out", "rule", xrule.offset_debug()));
-    // auto finString = xrule.attribute("fin").as_string();
-    // auto foutString = xrule.attribute("fout").as_string();
-    // auto fileString = xrule.attribute("file").as_string();
-    // auto legend = xrule.attribute("legend").as_string();
-
-    auto [input_size, input] = split<' ', '/'>(inString);
-    auto [output_size, output] = split<' ', '/'>(outString);
-
-    return Rule{
-        input_size,
-        output_size,
-        input
-          | std::views::transform([&waves](const auto& symbol) constexpr { return waves.at(symbol); })
-          | std::ranges::to<std::vector>(),
-        output
-          | std::views::transform([&values](const auto& symbol) constexpr { return symbol == '*' ? std::nullopt : std::optional{values.at(symbol)}; })
-          | std::ranges::to<std::vector>(),
-        xrule.attribute("p").as_double(1.0f),
-        true, std::ranges::size(values)
-    };
-  }
-
-  inline constexpr auto zrotated() const noexcept -> Rule {
-    auto new_input_size = Size{
-      std::get<0>(input_size),
-      std::get<2>(input_size),
-      std::get<1>(input_size)};
-    auto new_input = std::views::iota(0u, std::ranges::size(input))
-      | std::views::transform([&](auto i) constexpr {
-          const auto u = fromIndex(i, new_input_size);
-          const auto from_u = math::Vector3I{std::get<1>(new_input_size) - 1 - u.y, u.x, u.z};
-          return input.at(toIndex(from_u, input_size));
-      })
-      | std::ranges::to<std::vector>();
-
-    auto new_output_size = Size{
-      std::get<0>(output_size),
-      std::get<2>(output_size),
-      std::get<1>(output_size)};
-    auto new_output = std::views::iota(0u, std::ranges::size(output))
-      | std::views::transform([&](auto i) constexpr {
-          const auto u = fromIndex(i, new_output_size);
-          const auto from_u = math::Vector3I{std::get<1>(new_output_size) - 1 - u.y, u.x, u.z};
-          return output.at(toIndex(from_u, output_size));
-      })
-      | std::ranges::to<std::vector>();
-
-    return Rule{
-      new_input_size,
-      new_output_size,
-      new_input,
-      new_output,
-      p, false,
-      std::ranges::size(ishifts),
-    };
-  }
-
-  inline constexpr auto yrotated() const noexcept -> Rule {
-    auto new_input_size = Size{
-      std::get<2>(input_size),
-      std::get<1>(input_size),
-      std::get<0>(input_size)};
-    auto new_input = std::views::iota(0u, std::ranges::size(input))
-      | std::views::transform([&](auto i) constexpr {
-          const auto u = fromIndex(i, new_input_size);
-          const auto from_u = math::Vector3I{std::get<2>(input_size) - 1 - u.z, u.y, u.x};
-          return input.at(toIndex(from_u, input_size));
-      })
-      | std::ranges::to<std::vector>();
-
-    auto new_output_size = Size{
-      std::get<2>(output_size),
-      std::get<1>(output_size),
-      std::get<0>(output_size)};
-    auto new_output = std::views::iota(0u, std::ranges::size(output))
-      | std::views::transform([&](auto i) constexpr {
-          const auto u = fromIndex(i, new_output_size);
-          const auto from_u = math::Vector3I{std::get<2>(output_size) - 1 - u.z, u.y, u.x};
-          return output.at(toIndex(from_u, output_size));
-      })
-      | std::ranges::to<std::vector>();
-
-    return Rule{
-      new_input_size,
-      new_output_size,
-      new_input,
-      new_output,
-      p, false,
-      std::ranges::size(ishifts),
-    };
-  }
-
-  inline constexpr auto xreflected() const noexcept -> Rule {
-    auto new_input_size = auto{input_size};
-    auto new_input = std::views::iota(0u, std::ranges::size(input))
-      | std::views::transform([&](auto i) constexpr{
-          const auto u = fromIndex(i, new_input_size);
-          const auto from_u = math::Vector3I{std::get<2>(input_size) - 1 - u.x, u.y, u.z};
-          return input.at(toIndex(from_u, input_size));
-      })
-      | std::ranges::to<std::vector>();
-
-    auto new_output_size = auto{output_size};
-    auto new_output = std::views::iota(0u, std::ranges::size(output))
-      | std::views::transform([&] (auto i) constexpr {
-          const auto u = fromIndex(i, new_output_size);
-          const auto from_u = math::Vector3I{std::get<2>(output_size) - 1 - u.x, u.y, u.z};
-          return output.at(toIndex(from_u, output_size));
-      })
-      | std::ranges::to<std::vector>();
-
-    return Rule{
-      new_input_size,
-      new_output_size,
-      new_input,
-      new_output,
-      p, false,
-      std::ranges::size(ishifts),
-    };
-  }
-
-  inline constexpr auto operator==(const Rule&) const noexcept -> bool = default;
-
-  constexpr auto symmetries(bool d2, auto&& symmetry) const noexcept -> decltype(auto);
+struct Rule {
+  std::vector<std::optional<std::unordered_set<char>>> input;
+  std::vector<std::optional<char>> output;
 };
 
-export template<>
-struct std::hash<Rule> {
-  std::size_t operator()(auto&& rule) const noexcept {
-    return 0;
+inline constexpr auto match(const Grid& grid, UInt u, const Rule& rule) noexcept -> decltype(auto) {
+  return std::ranges::all_of(
+    std::views::zip(rule.input, std::views::iota(u)),
+    [&grid](const auto& input) noexcept {
+      const auto& [value, v] = input;
+      if (value == std::nullopt) return true;
+      return std::ranges::find(*value, grid.at(v)) != std::ranges::end(*value);
+    }
+  );
+}
+
+inline constexpr auto changes(const Grid& grid, UInt u, const Rule& rule) noexcept -> decltype(auto) {
+  return std::views::zip(rule.output, std::views::iota(u))
+    | std::views::filter([&grid](const auto& output) noexcept {
+        const auto& [value, v] = output;
+        if (value == std::nullopt) return false;
+        return *value != grid.at(v);
+    })
+    | std::views::transform([](auto&& output) noexcept { return std::make_tuple(*std::get<0>(output), std::get<1>(output)); })
+    | std::ranges::to<std::vector>();
+}
+
+inline constexpr auto apply(Grid& grid, UInt u, const Rule& rule) noexcept -> decltype(auto) {
+  std::ranges::for_each(changes(grid, u, rule), [&grid](const auto& output) noexcept {
+    const auto& [value, v] = output;
+    grid[v] = value;
+  });
+}
+
+template <std::ranges::sized_range A, std::ranges::sized_range B>
+    // requires std::ranges::sized_range<A> and std::ranges::sized_range<B>
+inline constexpr auto cartesian_product(A&& a, B&& b) noexcept {
+  return std::forward<A>(a) 
+    | std::views::transform([&b] (const auto& i) noexcept {
+        return std::forward<B>(b)
+          | std::views::transform([&i] (const auto& j) noexcept { return std::make_pair(i, j); })
+          | std::ranges::to<std::vector>();
+    }) 
+  | std::views::join
+  | std::ranges::to<std::vector>();
+}
+
+inline constexpr auto matches(const Grid& grid, std::span<const Rule> rules) noexcept -> decltype(auto) {
+  return rules
+    | std::views::transform([&grid](auto& rule) noexcept {
+        return std::views::iota(0u, std::ranges::size(grid) - std::ranges::size(rule.input))
+          | std::views::transform([&rule](auto u) noexcept { return std::make_pair(u, auto{rule}); });
+      })
+    | std::views::join
+    | std::views::filter([&grid](const auto& match) {
+        const auto& [u, rule] = match;
+        if (u > std::size(grid) - std::size(rule.input)) return false;
+        return ::match(grid, u, rule);
+    })
+    | std::ranges::to<std::vector>();
+}
+
+/********* */
+
+inline constexpr auto one(std::span<const Rule> rules, const Grid& grid) noexcept -> decltype(auto) {
+  auto matches = ::matches(grid, rules);
+  if (std::empty(matches)) return auto{grid};
+
+  static auto rg = std::mt19937{std::random_device{}()};
+  std::ranges::shuffle(matches, rg);
+  const auto& [u, rule] = matches[0];
+  auto current_grid = auto{grid};
+  apply(current_grid, u, rule);
+  return current_grid;
+}
+
+struct One {
+  std::vector<Rule> rules;
+  inline constexpr auto operator()(const Grid& grid) const noexcept -> decltype(auto) {
+    return one(rules, grid);
   }
 };
 
-export template<>
-struct std::hash<const Rule&> {
-  std::size_t operator()(auto&& rule) const noexcept {
-    return 0;
+inline constexpr auto prl(std::span<const Rule> rules, const Grid& grid) noexcept -> decltype(auto) {
+  auto current_grid = auto{grid};
+  std::ranges::for_each(matches(grid, rules), [&current_grid](const auto& match) noexcept {
+    const auto& [u, rule] = match;
+    apply(current_grid, u, rule);
+  });
+  return current_grid;
+}
+
+struct Prl {
+  std::vector<Rule> rules;
+  inline constexpr auto operator()(const Grid& grid) const noexcept -> decltype(auto) {
+    return prl(rules, grid);
   }
 };
 
-constexpr auto Rule::symmetries(bool d2, auto&& symmetry) const noexcept -> decltype(auto) {
-  if (d2) return symmetry::squareSymmetries(*this, 
-    [](const Rule& r) constexpr { return r.zrotated();   },
-    [](const Rule& r) constexpr { return r.xreflected(); },
-    symmetry);
+inline constexpr auto all(std::span<const Rule> rules, const Grid& grid) noexcept -> decltype(auto) {
+  auto matches = ::matches(grid, rules);
+  if (std::empty(matches)) return auto{grid};
 
-  return symmetry::cubeSymmetries(*this,
-    [](const Rule& r) constexpr { return r.zrotated();   },
-    [](const Rule& r) constexpr { return r.yrotated();   },
-    [](const Rule& r) constexpr { return r.xreflected(); },
-    symmetry);
+  static auto rg = std::mt19937{std::random_device{}()};
+  std::ranges::shuffle(matches, rg);
+  const auto cleaned = std::ranges::fold_left(matches, std::vector<decltype(matches)::value_type>{}, [](auto a, auto m) noexcept {
+    if (std::ranges::find_if(a, [&m](auto i) noexcept { return std::get<0>(i) == std::get<0>(m); }) != std::ranges::end(a))
+      return a;
+    a.push_back(m);
+    return a;
+  });
+  auto current_grid = auto{grid};
+  std::ranges::for_each(cleaned, [&current_grid](const auto& m) noexcept {
+    const auto& [u, rule] = m;
+    apply(current_grid, u, rule);
+  });
+  return current_grid;
+}
+
+struct All {
+  std::vector<Rule> rules;
+  inline constexpr auto operator()(const Grid& grid) const noexcept -> decltype(auto) {
+    return all(rules, grid);
+  }
+};
+
 }

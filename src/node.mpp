@@ -1,135 +1,95 @@
 export module node;
 
-export import onenode;
-export import allnode;
-export import parallelnode;
-export import markovnode;
-export import sequencenode;
-
 import std;
-import glm;
 import stormkit.Core;
-import pugixml;
+
 import grid;
-import symmetry;
-import utils;
 
 using namespace stormkit;
 
-template <class T>
-concept has_reset_method = requires(T&& n) {
-  {n.reset()};
-};
+export {
 
-export template <class T, class A>
-concept has_execute_method = requires(T&& n, Grid& grid,
-    std::vector<math::Vector3I>& changes, std::mt19937& rg) {
-  {n.execute(grid, changes, rg)} -> std::same_as<A>;
-};
+using Action = std::function<Grid(const Grid&)>;
 
-export template <class T, class A>
-concept has_execute_generator = requires(T&& n, Grid& grid,
-    std::vector<math::Vector3I>& changes, std::mt19937& rg) {
-  {n.execute(grid, changes, rg)} -> std::same_as<std::generator<A>>;
-};
-
-export template <class T>
-concept has_name_cstr = requires() {
-  {T::name} -> std::convertible_to<std::string_view>;
-};
-
-template <class T, class... Args>
-concept has_parse_member = requires(Args... args) {
-  {T::parse(args...)} -> std::same_as<T>;
-};
-
-template <class T, class... Args>
-concept any_of = (std::same_as<T, Args> or ...);
-
-export template <class A, class... N>
-  requires ((has_execute_method<N, A> or has_execute_generator<N, A>) and ...)
-struct Node : std::variant<N...> {
-  // using std::variant<N...>::variant<N>; ...
-  // (Node(N) noexcept = default ...)
-  Node(any_of<N...> auto&& n) : std::variant<N...>{n} {}
-  // std::variant<N...> n;
-  // Node(auto&& _n) noexcept : n{_n} {}
-  // Node(OneNode&& n) noexcept : std::variant<OneNode, AllNode, ParallelNode, MarkovNode<Node>, SequenceNode<Node>>{n} {}
-  // Node(AllNode&& n) noexcept : std::variant<OneNode, AllNode, ParallelNode, MarkovNode<Node>, SequenceNode<Node>>{n} {}
-  // Node(ParallelNode&& n) noexcept : std::variant<OneNode, AllNode, ParallelNode, MarkovNode<Node>, SequenceNode<Node>>{n} {}
-  // Node(MarkovNode<Node>&& n) noexcept : std::variant<OneNode, AllNode, ParallelNode, MarkovNode<Node>, SequenceNode<Node>>{n} {}
-  // Node(SequenceNode<Node>&& n) noexcept : std::variant<OneNode, AllNode, ParallelNode, MarkovNode<Node>, SequenceNode<Node>>{n} {}
-
-  static inline constexpr auto parse(const pugi::xml_node& xnode, const Grid& grid, auto&& parentSymmetry) noexcept -> Node 
-  requires ((has_name_cstr<N> and has_parse_member<N, decltype(xnode), decltype(grid), decltype(parentSymmetry)>) and ...) {
-
-    const auto _symmetry = std::string_view{xnode.attribute("symmetry").as_string()};
-    if (not std::empty(_symmetry)) ensures(
-      symmetry::isSymmetry(std::get<0>(grid.size) == 1, _symmetry),
-      std::format("unknown symmetry '{}' [:{}]", _symmetry, xnode.offset_debug()));
-    
-    auto&& symmetry = std::empty(_symmetry) ? parentSymmetry : _symmetry;
-    const auto name = std::string{xnode.name()};
-
-    // const auto attributes = xnode.attributes()
-    //     | std::views::transform([](auto attr) constexpr {
-    //         return std::format("{}={}", attr.name(), attr.value());
-    //       });
-    // std::println("{}{}", name, attributes);
-
-    if (name == OneNode::name)
-      return OneNode::parse(xnode, grid, symmetry);
-    else if (name == AllNode::name)
-      return AllNode::parse(xnode, grid, symmetry);
-    else if (name == ParallelNode::name)
-      return ParallelNode::parse(xnode, grid, symmetry);
-    else if (name == MarkovNode<Node>::name)
-      return MarkovNode<Node>::parse(xnode, grid, symmetry);
-    else if (name == MarkovNode<Node>::name)
-      return SequenceNode<Node>::parse(xnode, grid, symmetry);
-    
-    ensures(false, std::format("unknown node name '{}' [:{}]", name, xnode.offset_debug()));
-    std::unreachable();
+inline auto limit(UInt count, const Action& action, const Grid& grid) noexcept -> std::generator<Grid> {
+  auto current_grid = grid;
+  for (; count > 0u; count--) {
+    auto result_grid = action(current_grid);
+    if (result_grid == current_grid) break;
+    current_grid = result_grid;
+    co_yield result_grid;
   }
+}
 
-  inline constexpr auto execute(auto& grid, auto& changes, auto& rg) noexcept -> decltype(auto) {
-    return this->visit(Visitor{
-      [&](has_execute_generator<A> auto& n) { return n.execute(grid, changes, rg); },
-      [&](auto& n) {
-        return ([&n](auto& grid, auto& changes, auto& rg) -> std::generator<A> {
-          co_yield n.execute(grid, changes, rg);
-        })(grid, changes, rg);
-      }
-    });
-  }
-
-  inline constexpr auto reset() noexcept -> void
-  requires (has_reset_method<N> or ...) {
-    this->visit(Visitor{
-      [](has_reset_method auto& n) constexpr { n.reset(); },
-      [](auto& n) constexpr { }
-    });
+struct Limit {
+  UInt count;
+  Action action;
+  inline constexpr auto operator()(const Grid& grid) const noexcept-> decltype(auto) {
+    return limit(count, action, grid);
   }
 };
 
-export template <class A, class... T>
-concept is_any_of = (std::is_same_v<A, T> or ...);
+// inline auto no_limit(Action action, const Grid& grid) -> std::generator<Grid> {
+//   auto current_grid = grid;
+//   for (;;) {
+//     auto result_grid = action(current_grid);
+//     if (result_grid == current_grid) break;
+//     current_grid = result_grid;
+//     co_yield result_grid;
+//   }
+// }
 
-export template <class A, has_execute_generator<A>... N>
-struct BranchNode : std::variant<N...> {
-  BranchNode(any_of<N...> auto&& n) : std::variant<N...>{n} {}
-  // template <class... T>
-  //   requires (is_any_of<T, N...> or ...)
-  // BranchNode(Node<T...>&& n) noexcept {
-  //   if (not n.visit(Visitor{
-  //     ([this](N& nn){ emplace<N>(std::move(nn)); return true; }, ...),
-  //     [](){ return false; }
-  //   }))
-  //     n.emplace<0>({n});
-  // }
-  // BranchNode(auto&& n) noexcept : std::variant<N...>{n} {}
+inline constexpr auto no_limit(const Action& action, const Grid& grid) noexcept -> decltype(auto) {
+  return limit(0xff, action, grid);
+}
 
-  inline constexpr auto execute(auto& grid, auto& changes, auto& rg) noexcept -> decltype(auto) {
-    return this->visit([&](auto& n) constexpr { return n.execute(grid, changes, rg); });
+struct NoLimit {
+  Action action;
+  inline constexpr auto operator()(const Grid& grid) const noexcept -> decltype(auto) {
+    return no_limit(action, grid);
   }
 };
+
+using Node = std::function<std::generator<Grid>(const Grid&)>;
+
+inline auto sequence(std::span<const Node> nodes, const Grid& grid) noexcept -> std::generator<Grid> {
+  auto current_grid = auto{grid};
+  for (auto current_node : nodes)
+    for (auto result_grid : current_node(current_grid)) {
+      current_grid = auto{result_grid};
+      co_yield result_grid;
+  }
+}
+
+struct Sequence {
+  std::vector<Node> nodes;
+  inline constexpr auto operator()(const Grid& grid) const noexcept -> decltype(auto) {
+    return sequence(nodes, grid);
+  }
+};
+
+inline auto markov(std::span<const Node> nodes, const Grid& grid) noexcept -> std::generator<Grid> {
+  auto current_grid = grid;
+  auto current_node = std::ranges::begin(nodes);
+  while (current_node != std::ranges::end(nodes)) {
+    auto found = false;
+    for (auto result_grid : (*current_node)(current_grid)) {
+      if (not found) found = true;
+      current_grid = result_grid;
+      co_yield result_grid;
+    }
+    if (found)
+      current_node = std::ranges::begin(nodes);
+    else
+      current_node++;
+  }
+}
+
+struct Markov {
+  std::vector<Node> nodes;
+  inline constexpr auto operator()(const Grid& grid) const noexcept -> decltype(auto) {
+    return markov(nodes, grid);
+  }
+};
+
+}

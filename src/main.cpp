@@ -2,88 +2,74 @@
 #include <unistd.h>
 
 import std;
+// import glm;
 import stormkit.Core;
-import pugixml;
-// import ncurses;
-import model;
-import interpreter;
-import graphics;
-import utils;
 import ranges;
 
-using namespace std::literals;
+import grid;
+import rule;
+import node;
+
+// using namespace std::literals;
 using namespace stormkit;
 
 auto main(std::span<const std::string_view> args) noexcept -> int {
   // [tmpfix] remove when stormkit userMain allows for non-packaged build
   chdir("/Users/mtrimolet/Desktop/mtrimolet/markovjunior/hroza");
 
-  auto palette_doc = pugi::xml_document{};
-  auto load_result = palette_doc.load_file("resources/palette.xml");
-  ensures(load_result, load_result.description());
+  std::println("hello world!");
 
-  const auto palette = parsePalette(palette_doc.child("colors").children("color"));
+  // const auto seq_snake = Node{bindFront(sequence, makeStaticArray(
+  //   Node{bindFront(no_limit, Action{bindFront(one, makeStaticArray(
+  //     Rule{{{{'W'}},{{'B'}},{{'B'}}}, {'P','E','R'}}
+  //   ))})},
+  //   Node{bindFront(limit, 10, Action{bindFront(one, makeStaticArray(
+  //     Rule{{{{'R'}},{{'B'}},{{'B'}}}, {'E','E','R'}}
+  //   ))})},
+  //   Node{bindFront(markov, makeStaticArray(
+  //     Node{bindFront(no_limit, Action{bindFront(one, makeStaticArray(
+  //       Rule{{{{'R'}},{{'B'}},{{'B'}}}, {'G','G','U'}},
+  //       Rule{{{{'E'}},{{'E'}},{{'G'}}}, {'G','G','G'}},
+  //       Rule{{{{'P'}},{{'E'}},{{'G'}}}, {'B','B','P'}},
+  //     ))})},
+  //     Node{bindFront(no_limit, Action{bindFront(all, makeStaticArray(
+  //       Rule{{{{'G'}}}, {'E'}},
+  //       Rule{{{{'U'}}}, {'R'}},
+  //     ))})},
+  //     Node{bindFront(no_limit, Action{bindFront(all, makeStaticArray(
+  //       Rule{{{{'R'}}}, {'P'}},
+  //       Rule{{{{'P'}}}, {'R'}},
+  //     ))})},
+  //   ))},
+  // ))};
+  const auto seq_snake = Sequence{{
+    NoLimit{One{{
+      {{{{'W'}},{{'B'}},{{'B'}}}, {'P','E','R'}}
+    }}},
+    Limit{10, One{{
+      {{{{'R'}},{{'B'}},{{'B'}}}, {'E','E','R'}}
+    }}},
+    Markov{{
+      NoLimit{One{{
+        {{{{'R'}},{{'B'}},{{'B'}}}, {'G','G','U'}},
+        {{{{'E'}},{{'E'}},{{'G'}}}, {'G','G','G'}},
+        {{{{'P'}},{{'E'}},{{'G'}}}, {'B','B','P'}},
+      }}},
+      NoLimit{All{{
+        {{{{'G'}}}, {'E'}},
+        {{{{'U'}}}, {'R'}},
+      }}},
+      // NoLimit{All{{
+      //   {{{{'R'}}}, {'P'}},
+      //   {{{{'P'}}}, {'R'}},
+      // }}},
+    }},
+  }};
 
-  auto models_doc = pugi::xml_document{};
-  load_result = models_doc.load_file("models.xml");
-  ensures(load_result, load_result.description());
-
-  const auto xmodels = models_doc.child("models");
-  ensures(xmodels, std::format("models not found [:{}]", xmodels.offset_debug()));
-
-  const auto models = xmodels
-      | std::views::filter([args{args.subspan(1)}](const auto &m) constexpr {
-          return std::ranges::contains(args, m.attribute("name").as_string());
-      })
-      | std::views::transform(bindBack<Model::parse>(palette))
-      | std::views::filter([](const auto &e) constexpr {
-          if (!e) {
-            std::println("parse_result: {}", e.error().description());
-            return false;
-          }
-          return true;
-        })
-      | std::views::transform([](const auto &e) constexpr { return e.value(); })
-      | std::ranges::to<std::vector>();
-
-  // auto w = ncurses::window{40u, 40u};
-
-  std::ranges::for_each(models, [](const auto &model) constexpr {
-    const auto s = std::format("{}[{}x{}x{}]", model.name, std::get<0>(model.size), std::get<1>(model.size), std::get<2>(model.size));
-    // w.say(s);
-    // w.waitchar();
-    std::println("{}", s);
-  
-    if (std::get<0>(model.size) != 1) {
-      std::println("cannot render 3d grid in console mode");
-      return;
-    }
-
-    auto interpreter = Interpreter::parse(model.doc.first_child(), auto{model.size});
-
-    std::ranges::for_each(std::views::iota(0u, model.amount), [&](auto k) constexpr {
-      // w.say(std::format("generation: {}", k));
-      // w.waitchar();
-
-      const auto seed = std::random_device{}();
-
-      auto ticks = interpreter.run(seed)
-          | std::views::take(model.steps);
-
-      auto frames = std::move(ticks);
-      // w.clear();
-      std::ranges::for_each(frames, [&model](const auto &data) constexpr {
-        const auto& [grid, changes] = data;
-          auto [bitmap, s] = render(grid, model);
-          draw(bitmap, s);
-          // draw(w, grid.states, changes, grid.size);
-          // w.refresh();
-      });
-
-      // w.waitchar();
-      std::println();
-    });
-  });
+  auto grid = Grid{'B','B','B','B','B','B','W','B','B','B','B','B','B'};
+  for (auto current_grid : seq_snake(grid)) {
+    std::println("{}", current_grid);
+  }
 
   return 0;
 }
