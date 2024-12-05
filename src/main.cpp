@@ -49,21 +49,13 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
     } | std::views::join | std::ranges::to<std::vector>()}}
   }};
 
-  auto grid = Grid<>{{
-    {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
-    {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
-    {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
-    {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
-    {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
-    {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
-    {'B','B','B','B','B','B','W','B','B','B','B','B','B'},
-    {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
-    {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
-    {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
-    {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
-    {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
-    {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
-  }};
+  auto grid = Grid{{13u, 13u, 1u}, 'B'};
+  grid.values[toIndex({
+    grid.size.x / 2,
+    grid.size.y / 2,
+    grid.size.z / 2,
+  }, grid.size)] = 'W';
+
   for (auto y : std::views::iota(0u, grid.size.y))
     std::println("{}", std::ranges::subrange(
       std::begin(grid.values) + y * grid.size.x,

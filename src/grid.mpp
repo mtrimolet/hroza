@@ -33,7 +33,8 @@ struct Grid {
   math::Vector3U size;
   std::vector<Value> values;
 
-  Grid(auto _size, auto _values) : size{_size}, values{_values} {}
+  Grid(math::Vector3U _size, std::vector<Value> _values) noexcept : size{_size}, values{_values} {}
+  Grid(math::Vector3U _size, Value v) noexcept : size{_size}, values{std::views::repeat(v, size.z * size.y * size.x) | std::ranges::to<std::vector>()} {}
 
   Grid(std::initializer_list<std::initializer_list<std::initializer_list<Value>>> _values) noexcept
     : size{
