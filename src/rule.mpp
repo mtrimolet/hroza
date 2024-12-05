@@ -13,7 +13,72 @@ export {
 struct Rule {
   Grid<std::optional<std::unordered_set<char>>> input;
   Grid<std::optional<char>> output;
+
+  inline constexpr auto operator==(const Rule& other) const noexcept -> bool = default;
 };
+
+inline constexpr auto xreflected(const Rule& rule) noexcept -> decltype(auto) {
+  return Rule{
+    xreflected(rule.input),
+    xreflected(rule.output),
+  };
+}
+
+inline constexpr auto xyrotated(const Rule& rule) noexcept -> decltype(auto) {
+  return Rule{
+    xyrotated(rule.input),
+    xyrotated(rule.output),
+  };
+}
+
+inline constexpr auto zyrotated(const Rule& rule) noexcept -> decltype(auto) {
+  return Rule{
+    zyrotated(rule.input),
+    zyrotated(rule.output),
+  };
+}
+
+const auto groups = makeStaticArray<std::function<Rule(const Rule&)>>(
+  [](const auto& rule) noexcept { return auto{rule}; },
+  [](const auto& rule) noexcept { return xyrotated(rule); },
+  [](const auto& rule) noexcept { return xyrotated(xyrotated(rule)); },
+  [](const auto& rule) noexcept { return xyrotated(xyrotated(xyrotated(rule))); },
+  [](const auto& rule) noexcept { return xreflected(rule); },
+  [](const auto& rule) noexcept { return xyrotated(xreflected(rule)); },
+  [](const auto& rule) noexcept { return xyrotated(xyrotated(xreflected(rule))); },
+  [](const auto& rule) noexcept { return xyrotated(xyrotated(xyrotated(xreflected(rule)))); },
+);
+
+template <class T>
+struct std::hash<std::unordered_set<T>> {
+  inline constexpr auto operator()(const std::unordered_set<T>& set) const noexcept -> std::size_t {
+    auto seed = std::hash<std::size_t>{}(set.size());
+    for (auto i : set) {
+      seed ^= std::hash<T>{}(i);
+    }
+    return seed;
+  }
+};
+
+template <>
+struct std::hash<Rule> {
+  inline constexpr auto operator()(const Rule& rule) const noexcept -> std::size_t {
+    auto seed = std::hash<math::Vector3U>{}(rule.input.size);
+    for (auto i : rule.input.values) {
+      seed ^= std::hash<std::optional<std::unordered_set<char>>>{}(i);
+    }
+    for (auto o : rule.output.values) {
+      seed ^= std::hash<std::optional<char>>{}(o);
+    }
+    return seed;
+  }
+};
+
+inline constexpr auto symmetries(const Rule& rule) noexcept -> decltype(auto) {
+  return groups
+    | std::views::transform([&rule](const auto& action) noexcept { return action(rule); })
+    | std::ranges::to<std::unordered_set>();
+}
 
 inline constexpr auto match(const Grid<>& grid, const math::Vector3U& u, const Rule& rule) noexcept -> decltype(auto) {
   return std::ranges::all_of(

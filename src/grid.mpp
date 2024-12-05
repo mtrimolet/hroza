@@ -33,6 +33,8 @@ struct Grid {
   math::Vector3U size;
   std::vector<Value> values;
 
+  Grid(auto _size, auto _values) : size{_size}, values{_values} {}
+
   Grid(std::initializer_list<std::initializer_list<std::initializer_list<Value>>> _values) noexcept
     : size{
         std::empty(_values) or std::empty(std::ranges::begin(_values)[0]) ? 0
@@ -41,8 +43,71 @@ struct Grid {
         std::ranges::size(_values)},
     values{_values | std::views::join | std::views::join | std::ranges::to<std::vector>()} {}
 
-  inline constexpr auto operator==(const Grid& other) const noexcept -> bool {
-    return size == other.size and values == other.values;
-  }
+  inline constexpr auto operator==(const Grid<Value>& other) const noexcept -> bool = default;
 };
+
+
+template <class Value = char>
+inline constexpr auto xreflected(const Grid<Value>& grid) noexcept -> decltype(auto) {
+  auto size = auto{grid.size};
+  return Grid<Value>{
+    size,
+    std::views::iota(0u, size.z * size.y * size.x)
+      | std::views::transform([&size, &grid](auto i) noexcept {
+          const auto u = fromIndex(i, size);
+          const auto v = math::Vector3U{
+            size.x - u.x - 1u,
+            u.y, u.z
+          };
+          return grid.values.at(toIndex(v, grid.size));
+      })
+      | std::ranges::to<std::vector>()
+  };
+}
+
+template <class Value = char>
+inline constexpr auto xyrotated(const Grid<Value>& grid) noexcept -> decltype(auto) {
+  auto size = math::Vector3U{
+    grid.size.y,
+    grid.size.x,
+    grid.size.z,
+  };
+  return Grid<Value>{
+    size,
+    std::views::iota(0u, size.z * size.y * size.x)
+      | std::views::transform([&size, &grid](auto i) noexcept {
+          const auto u = fromIndex(i, size);
+          const auto v = math::Vector3U{
+            u.y,
+            size.x - u.x - 1,
+            u.z
+          };
+          return grid.values.at(toIndex(v, grid.size));
+      })
+      | std::ranges::to<std::vector>()
+  };
+}
+
+template <class Value = char>
+inline constexpr auto zyrotated(const Grid<Value>& grid) noexcept -> decltype(auto) {
+  auto size = math::Vector3U{
+    grid.size.x,
+    grid.size.z,
+    grid.size.y,
+  };
+  return Grid<Value>{
+    size,
+    std::views::iota(0u, size.z * size.y * size.x)
+      | std::views::transform([&size, &grid](auto i) noexcept {
+          const auto u = fromIndex(i, size);
+          const auto v = math::Vector3U{
+            u.x,
+            size.z - u.z - 1,
+            u.y,
+          };
+          return grid.values.at(toIndex(v, grid.size));
+      })
+      | std::ranges::to<std::vector>()
+  };
+}
 }
