@@ -66,7 +66,21 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
     }},
   }};
 
-  auto grid = Grid{'B','B','B','B','B','B','W','B','B','B','B','B','B'};
+  auto grid = Grid{
+    // {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
+    // {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
+    // {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
+    // {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
+    // {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
+    // {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
+    {'B','B','B','B','B','B','W','B','B','B','B','B','B'},
+    // {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
+    // {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
+    // {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
+    // {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
+    // {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
+    // {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
+  };
   for (auto current_grid : seq_snake(grid)) {
     std::println("{}", current_grid);
   }

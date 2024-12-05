@@ -1,6 +1,7 @@
 export module rule;
 
 import std;
+import glm;
 import stormkit.Core;
 
 import grid;
@@ -10,36 +11,38 @@ using namespace stormkit;
 export {
 
 struct Rule {
-  std::vector<std::optional<std::unordered_set<char>>> input;
-  std::vector<std::optional<char>> output;
+  Grid<std::optional<std::unordered_set<char>>> input;
+  Grid<std::optional<char>> output;
 };
 
-inline constexpr auto match(const Grid& grid, UInt u, const Rule& rule) noexcept -> decltype(auto) {
+inline constexpr auto match(const Grid<>& grid, const math::Vector3U& u, const Rule& rule) noexcept -> decltype(auto) {
   return std::ranges::all_of(
-    std::views::zip(rule.input, std::views::iota(u)),
+    std::views::zip(rule.input, std::views::iota(0) 
+      | std::views::transform([&u, &rule](auto i) noexcept { return u + fromIndex(i, {std::ranges::size(rule.input), 1u, 1u}); })),
     [&grid](const auto& input) noexcept {
       const auto& [value, v] = input;
       if (value == std::nullopt) return true;
-      return std::ranges::find(*value, grid.at(v)) != std::ranges::end(*value);
+      return std::ranges::find(*value, grid.at(toIndex(v, {std::ranges::size(grid), 1, 1}))) != std::ranges::end(*value);
     }
   );
 }
 
-inline constexpr auto changes(const Grid& grid, UInt u, const Rule& rule) noexcept -> decltype(auto) {
-  return std::views::zip(rule.output, std::views::iota(u))
+inline constexpr auto changes(const Grid<>& grid, const math::Vector3U& u, const Rule& rule) noexcept -> decltype(auto) {
+  return std::views::zip(rule.output, std::views::iota(0) 
+      | std::views::transform([&u, &rule](auto i) noexcept { return u + fromIndex(i, {std::ranges::size(rule.output), 1u, 1u}); }))
     | std::views::filter([&grid](const auto& output) noexcept {
         const auto& [value, v] = output;
         if (value == std::nullopt) return false;
-        return *value != grid.at(v);
+        return *value != grid.at(toIndex(v, {std::ranges::size(grid), 1, 1}));
     })
     | std::views::transform([](auto&& output) noexcept { return std::make_tuple(*std::get<0>(output), std::get<1>(output)); })
     | std::ranges::to<std::vector>();
 }
 
-inline constexpr auto apply(Grid& grid, UInt u, const Rule& rule) noexcept -> decltype(auto) {
+inline constexpr auto apply(Grid<>& grid, const math::Vector3U& u, const Rule& rule) noexcept -> decltype(auto) {
   std::ranges::for_each(changes(grid, u, rule), [&grid](const auto& output) noexcept {
     const auto& [value, v] = output;
-    grid[v] = value;
+    grid[toIndex(v, {std::ranges::size(grid), 1, 1})] = value;
   });
 }
 
@@ -56,16 +59,21 @@ inline constexpr auto cartesian_product(A&& a, B&& b) noexcept {
   | std::ranges::to<std::vector>();
 }
 
-inline constexpr auto matches(const Grid& grid, std::span<const Rule> rules) noexcept -> decltype(auto) {
+inline constexpr auto matches(const Grid<>& grid, std::span<const Rule> rules) noexcept -> decltype(auto) {
+  const auto g_size = math::Vector3U{std::ranges::size(grid), 1, 1};
   return rules
-    | std::views::transform([&grid](auto& rule) noexcept {
-        return std::views::iota(0u, std::ranges::size(grid) - std::ranges::size(rule.input))
-          | std::views::transform([&rule](auto u) noexcept { return std::make_pair(u, auto{rule}); });
+    | std::views::transform([&g_size](auto& rule) noexcept {
+        const auto highest = g_size - math::Vector3U{std::ranges::size(rule.input), 1, 1};
+        return std::views::iota(0u, g_size.z * g_size.y * g_size.x)
+          | std::views::transform(bindBack(fromIndex, g_size))
+          | std::views::filter(bindBack(inBounds, highest))
+          | std::views::transform([&rule](auto u) noexcept {
+              return std::make_pair(u, rule);
+          });
       })
     | std::views::join
     | std::views::filter([&grid](const auto& match) {
         const auto& [u, rule] = match;
-        if (u > std::size(grid) - std::size(rule.input)) return false;
         return ::match(grid, u, rule);
     })
     | std::ranges::to<std::vector>();
@@ -73,7 +81,7 @@ inline constexpr auto matches(const Grid& grid, std::span<const Rule> rules) noe
 
 /********* */
 
-inline constexpr auto one(std::span<const Rule> rules, const Grid& grid) noexcept -> decltype(auto) {
+inline constexpr auto one(std::span<const Rule> rules, const Grid<>& grid) noexcept -> decltype(auto) {
   auto matches = ::matches(grid, rules);
   if (std::empty(matches)) return auto{grid};
 
@@ -87,12 +95,12 @@ inline constexpr auto one(std::span<const Rule> rules, const Grid& grid) noexcep
 
 struct One {
   std::vector<Rule> rules;
-  inline constexpr auto operator()(const Grid& grid) const noexcept -> decltype(auto) {
+  inline constexpr auto operator()(const Grid<>& grid) const noexcept -> decltype(auto) {
     return one(rules, grid);
   }
 };
 
-inline constexpr auto prl(std::span<const Rule> rules, const Grid& grid) noexcept -> decltype(auto) {
+inline constexpr auto prl(std::span<const Rule> rules, const Grid<>& grid) noexcept -> decltype(auto) {
   auto current_grid = auto{grid};
   std::ranges::for_each(matches(grid, rules), [&current_grid](const auto& match) noexcept {
     const auto& [u, rule] = match;
@@ -103,12 +111,12 @@ inline constexpr auto prl(std::span<const Rule> rules, const Grid& grid) noexcep
 
 struct Prl {
   std::vector<Rule> rules;
-  inline constexpr auto operator()(const Grid& grid) const noexcept -> decltype(auto) {
+  inline constexpr auto operator()(const Grid<>& grid) const noexcept -> decltype(auto) {
     return prl(rules, grid);
   }
 };
 
-inline constexpr auto all(std::span<const Rule> rules, const Grid& grid) noexcept -> decltype(auto) {
+inline constexpr auto all(std::span<const Rule> rules, const Grid<>& grid) noexcept -> decltype(auto) {
   auto matches = ::matches(grid, rules);
   if (std::empty(matches)) return auto{grid};
 
@@ -130,7 +138,7 @@ inline constexpr auto all(std::span<const Rule> rules, const Grid& grid) noexcep
 
 struct All {
   std::vector<Rule> rules;
-  inline constexpr auto operator()(const Grid& grid) const noexcept -> decltype(auto) {
+  inline constexpr auto operator()(const Grid<>& grid) const noexcept -> decltype(auto) {
     return all(rules, grid);
   }
 };

@@ -9,9 +9,9 @@ using namespace stormkit;
 
 export {
 
-using Action = std::function<Grid(const Grid&)>;
+using Action = std::function<Grid<>(const Grid<>&)>;
 
-inline auto limit(UInt count, const Action& action, const Grid& grid) noexcept -> std::generator<Grid> {
+inline auto limit(UInt count, const Action& action, const Grid<>& grid) noexcept -> std::generator<Grid<>> {
   auto current_grid = grid;
   for (; count > 0u; count--) {
     auto result_grid = action(current_grid);
@@ -24,7 +24,7 @@ inline auto limit(UInt count, const Action& action, const Grid& grid) noexcept -
 struct Limit {
   UInt count;
   Action action;
-  inline constexpr auto operator()(const Grid& grid) const noexcept-> decltype(auto) {
+  inline constexpr auto operator()(const Grid<>& grid) const noexcept-> decltype(auto) {
     return limit(count, action, grid);
   }
 };
@@ -39,36 +39,36 @@ struct Limit {
 //   }
 // }
 
-inline constexpr auto no_limit(const Action& action, const Grid& grid) noexcept -> decltype(auto) {
+inline constexpr auto no_limit(const Action& action, const Grid<>& grid) noexcept -> decltype(auto) {
   return limit(0xff, action, grid);
 }
 
 struct NoLimit {
   Action action;
-  inline constexpr auto operator()(const Grid& grid) const noexcept -> decltype(auto) {
+  inline constexpr auto operator()(const Grid<>& grid) const noexcept -> decltype(auto) {
     return no_limit(action, grid);
   }
 };
 
-using Node = std::function<std::generator<Grid>(const Grid&)>;
+using Node = std::function<std::generator<Grid<>>(const Grid<>&)>;
 
-inline auto sequence(std::span<const Node> nodes, const Grid& grid) noexcept -> std::generator<Grid> {
-  auto current_grid = auto{grid};
+inline auto sequence(std::span<const Node> nodes, const Grid<>& grid) noexcept -> std::generator<Grid<>> {
+  auto current_grid = grid;
   for (auto current_node : nodes)
     for (auto result_grid : current_node(current_grid)) {
-      current_grid = auto{result_grid};
+      current_grid = result_grid;
       co_yield result_grid;
   }
 }
 
 struct Sequence {
   std::vector<Node> nodes;
-  inline constexpr auto operator()(const Grid& grid) const noexcept -> decltype(auto) {
+  inline constexpr auto operator()(const Grid<>& grid) const noexcept -> decltype(auto) {
     return sequence(nodes, grid);
   }
 };
 
-inline auto markov(std::span<const Node> nodes, const Grid& grid) noexcept -> std::generator<Grid> {
+inline auto markov(std::span<const Node> nodes, const Grid<>& grid) noexcept -> std::generator<Grid<>> {
   auto current_grid = grid;
   auto current_node = std::ranges::begin(nodes);
   while (current_node != std::ranges::end(nodes)) {
@@ -87,7 +87,7 @@ inline auto markov(std::span<const Node> nodes, const Grid& grid) noexcept -> st
 
 struct Markov {
   std::vector<Node> nodes;
-  inline constexpr auto operator()(const Grid& grid) const noexcept -> decltype(auto) {
+  inline constexpr auto operator()(const Grid<>& grid) const noexcept -> decltype(auto) {
     return markov(nodes, grid);
   }
 };
