@@ -19,70 +19,83 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
 
   std::println("hello world!");
 
-  // const auto seq_snake = Node{bindFront(sequence, makeStaticArray(
-  //   Node{bindFront(no_limit, Action{bindFront(one, makeStaticArray(
-  //     Rule{{{{'W'}},{{'B'}},{{'B'}}}, {'P','E','R'}}
-  //   ))})},
-  //   Node{bindFront(limit, 10, Action{bindFront(one, makeStaticArray(
-  //     Rule{{{{'R'}},{{'B'}},{{'B'}}}, {'E','E','R'}}
-  //   ))})},
-  //   Node{bindFront(markov, makeStaticArray(
-  //     Node{bindFront(no_limit, Action{bindFront(one, makeStaticArray(
-  //       Rule{{{{'R'}},{{'B'}},{{'B'}}}, {'G','G','U'}},
-  //       Rule{{{{'E'}},{{'E'}},{{'G'}}}, {'G','G','G'}},
-  //       Rule{{{{'P'}},{{'E'}},{{'G'}}}, {'B','B','P'}},
-  //     ))})},
-  //     Node{bindFront(no_limit, Action{bindFront(all, makeStaticArray(
-  //       Rule{{{{'G'}}}, {'E'}},
-  //       Rule{{{{'U'}}}, {'R'}},
-  //     ))})},
-  //     Node{bindFront(no_limit, Action{bindFront(all, makeStaticArray(
-  //       Rule{{{{'R'}}}, {'P'}},
-  //       Rule{{{{'P'}}}, {'R'}},
-  //     ))})},
-  //   ))},
-  // ))};
   const auto seq_snake = Sequence{{
     NoLimit{One{{
-      {{{{'W'}},{{'B'}},{{'B'}}}, {'P','E','R'}}
+      {{{{{{'W'}},{{'B'}},{{'B'}}}}}, {{{'P','E','R'}}}},
+      {{{{{{'B'}},{{'B'}},{{'W'}}}}}, {{{'R','E','P'}}}},
+      {{{{{{'W'}}},{{{'B'}}},{{{'B'}}}}}, {{{'P'},{'E'},{'R'}}}},
+      {{{{{{'B'}}},{{{'B'}}},{{{'W'}}}}}, {{{'R'},{'E'},{'P'}}}},
     }}},
     Limit{10, One{{
-      {{{{'R'}},{{'B'}},{{'B'}}}, {'E','E','R'}}
+      {{{{{{'R'}},{{'B'}},{{'B'}}}}}, {{{'E','E','R'}}}},
+      {{{{{{'B'}},{{'B'}},{{'R'}}}}}, {{{'R','E','E'}}}},
+      {{{{{{'R'}}},{{{'B'}}},{{{'B'}}}}}, {{{'E'},{'E'},{'R'}}}},
+      {{{{{{'B'}}},{{{'B'}}},{{{'R'}}}}}, {{{'R'},{'E'},{'E'}}}},
     }}},
     Markov{{
       NoLimit{One{{
-        {{{{'R'}},{{'B'}},{{'B'}}}, {'G','G','U'}},
-        {{{{'E'}},{{'E'}},{{'G'}}}, {'G','G','G'}},
-        {{{{'P'}},{{'E'}},{{'G'}}}, {'B','B','P'}},
+        {{{{{{'R'}},{{'B'}},{{'B'}}}}}, {{{'G','G','U'}}}},
+        {{{{{{'B'}},{{'B'}},{{'R'}}}}}, {{{'U','G','G'}}}},
+        {{{{{{'R'}}},{{{'B'}}},{{{'B'}}}}}, {{{'G'},{'G'},{'U'}}}},
+        {{{{{{'B'}}},{{{'B'}}},{{{'R'}}}}}, {{{'U'},{'G'},{'G'}}}},
+        {{{{{{'E'}},{{'E'}},{{'G'}}}}}, {{{'G','G','G'}}}},
+        {{{{{{'G'}},{{'E'}},{{'E'}}}}}, {{{'G','G','G'}}}},
+        {{{{{{'E'}}},{{{'E'}}},{{{'G'}}}}}, {{{'G'},{'G'},{'G'}}}},
+        {{{{{{'G'}}},{{{'E'}}},{{{'E'}}}}}, {{{'G'},{'G'},{'G'}}}},
+        {{{{{{'P'}},{{'E'}},{{'G'}}}}}, {{{'B','B','P'}}}},
+        {{{{{{'G'}},{{'E'}},{{'P'}}}}}, {{{'P','B','B'}}}},
+        {{{{{{'P'}}},{{{'E'}}},{{{'G'}}}}}, {{{'B'},{'B'},{'P'}}}},
+        {{{{{{'G'}}},{{{'E'}}},{{{'P'}}}}}, {{{'P'},{'B'},{'B'}}}},
       }}},
       NoLimit{All{{
-        {{{{'G'}}}, {'E'}},
-        {{{{'U'}}}, {'R'}},
+        {{{{{{'G'}}}}}, {{{'E'}}}},
+        {{{{{{'U'}}}}}, {{{'R'}}}},
       }}},
-      // NoLimit{All{{
-      //   {{{{'R'}}}, {'P'}},
-      //   {{{{'P'}}}, {'R'}},
-      // }}},
+      NoLimit{All{{
+        {{{{{{'R'}}}}}, {{{'P'}}}},
+        {{{{{{'P'}}}}}, {{{'R'}}}},
+      }}},
     }},
   }};
+  
+  const auto growth = Markov{{
+    NoLimit{One{{
+      {{{{{{'W'}}, {{'B'}}}}}, {{{'W', 'W'}}}},
+      {{{{{{'B'}}, {{'W'}}}}}, {{{'W', 'W'}}}},
+      {{{{{{'B'}}}, {{{'W'}}}}}, {{{'W'}, {'W'}}}},
+      {{{{{{'W'}}}, {{{'B'}}}}}, {{{'W'}, {'W'}}}},
+    }}}
+  }};
 
-  auto grid = Grid{
-    // {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
-    // {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
-    // {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
-    // {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
-    // {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
-    // {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
+  auto grid = Grid<>{{
+    {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
+    {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
+    {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
+    {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
+    {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
+    {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
     {'B','B','B','B','B','B','W','B','B','B','B','B','B'},
-    // {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
-    // {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
-    // {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
-    // {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
-    // {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
-    // {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
-  };
+    {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
+    {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
+    {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
+    {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
+    {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
+    {'B','B','B','B','B','B','B','B','B','B','B','B','B'},
+  }};
+  for (auto y : std::views::iota(0u, grid.size.y))
+    std::println("{}", std::ranges::subrange(
+      std::begin(grid.values) + y * grid.size.x,
+      std::begin(grid.values) + (y + 1) * grid.size.x
+    ));
+  std::println();
   for (auto current_grid : seq_snake(grid)) {
-    std::println("{}", current_grid);
+  // for (auto current_grid : growth(grid)) {
+    for (auto y : std::views::iota(0u, current_grid.size.y))
+      std::println("{}", std::ranges::subrange(
+        std::begin(current_grid.values) + y * current_grid.size.x,
+        std::begin(current_grid.values) + (y + 1) * current_grid.size.x
+      ));
+    std::println();
   }
 
   return 0;

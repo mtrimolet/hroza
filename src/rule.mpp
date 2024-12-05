@@ -17,23 +17,23 @@ struct Rule {
 
 inline constexpr auto match(const Grid<>& grid, const math::Vector3U& u, const Rule& rule) noexcept -> decltype(auto) {
   return std::ranges::all_of(
-    std::views::zip(rule.input, std::views::iota(0) 
-      | std::views::transform([&u, &rule](auto i) noexcept { return u + fromIndex(i, {std::ranges::size(rule.input), 1u, 1u}); })),
+    std::views::zip(rule.input.values, std::views::iota(0) 
+      | std::views::transform([&u, &rule](auto i) noexcept { return u + fromIndex(i, rule.input.size); })),
     [&grid](const auto& input) noexcept {
       const auto& [value, v] = input;
       if (value == std::nullopt) return true;
-      return std::ranges::find(*value, grid.at(toIndex(v, {std::ranges::size(grid), 1, 1}))) != std::ranges::end(*value);
+      return std::ranges::find(*value, grid.values.at(toIndex(v, grid.size))) != std::ranges::end(*value);
     }
   );
 }
 
 inline constexpr auto changes(const Grid<>& grid, const math::Vector3U& u, const Rule& rule) noexcept -> decltype(auto) {
-  return std::views::zip(rule.output, std::views::iota(0) 
-      | std::views::transform([&u, &rule](auto i) noexcept { return u + fromIndex(i, {std::ranges::size(rule.output), 1u, 1u}); }))
+  return std::views::zip(rule.output.values, std::views::iota(0) 
+      | std::views::transform([&u, &rule](auto i) noexcept { return u + fromIndex(i, rule.output.size); }))
     | std::views::filter([&grid](const auto& output) noexcept {
         const auto& [value, v] = output;
         if (value == std::nullopt) return false;
-        return *value != grid.at(toIndex(v, {std::ranges::size(grid), 1, 1}));
+        return *value != grid.values.at(toIndex(v, grid.size));
     })
     | std::views::transform([](auto&& output) noexcept { return std::make_tuple(*std::get<0>(output), std::get<1>(output)); })
     | std::ranges::to<std::vector>();
@@ -42,7 +42,7 @@ inline constexpr auto changes(const Grid<>& grid, const math::Vector3U& u, const
 inline constexpr auto apply(Grid<>& grid, const math::Vector3U& u, const Rule& rule) noexcept -> decltype(auto) {
   std::ranges::for_each(changes(grid, u, rule), [&grid](const auto& output) noexcept {
     const auto& [value, v] = output;
-    grid[toIndex(v, {std::ranges::size(grid), 1, 1})] = value;
+    grid.values[toIndex(v, grid.size)] = value;
   });
 }
 
@@ -60,13 +60,12 @@ inline constexpr auto cartesian_product(A&& a, B&& b) noexcept {
 }
 
 inline constexpr auto matches(const Grid<>& grid, std::span<const Rule> rules) noexcept -> decltype(auto) {
-  const auto g_size = math::Vector3U{std::ranges::size(grid), 1, 1};
+  const auto g_size = grid.size;
   return rules
     | std::views::transform([&g_size](auto& rule) noexcept {
-        const auto highest = g_size - math::Vector3U{std::ranges::size(rule.input), 1, 1};
         return std::views::iota(0u, g_size.z * g_size.y * g_size.x)
           | std::views::transform(bindBack(fromIndex, g_size))
-          | std::views::filter(bindBack(inBounds, highest))
+          | std::views::filter(bindBack(inBounds, g_size - rule.input.size))
           | std::views::transform([&rule](auto u) noexcept {
               return std::make_pair(u, rule);
           });

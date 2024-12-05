@@ -7,8 +7,6 @@ import stormkit.Core;
 using namespace stormkit;
 
 export {
-template <class Value = char>
-using Grid = std::vector<Value>;
 
 inline constexpr auto toIndex(const math::Vector3U& u, const math::Vector3U& size) noexcept -> decltype(auto) {
   return u.x * 1
@@ -30,45 +28,21 @@ inline constexpr auto inBounds(const math::Vector3U& u, const math::Vector3U& hi
       && u.z <= highest.z;
 }
 
-// struct Grid {
-//   using Position = UInt;
-//   std::array<UInt, 1> size;
-//   std::vector<Value> values;
+template <class Value = char>
+struct Grid {
+  math::Vector3U size;
+  std::vector<Value> values;
 
-//   inline constexpr auto operator==(const Grid& other) const noexcept -> bool {
-//     return values == other.values;
-//   }
+  Grid(std::initializer_list<std::initializer_list<std::initializer_list<Value>>> _values) noexcept
+    : size{
+        std::empty(_values) or std::empty(std::ranges::begin(_values)[0]) ? 0
+          : std::ranges::size(std::ranges::begin(std::ranges::begin(_values)[0])[0]),
+        std::empty(_values) ? 0 : std::ranges::size(std::ranges::begin(_values)[0]),
+        std::ranges::size(_values)},
+    values{_values | std::views::join | std::views::join | std::ranges::to<std::vector>()} {}
 
-//   inline constexpr auto toIndex(const Position& u) const noexcept -> decltype(auto) {
-//     return u % std::ranges::size(values);
-//   }
-
-//   inline constexpr auto fromIndex(UInt u) const noexcept -> decltype(auto) {
-//     return u % std::ranges::size(values);
-//   }
-
-//   inline constexpr auto operator[](const Position& u) noexcept -> decltype(auto) {
-//     return values[toIndex(u)];
-//   }
-
-//   inline constexpr auto at(const Position& u) const noexcept -> decltype(auto) {
-//     return values.at(toIndex(u));
-//   }
-
-//   inline constexpr auto cbegin() const noexcept -> decltype(auto) {
-//     return std::ranges::cbegin(values);
-//   }
-
-//   inline constexpr auto cend() const noexcept -> decltype(auto) {
-//     return std::ranges::cend(values);
-//   }
-
-//   inline constexpr auto begin() const noexcept -> decltype(auto) {
-//     return std::ranges::begin(values);
-//   }
-
-//   inline constexpr auto end() const noexcept -> decltype(auto) {
-//     return std::ranges::end(values);
-//   }
-// };
+  inline constexpr auto operator==(const Grid& other) const noexcept -> bool {
+    return size == other.size and values == other.values;
+  }
+};
 }
