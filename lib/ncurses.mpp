@@ -8,6 +8,7 @@ export module ncurses;
 
 import std;
 
+export using chtype = chtype;
 
 export namespace ncurses {
 struct window {
@@ -22,13 +23,8 @@ public:
       
       start_color();
       // use_default_colors();
-      // init_pair(0, COLOR_BLACK, COLOR_BLACK);
-      init_pair(1, COLOR_BLACK, COLOR_GREEN);
-      init_pair(2, COLOR_BLACK, COLOR_BLUE);
-      init_pair(3, COLOR_BLACK, COLOR_CYAN);
-      init_pair(4, COLOR_BLACK, COLOR_MAGENTA);
-      init_pair(5, COLOR_BLACK, COLOR_RED);
-      init_pair(5, COLOR_BLACK, COLOR_YELLOW);
+      for (auto i : std::views::iota(0u, 7u))
+        init_pair(i, i, COLOR_BLACK);
     }
     win = newwin(height + 2, width + 2, start_y, start_x);
     ::refresh(); // refresh root window
@@ -50,7 +46,7 @@ public:
   }
 
   inline constexpr auto getmaxyx() const -> decltype(auto) {
-    return std::make_tuple(getmaxy(win) - 2, getmaxx(win) - 2);
+    return std::make_tuple(getmaxy(win) - 2u, getmaxx(win) - 2u);
   }
 
   inline constexpr auto say(std::string_view txt) -> void {
@@ -74,8 +70,8 @@ public:
     y = (y % rows) + 1;
     x = (x % cols) + 1;
 
-    const auto overflow = std::max(0, x + width - cols);
-    auto data           = std::vector<chtype>(width + 1);
+    const auto overflow = std::max(0ul, x + width - cols);
+    auto data = std::vector<chtype>(width + 1);
 
     mvwinchnstr(win, y, x, std::data(data), width - overflow);
     if (overflow) {
@@ -100,11 +96,11 @@ public:
   inline constexpr auto addchstr(auto y, auto x, std::span<const chtype> data) -> void {
     const auto [rows, cols] = getmaxyx();
 
+    const auto width    = std::size(data);
+    const auto overflow = std::max(0ul, x + width - cols);
+
     y = (y % rows) + 1;
     x = (x % cols) + 1;
-
-    const auto width    = std::size(data);
-    const auto overflow = std::max(0, x + width - cols);
 
     mvwaddchnstr(win, y, x, std::data(data), width - overflow);
     if (overflow) {

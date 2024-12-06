@@ -5,6 +5,7 @@ import std;
 // import glm;
 import stormkit.Core;
 import ranges;
+import ncurses;
 
 import grid;
 import rule;
@@ -16,9 +17,7 @@ using namespace stormkit;
 auto main(std::span<const std::string_view> args) noexcept -> int {
   // [tmpfix] remove when stormkit userMain allows for non-packaged build
   chdir("/Users/mtrimolet/Desktop/mtrimolet/markovjunior/hroza");
-
-  std::println("hello world!");
-  using symbol = decltype('B');
+  using symbol = chtype;
 
   const auto seq_snake = Sequence<symbol>{{
     NoLimit<symbol>{One{std::array{
@@ -50,27 +49,44 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
     } | std::views::join | std::ranges::to<std::vector>()}}
   }};
 
-  auto grid = Grid{{13u, 13u, 1u}, 'B'};
+  auto grid = Grid<chtype>{{13u, 13u, 1u}, 'B'};
   grid.values[toIndex({
     grid.size.x / 2,
     grid.size.y / 2,
     grid.size.z / 2,
   }, grid.size)] = 'W';
 
-  for (auto y : std::views::iota(0u, grid.size.y))
-    std::println("{}", std::ranges::subrange(
-      std::begin(grid.values) + y * grid.size.x,
-      std::begin(grid.values) + (y + 1) * grid.size.x
-    ));
-  std::println();
-  for (auto current_grid : seq_snake(grid)) {
-  // for (auto current_grid : growth(grid)) {
-    for (auto y : std::views::iota(0u, current_grid.size.y))
-      std::println("{}", std::ranges::subrange(
-        std::begin(current_grid.values) + y * current_grid.size.x,
-        std::begin(current_grid.values) + (y + 1) * current_grid.size.x
-      ));
-    std::println();
+  auto window = ncurses::window{grid.size.y, grid.size.x};
+  window.say("hello!");
+  window.waitchar();
+
+  const auto lines = std::views::iota(0u, std::ranges::size(grid.values))
+    | std::views::stride(grid.size.x)
+    | std::views::transform([&grid](auto i) noexcept {
+        return std::ranges::subrange(
+          std::ranges::begin(grid.values) + i,
+          std::ranges::begin(grid.values) + i + grid.size.x,
+        );
+    });
+  // for (auto [line, y] : std::views::zip(grid.values | std::views::chunk(grid.size.x), std::views::iota(0u))) {
+  for (auto [line, y] : std::views::zip(lines, std::views::iota(0u))) {
+    window.addchstr(y, 0u, line | std::ranges::to<std::vector>());
+  }
+  window.refresh();
+  for (auto current_grid : /*growth*/seq_snake(grid)) {
+    const auto lines = std::views::iota(0u, std::ranges::size(current_grid.values))
+      | std::views::stride(current_grid.size.x)
+      | std::views::transform([&current_grid](auto i) noexcept {
+          return std::ranges::subrange(
+            std::ranges::begin(current_grid.values) + i,
+            std::ranges::begin(current_grid.values) + i + current_grid.size.x,
+          );
+      });
+    // for (auto [line, y] : std::views::zip(current_grid.values | std::views::chunk(current_grid.size.x), std::views::iota(0u))) {
+    for (auto [line, y] : std::views::zip(lines, std::views::iota(0u))) {
+      window.addchstr(y, 0u, line | std::ranges::to<std::vector>());
+    }
+    window.refresh();
   }
 
   return 0;
