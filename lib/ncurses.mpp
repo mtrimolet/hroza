@@ -22,9 +22,9 @@ public:
       curs_set(0); // hide cursor
       
       start_color();
-      // use_default_colors();
-      for (auto i : std::views::iota(0u, 7u))
-        init_pair(i, i, COLOR_BLACK);
+      use_default_colors();
+      // for (auto i : std::views::iota(0u, 7u))
+      //   init_pair(i, i, COLOR_BLACK);
     }
     win = newwin(height + 2, width + 2, start_y, start_x);
     ::refresh(); // refresh root window
@@ -84,17 +84,19 @@ public:
   }
 
   inline constexpr auto addch(auto y, auto x, chtype ch) -> void {
-    mvwaddch(win, y, x, ch);
+    const auto &[rows, cols] = getmaxyx();
+    mvwaddch(win, (y % rows) + 1, (x % cols) + 1, ch);
   }
 
   inline constexpr auto addch(auto y, auto x, chtype ch, auto c) -> void {
+    const auto &[rows, cols] = getmaxyx();
     wattron(win, COLOR_PAIR(c));
-    mvwaddch(win, y, x, ch);
+    mvwaddch(win, (y % rows) + 1, (x % cols) + 1, ch);
     wattroff(win, COLOR_PAIR(c));
   }
 
   inline constexpr auto addchstr(auto y, auto x, std::span<const chtype> data) -> void {
-    const auto [rows, cols] = getmaxyx();
+    const auto &[rows, cols] = getmaxyx();
 
     const auto width    = std::size(data);
     const auto overflow = std::max(0ul, x + width - cols);

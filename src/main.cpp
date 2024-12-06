@@ -49,7 +49,7 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
     } | std::views::join | std::ranges::to<std::vector>()}}
   }};
 
-  auto grid = Grid<chtype>{{13u, 13u, 1u}, 'B'};
+  auto grid = Grid<chtype>{{67u, 67u, 1u}, 'B'};
   grid.values[toIndex({
     grid.size.x / 2,
     grid.size.y / 2,
@@ -73,18 +73,25 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
     window.addchstr(y, 0u, line | std::ranges::to<std::vector>());
   }
   window.refresh();
-  for (auto current_grid : /*growth*/seq_snake(grid)) {
-    const auto lines = std::views::iota(0u, std::ranges::size(current_grid.values))
-      | std::views::stride(current_grid.size.x)
-      | std::views::transform([&current_grid](auto i) noexcept {
-          return std::ranges::subrange(
-            std::ranges::begin(current_grid.values) + i,
-            std::ranges::begin(current_grid.values) + i + current_grid.size.x,
-          );
-      });
-    // for (auto [line, y] : std::views::zip(current_grid.values | std::views::chunk(current_grid.size.x), std::views::iota(0u))) {
-    for (auto [line, y] : std::views::zip(lines, std::views::iota(0u))) {
-      window.addchstr(y, 0u, line | std::ranges::to<std::vector>());
+  // for (auto current_grid : /*growth*/seq_snake(grid)) {
+  //   const auto lines = std::views::iota(0u, std::ranges::size(current_grid.values))
+  //     | std::views::stride(current_grid.size.x)
+  //     | std::views::transform([&current_grid](auto i) noexcept {
+  //         return std::ranges::subrange(
+  //           std::ranges::begin(current_grid.values) + i,
+  //           std::ranges::begin(current_grid.values) + i + current_grid.size.x,
+  //         );
+  //     });
+  //   // for (auto [line, y] : std::views::zip(current_grid.values | std::views::chunk(current_grid.size.x), std::views::iota(0u))) {
+  //   for (auto [line, y] : std::views::zip(lines, std::views::iota(0u))) {
+  //     window.addchstr(y, 0u, line | std::ranges::to<std::vector>());
+  //   }
+  //   window.refresh();
+  // }
+  for (auto changes : /*growth*/seq_snake(grid)) {
+    if (std::ranges::empty(changes)) continue;
+    for (auto &[u, value] : changes) {
+      window.addch(u.y, u.x, value);
     }
     window.refresh();
   }

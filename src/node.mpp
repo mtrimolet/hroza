@@ -1,6 +1,7 @@
 export module node;
 
 import std;
+import glm;
 import stormkit.Core;
 
 import grid;
@@ -10,16 +11,20 @@ using namespace stormkit;
 export {
 
 template <class T>
-using Action = std::function<Grid<T>(const Grid<T>&)>;
+using Change = std::tuple<math::Vector3U, T>;
 
 template <class T>
-inline auto limit(UInt count, const Action<T>& action, const Grid<T>& grid) noexcept -> std::generator<Grid<T>> {
-  auto current_grid = grid;
+using Action = std::function<std::vector<Change<T>>(const Grid<T>&)>;
+
+template <class T>
+inline auto limit(UInt count, const Action<T>& action, const Grid<T>& grid) noexcept -> std::generator<std::vector<Change<T>>> {
+  auto current_grid = auto{grid};
   for (; count > 0u; count--) {
-    auto result_grid = action(current_grid);
-    if (result_grid == current_grid) break;
-    current_grid = result_grid;
-    co_yield result_grid;
+    auto changes = action(current_grid);
+    if (std::ranges::empty(changes)) break;
+    for (auto [u, value] : changes)
+      current_grid.values[toIndex(u, current_grid.size)] = value;
+    co_yield changes;
   }
 }
 
@@ -33,13 +38,14 @@ struct Limit {
 };
 
 template <class T>
-inline auto no_limit(Action<T> action, const Grid<T>& grid) -> std::generator<Grid<T>> {
-  auto current_grid = grid;
+inline auto no_limit(Action<T> action, const Grid<T>& grid) -> std::generator<std::vector<Change<T>>> {
+  auto current_grid = auto{grid};
   for (;;) {
-    auto result_grid = action(current_grid);
-    if (result_grid == current_grid) break;
-    current_grid = result_grid;
-    co_yield result_grid;
+    auto changes = action(current_grid);
+    if (std::ranges::empty(changes)) break;
+    for (auto [u, value] : changes)
+      current_grid.values[toIndex(u, current_grid.size)] = value;
+    co_yield changes;
   }
 }
 
@@ -52,15 +58,17 @@ struct NoLimit {
 };
 
 template <class T>
-using Node = std::function<std::generator<Grid<T>>(const Grid<T>&)>;
+using Node = std::function<std::generator<std::vector<Change<T>>>(const Grid<T>&)>;
 
 template <class T>
-inline auto sequence(std::span<const Node<T>> nodes, const Grid<T>& grid) noexcept -> std::generator<Grid<T>> {
-  auto current_grid = grid;
+inline auto sequence(std::span<const Node<T>> nodes, const Grid<T>& grid) noexcept -> std::generator<std::vector<Change<T>>> {
+  auto current_grid = auto{grid};
   for (auto current_node : nodes)
-    for (auto result_grid : current_node(current_grid)) {
-      current_grid = result_grid;
-      co_yield result_grid;
+    for (auto changes : current_node(current_grid)) {
+      if (std::ranges::empty(changes)) break;
+      for (auto [u, value] : changes)
+        current_grid.values[toIndex(u, current_grid.size)] = value;
+      co_yield changes;
   }
 }
 
@@ -73,15 +81,17 @@ struct Sequence {
 };
 
 template <class T>
-inline auto markov(std::span<const Node<T>> nodes, const Grid<T>& grid) noexcept -> std::generator<Grid<T>> {
-  auto current_grid = grid;
+inline auto markov(std::span<const Node<T>> nodes, const Grid<T>& grid) noexcept -> std::generator<std::vector<Change<T>>> {
+  auto current_grid = auto{grid};
   auto current_node = std::ranges::begin(nodes);
   while (current_node != std::ranges::end(nodes)) {
     auto found = false;
-    for (auto result_grid : (*current_node)(current_grid)) {
+    for (auto changes : (*current_node)(current_grid)) {
+      if (std::ranges::empty(changes)) break;
       if (not found) found = true;
-      current_grid = result_grid;
-      co_yield result_grid;
+      for (auto [u, value] : changes)
+        current_grid.values[toIndex(u, current_grid.size)] = value;
+      co_yield changes;
     }
     if (found)
       current_node = std::ranges::begin(nodes);
