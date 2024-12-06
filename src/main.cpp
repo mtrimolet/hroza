@@ -18,34 +18,35 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   chdir("/Users/mtrimolet/Desktop/mtrimolet/markovjunior/hroza");
 
   std::println("hello world!");
+  using symbol = decltype('B');
 
-  const auto seq_snake = Sequence{{
-    NoLimit{One{std::array{
-      symmetries({{{{{{'W'}},{{'B'}},{{'B'}}}}}, {{{'P','E','R'}}}}),
+  const auto seq_snake = Sequence<symbol>{{
+    NoLimit<symbol>{One{std::array{
+      symmetries<symbol>({{{{{{'W'}},{{'B'}},{{'B'}}}}}, {{{'P','E','R'}}}}),
     } | std::views::join | std::ranges::to<std::vector>()}},
-    Limit{10, One{std::array{
-      symmetries({{{{{{'R'}},{{'B'}},{{'B'}}}}}, {{{'E','E','R'}}}}),
+    Limit<symbol>{10, One{std::array{
+      symmetries<symbol>({{{{{{'R'}},{{'B'}},{{'B'}}}}}, {{{'E','E','R'}}}}),
     } | std::views::join | std::ranges::to<std::vector>()}},
-    Markov{{
-      NoLimit{One{std::array{
-        symmetries({{{{{{'R'}},{{'B'}},{{'B'}}}}}, {{{'G','G','U'}}}}),
-        symmetries({{{{{{'E'}},{{'E'}},{{'G'}}}}}, {{{'G','G','G'}}}}),
-        symmetries({{{{{{'P'}},{{'E'}},{{'G'}}}}}, {{{'B','B','P'}}}}),
+    Markov<symbol>{{
+      NoLimit<symbol>{One{std::array{
+        symmetries<symbol>({{{{{{'R'}},{{'B'}},{{'B'}}}}}, {{{'G','G','U'}}}}),
+        symmetries<symbol>({{{{{{'E'}},{{'E'}},{{'G'}}}}}, {{{'G','G','G'}}}}),
+        symmetries<symbol>({{{{{{'P'}},{{'E'}},{{'G'}}}}}, {{{'B','B','P'}}}}),
       } | std::views::join | std::ranges::to<std::vector>()}},
-      NoLimit{All{{
+      NoLimit<symbol>{All<symbol>{{
         {{{{{{'G'}}}}}, {{{'E'}}}},
         {{{{{{'U'}}}}}, {{{'R'}}}},
       }}},
-      NoLimit{All{{
+      NoLimit<symbol>{All<symbol>{{
         {{{{{{'R'}}}}}, {{{'P'}}}},
         {{{{{{'P'}}}}}, {{{'R'}}}},
       }}},
     }},
   }};
-  
-  const auto growth = Markov{{
-    NoLimit{One{std::array{
-      symmetries({{{{{{'W'}}, {{'B'}}}}}, {{{'W', 'W'}}}}),
+
+  const auto growth = Markov<symbol>{{
+    NoLimit<symbol>{One{std::array{
+      symmetries<symbol>({{{{{{'W'}}, {{'B'}}}}}, {{{'W', 'W'}}}}),
     } | std::views::join | std::ranges::to<std::vector>()}}
   }};
 

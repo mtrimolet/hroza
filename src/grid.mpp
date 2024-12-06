@@ -28,15 +28,15 @@ inline constexpr auto inBounds(const math::Vector3U& u, const math::Vector3U& hi
       && u.z <= highest.z;
 }
 
-template <class Value = char>
+template <class T>
 struct Grid {
   math::Vector3U size;
-  std::vector<Value> values;
+  std::vector<T> values;
 
-  Grid(math::Vector3U _size, std::vector<Value> _values) noexcept : size{_size}, values{_values} {}
-  Grid(math::Vector3U _size, Value v) noexcept : size{_size}, values{std::views::repeat(v, size.z * size.y * size.x) | std::ranges::to<std::vector>()} {}
+  Grid(math::Vector3U _size, std::vector<T> _values) noexcept : size{_size}, values{_values} {}
+  Grid(math::Vector3U _size, T v) noexcept : size{_size}, values{std::views::repeat(v, size.z * size.y * size.x) | std::ranges::to<std::vector>()} {}
 
-  Grid(std::initializer_list<std::initializer_list<std::initializer_list<Value>>> _values) noexcept
+  Grid(std::initializer_list<std::initializer_list<std::initializer_list<T>>> _values) noexcept
     : size{
         std::empty(_values) or std::empty(std::ranges::begin(_values)[0]) ? 0
           : std::ranges::size(std::ranges::begin(std::ranges::begin(_values)[0])[0]),
@@ -44,14 +44,14 @@ struct Grid {
         std::ranges::size(_values)},
     values{_values | std::views::join | std::views::join | std::ranges::to<std::vector>()} {}
 
-  inline constexpr auto operator==(const Grid<Value>& other) const noexcept -> bool = default;
+  inline constexpr auto operator==(const Grid<T>& other) const noexcept -> bool = default;
 };
 
 
-template <class Value = char>
-inline constexpr auto xreflected(const Grid<Value>& grid) noexcept -> decltype(auto) {
+template <class T>
+inline constexpr auto xreflected(const Grid<T>& grid) noexcept -> decltype(auto) {
   auto size = auto{grid.size};
-  return Grid<Value>{
+  return Grid<T>{
     size,
     std::views::iota(0u, size.z * size.y * size.x)
       | std::views::transform([&size, &grid](auto i) noexcept {
@@ -66,14 +66,14 @@ inline constexpr auto xreflected(const Grid<Value>& grid) noexcept -> decltype(a
   };
 }
 
-template <class Value = char>
-inline constexpr auto xyrotated(const Grid<Value>& grid) noexcept -> decltype(auto) {
+template <class T>
+inline constexpr auto xyrotated(const Grid<T>& grid) noexcept -> decltype(auto) {
   auto size = math::Vector3U{
     grid.size.y,
     grid.size.x,
     grid.size.z,
   };
-  return Grid<Value>{
+  return Grid<T>{
     size,
     std::views::iota(0u, size.z * size.y * size.x)
       | std::views::transform([&size, &grid](auto i) noexcept {
@@ -89,14 +89,14 @@ inline constexpr auto xyrotated(const Grid<Value>& grid) noexcept -> decltype(au
   };
 }
 
-template <class Value = char>
-inline constexpr auto zyrotated(const Grid<Value>& grid) noexcept -> decltype(auto) {
+template <class T>
+inline constexpr auto zyrotated(const Grid<T>& grid) noexcept -> decltype(auto) {
   auto size = math::Vector3U{
     grid.size.x,
     grid.size.z,
     grid.size.y,
   };
-  return Grid<Value>{
+  return Grid<T>{
     size,
     std::views::iota(0u, size.z * size.y * size.x)
       | std::views::transform([&size, &grid](auto i) noexcept {

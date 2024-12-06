@@ -10,35 +10,40 @@ using namespace stormkit;
 
 export {
 
+template <class T>
 struct Rule {
-  Grid<std::optional<std::unordered_set<char>>> input;
-  Grid<std::optional<char>> output;
+  Grid<std::optional<std::unordered_set<T>>> input;
+  Grid<std::optional<T>> output;
 
-  inline constexpr auto operator==(const Rule& other) const noexcept -> bool = default;
+  inline constexpr auto operator==(const Rule<T>& other) const noexcept -> bool = default;
 };
 
-inline constexpr auto xreflected(const Rule& rule) noexcept -> decltype(auto) {
-  return Rule{
+template <class T>
+inline constexpr auto xreflected(const Rule<T>& rule) noexcept -> decltype(auto) {
+  return Rule<T>{
     xreflected(rule.input),
     xreflected(rule.output),
   };
 }
 
-inline constexpr auto xyrotated(const Rule& rule) noexcept -> decltype(auto) {
-  return Rule{
+template <class T>
+inline constexpr auto xyrotated(const Rule<T>& rule) noexcept -> decltype(auto) {
+  return Rule<T>{
     xyrotated(rule.input),
     xyrotated(rule.output),
   };
 }
 
-inline constexpr auto zyrotated(const Rule& rule) noexcept -> decltype(auto) {
-  return Rule{
+template <class T>
+inline constexpr auto zyrotated(const Rule<T>& rule) noexcept -> decltype(auto) {
+  return Rule<T>{
     zyrotated(rule.input),
     zyrotated(rule.output),
   };
 }
 
-const auto groups = makeStaticArray<std::function<Rule(const Rule&)>>(
+template <class T>
+const auto groups = makeStaticArray<std::function<T(const T&)>>(
   [](const auto& rule) noexcept { return auto{rule}; },
   [](const auto& rule) noexcept { return xyrotated(rule); },
   [](const auto& rule) noexcept { return xyrotated(xyrotated(rule)); },
@@ -60,27 +65,29 @@ struct std::hash<std::unordered_set<T>> {
   }
 };
 
-template <>
-struct std::hash<Rule> {
-  inline constexpr auto operator()(const Rule& rule) const noexcept -> std::size_t {
+template <class T>
+struct std::hash<Rule<T>> {
+  inline constexpr auto operator()(const Rule<T>& rule) const noexcept -> std::size_t {
     auto seed = std::hash<math::Vector3U>{}(rule.input.size);
     for (auto i : rule.input.values) {
-      seed ^= std::hash<std::optional<std::unordered_set<char>>>{}(i);
+      seed ^= std::hash<std::optional<std::unordered_set<T>>>{}(i);
     }
     for (auto o : rule.output.values) {
-      seed ^= std::hash<std::optional<char>>{}(o);
+      seed ^= std::hash<std::optional<T>>{}(o);
     }
     return seed;
   }
 };
 
-inline constexpr auto symmetries(const Rule& rule) noexcept -> decltype(auto) {
-  return groups
+template <class T>
+inline constexpr auto symmetries(const Rule<T>& rule) noexcept -> decltype(auto) {
+  return groups<Rule<T>>
     | std::views::transform([&rule](const auto& action) noexcept { return action(rule); })
     | std::ranges::to<std::unordered_set>();
 }
 
-inline constexpr auto match(const Grid<>& grid, const math::Vector3U& u, const Rule& rule) noexcept -> decltype(auto) {
+template <class T>
+inline constexpr auto match(const Grid<T>& grid, const math::Vector3U& u, const Rule<T>& rule) noexcept -> decltype(auto) {
   return std::ranges::all_of(
     std::views::zip(rule.input.values, std::views::iota(0) 
       | std::views::transform([&u, &rule](auto i) noexcept { return u + fromIndex(i, rule.input.size); })),
@@ -92,7 +99,8 @@ inline constexpr auto match(const Grid<>& grid, const math::Vector3U& u, const R
   );
 }
 
-inline constexpr auto changes(const Grid<>& grid, const math::Vector3U& u, const Rule& rule) noexcept -> decltype(auto) {
+template <class T>
+inline constexpr auto changes(const Grid<T>& grid, const math::Vector3U& u, const Rule<T>& rule) noexcept -> decltype(auto) {
   return std::views::zip(rule.output.values, std::views::iota(0) 
       | std::views::transform([&u, &rule](auto i) noexcept { return u + fromIndex(i, rule.output.size); }))
     | std::views::filter([&grid](const auto& output) noexcept {
@@ -104,7 +112,8 @@ inline constexpr auto changes(const Grid<>& grid, const math::Vector3U& u, const
     | std::ranges::to<std::vector>();
 }
 
-inline constexpr auto apply(Grid<>& grid, const math::Vector3U& u, const Rule& rule) noexcept -> decltype(auto) {
+template <class T>
+inline constexpr auto apply(Grid<T>& grid, const math::Vector3U& u, const Rule<T>& rule) noexcept -> decltype(auto) {
   std::ranges::for_each(changes(grid, u, rule), [&grid](const auto& output) noexcept {
     const auto& [value, v] = output;
     grid.values[toIndex(v, grid.size)] = value;
@@ -124,7 +133,8 @@ inline constexpr auto cartesian_product(A&& a, B&& b) noexcept {
   | std::ranges::to<std::vector>();
 }
 
-inline constexpr auto matches(const Grid<>& grid, std::span<const Rule> rules) noexcept -> decltype(auto) {
+template <class T>
+inline constexpr auto matches(const Grid<T>& grid, std::span<const Rule<T>> rules) noexcept -> decltype(auto) {
   const auto g_size = grid.size;
   return rules
     | std::views::transform([&g_size](auto& rule) noexcept {
@@ -145,7 +155,8 @@ inline constexpr auto matches(const Grid<>& grid, std::span<const Rule> rules) n
 
 /********* */
 
-inline constexpr auto one(std::span<const Rule> rules, const Grid<>& grid) noexcept -> decltype(auto) {
+template <class T>
+inline constexpr auto one(std::span<const Rule<T>> rules, const Grid<T>& grid) noexcept -> decltype(auto) {
   auto matches = ::matches(grid, rules);
   if (std::empty(matches)) return auto{grid};
 
@@ -157,14 +168,16 @@ inline constexpr auto one(std::span<const Rule> rules, const Grid<>& grid) noexc
   return current_grid;
 }
 
+template <class T>
 struct One {
-  std::vector<Rule> rules;
-  inline constexpr auto operator()(const Grid<>& grid) const noexcept -> decltype(auto) {
-    return one(rules, grid);
+  std::vector<Rule<T>> rules;
+  inline constexpr auto operator()(const Grid<T>& grid) const noexcept -> decltype(auto) {
+    return one<T>(rules, grid);
   }
 };
 
-inline constexpr auto prl(std::span<const Rule> rules, const Grid<>& grid) noexcept -> decltype(auto) {
+template <class T>
+inline constexpr auto prl(std::span<const Rule<T>> rules, const Grid<T>& grid) noexcept -> decltype(auto) {
   auto current_grid = auto{grid};
   std::ranges::for_each(matches(grid, rules), [&current_grid](const auto& match) noexcept {
     const auto& [u, rule] = match;
@@ -173,20 +186,22 @@ inline constexpr auto prl(std::span<const Rule> rules, const Grid<>& grid) noexc
   return current_grid;
 }
 
+template <class T>
 struct Prl {
-  std::vector<Rule> rules;
-  inline constexpr auto operator()(const Grid<>& grid) const noexcept -> decltype(auto) {
-    return prl(rules, grid);
+  std::vector<Rule<T>> rules;
+  inline constexpr auto operator()(const Grid<T>& grid) const noexcept -> decltype(auto) {
+    return prl<T>(rules, grid);
   }
 };
 
-inline constexpr auto all(std::span<const Rule> rules, const Grid<>& grid) noexcept -> decltype(auto) {
+template <class T>
+inline constexpr auto all(std::span<const Rule<T>> rules, const Grid<T>& grid) noexcept -> decltype(auto) {
   auto matches = ::matches(grid, rules);
   if (std::empty(matches)) return auto{grid};
 
   static auto rg = std::mt19937{std::random_device{}()};
   std::ranges::shuffle(matches, rg);
-  const auto cleaned = std::ranges::fold_left(matches, std::vector<decltype(matches)::value_type>{}, [](auto a, auto m) noexcept {
+  const auto cleaned = std::ranges::fold_left(matches, std::vector<typename decltype(matches)::value_type>{}, [](auto a, auto m) noexcept {
     if (std::ranges::find_if(a, [&m](auto i) noexcept { return std::get<0>(i) == std::get<0>(m); }) != std::ranges::end(a))
       return a;
     a.push_back(m);
@@ -200,10 +215,11 @@ inline constexpr auto all(std::span<const Rule> rules, const Grid<>& grid) noexc
   return current_grid;
 }
 
+template <class T>
 struct All {
-  std::vector<Rule> rules;
-  inline constexpr auto operator()(const Grid<>& grid) const noexcept -> decltype(auto) {
-    return all(rules, grid);
+  std::vector<Rule<T>> rules;
+  inline constexpr auto operator()(const Grid<T>& grid) const noexcept -> decltype(auto) {
+    return all<T>(rules, grid);
   }
 };
 
