@@ -87,37 +87,35 @@ inline constexpr auto symmetries(const Rule<T>& rule) noexcept -> decltype(auto)
 }
 
 template <class T>
-inline constexpr auto match(const Grid<T>& grid, const math::Vector3U& u, const Rule<T>& rule) noexcept -> decltype(auto) {
+struct Match {
+  math::Vector3U u;
+  Rule<T> rule;
+};
+
+template <class T>
+inline constexpr auto match(const Grid<T>& grid, const Match<T>& match) noexcept -> bool {
   return std::ranges::all_of(
-    std::views::zip(rule.input.values, std::views::iota(0) 
-      | std::views::transform([&u, &rule](auto i) noexcept { return u + fromIndex(i, rule.input.size); })),
+    std::views::zip(match.rule.input.values, std::views::iota(0) 
+      | std::views::transform([&match](auto i) noexcept { return match.u + fromIndex(i, match.rule.input.size); })),
     [&grid](const auto& input) noexcept {
       const auto& [value, v] = input;
       return value == std::nullopt
-         or std::ranges::find(*value, grid.values.at(toIndex(v, grid.size))) != std::ranges::end(*value);
+         or std::ranges::find(*value, grid.at(v)) != std::ranges::end(*value);
     }
   );
 }
 
 template <class T>
-inline constexpr auto changes(const Grid<T>& grid, const math::Vector3U& u, const Rule<T>& rule) noexcept -> decltype(auto) {
-  return std::views::zip(rule.output.values, std::views::iota(0) 
-      | std::views::transform([&u, &rule](auto i) noexcept { return u + fromIndex(i, rule.output.size); }))
+inline constexpr auto changes(const Grid<T>& grid, const Match<T>& match) noexcept -> decltype(auto) {
+  return std::views::zip(match.rule.output.values, std::views::iota(0)
+      | std::views::transform([&match](auto i) noexcept { return match.u + fromIndex(i, match.rule.output.size); }))
     | std::views::filter([&grid](const auto& output) noexcept {
         const auto& [value, v] = output;
         return  value != std::nullopt
-           and *value != grid.values.at(toIndex(v, grid.size));
+           and *value != grid.at(v);
     })
-    | std::views::transform([](auto&& output) noexcept { return std::make_tuple(std::get<1>(output), *std::get<0>(output)); })
+    | std::views::transform([](auto&& output) noexcept { return Change<T>{std::get<1>(output), *std::get<0>(output)}; })
     | std::ranges::to<std::vector>();
-}
-
-template <class T>
-inline constexpr auto apply(Grid<T>& grid, const math::Vector3U& u, const Rule<T>& rule) noexcept -> decltype(auto) {
-  return std::views::transform(changes(grid, u, rule), [&grid](const auto& output) noexcept {
-    const auto& [v, value] = output;
-    grid.values[toIndex(v, grid.size)] = value;
-  });
 }
 
 template <std::ranges::sized_range A, std::ranges::sized_range B>
@@ -134,22 +132,19 @@ inline constexpr auto cartesian_product(A&& a, B&& b) noexcept {
 }
 
 template <class T>
-inline constexpr auto matches(const Grid<T>& grid, std::span<const Rule<T>> rules) noexcept -> decltype(auto) {
-  const auto g_size = grid.size;
+inline constexpr auto matches(const Grid<T>& grid, std::span<const Rule<T>> rules) noexcept -> std::vector<Match<T>> {
+  const auto& g_size = grid.size;
   return rules
-    | std::views::transform([&g_size](auto& rule) noexcept {
+    | std::views::transform([&g_size](const Rule<T>& rule) noexcept {
         return std::views::iota(0u, g_size.z * g_size.y * g_size.x)
           | std::views::transform(bindBack(fromIndex, g_size))
           | std::views::filter(bindBack(inBounds, g_size - rule.input.size))
           | std::views::transform([&rule](auto u) noexcept {
-              return std::make_pair(u, rule);
+              return Match{u, rule};
           });
       })
     | std::views::join
-    | std::views::filter([&grid](const auto& match) {
-        const auto& [u, rule] = match;
-        return ::match(grid, u, rule);
-    })
+    | std::views::filter(bindFront(::match<T>, grid))
     | std::ranges::to<std::vector>();
 }
 
@@ -157,16 +152,17 @@ inline constexpr auto matches(const Grid<T>& grid, std::span<const Rule<T>> rule
 
 template <class T>
 inline constexpr auto one(std::span<const Rule<T>> rules, const Grid<T>& grid) noexcept -> decltype(auto) {
-  auto matches = ::matches(grid, rules);
-  // if (std::ranges::empty(matches)) return std::views::empty<std::tuple<math::Vector3U, T>>;
-  if (std::ranges::empty(matches)) return std::vector<std::tuple<math::Vector3U, T>>{};
+  auto matches = ::matches<T>(grid, rules);
+  if (std::ranges::empty(matches)) return std::vector<Change<T>>{};
 
   static auto rg = std::mt19937{std::random_device{}()};
   std::ranges::shuffle(matches, rg);
-  const auto& [u, rule] = matches[0];
-  // auto current_grid = auto{grid};
-  // apply(current_grid, u, rule);
-  return changes(grid, u, rule);
+
+  return matches
+    | std::views::take(1)
+    | std::views::transform(bindFront(::changes<T>, grid))
+    | std::views::join 
+    | std::ranges::to<std::vector>();
 }
 
 template <class T>
@@ -179,17 +175,13 @@ struct One {
 
 template <class T>
 inline constexpr auto prl(std::span<const Rule<T>> rules, const Grid<T>& grid) noexcept -> decltype(auto) {
-  auto matches = ::matches(grid, rules);
-  if (std::ranges::empty(matches)) return std::vector<std::tuple<math::Vector3U, T>>{};
+  auto matches = ::matches<T>(grid, rules);
+  if (std::ranges::empty(matches)) return std::vector<Change<T>>{};
 
-  // auto current_grid = auto{grid};
-  // std::ranges::for_each(matches(grid, rules), [&current_grid](const auto& match) noexcept {
-  //   const auto& [u, rule] = match;
-  //   apply(current_grid, u, rule);
-  // });
-  return matches | std::views::transform([&grid](auto&& match){
-    return changes(grid, std::get<0>(match), std::get<1>(match));
-  }) | std::views::join | std::ranges::to<std::vector>();
+  return matches
+    | std::views::transform(bindFront(::changes<T>, grid)) 
+    | std::views::join 
+    | std::ranges::to<std::vector>();
 }
 
 template <class T>
@@ -202,25 +194,21 @@ struct Prl {
 
 template <class T>
 inline constexpr auto all(std::span<const Rule<T>> rules, const Grid<T>& grid) noexcept -> decltype(auto) {
-  auto matches = ::matches(grid, rules);
-  if (std::ranges::empty(matches)) return std::vector<std::tuple<math::Vector3U, T>>{};
+  auto matches = ::matches<T>(grid, rules);
+  if (std::ranges::empty(matches)) return std::vector<Change<T>>{};
 
   static auto rg = std::mt19937{std::random_device{}()};
   std::ranges::shuffle(matches, rg);
-  const auto cleaned = std::ranges::fold_left(matches, std::vector<typename decltype(matches)::value_type>{}, [](auto a, auto m) noexcept {
-    if (std::ranges::find_if(a, [&m](auto i) noexcept { return std::get<0>(i) == std::get<0>(m); }) != std::ranges::end(a))
-      return a;
-    a.push_back(m);
+  const auto cleaned = std::ranges::fold_left(matches, std::vector<Match<T>>{}, [](auto&& a, auto&& m) noexcept {
+    if (std::ranges::find_if(a, [&m](auto i) noexcept { return m.u == i.u; }) == std::ranges::end(a))
+      a.push_back(m);
     return a;
   });
-  // auto current_grid = auto{grid};
-  // std::ranges::for_each(cleaned, [&current_grid](const auto& m) noexcept {
-  //   const auto& [u, rule] = m;
-  //   apply(current_grid, u, rule);
-  // });
-  return cleaned | std::views::transform([&grid](auto&& match){
-    return changes(grid, std::get<0>(match), std::get<1>(match));
-  }) | std::views::join | std::ranges::to<std::vector>();
+  
+  return cleaned
+    | std::views::transform(bindFront(::changes<T>, grid))
+    | std::views::join
+    | std::ranges::to<std::vector>();
 }
 
 template <class T>

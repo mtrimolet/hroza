@@ -50,11 +50,11 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   }};
 
   auto grid = Grid<chtype>{{67u, 67u, 1u}, 'B'};
-  grid.values[toIndex({
+  grid[{
     grid.size.x / 2,
     grid.size.y / 2,
     grid.size.z / 2,
-  }, grid.size)] = 'W';
+}] = 'W';
 
   auto window = ncurses::window{grid.size.y, grid.size.x};
   window.say("hello!");
