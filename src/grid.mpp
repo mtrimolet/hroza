@@ -46,11 +46,11 @@ struct Grid {
 
   inline constexpr auto operator==(const Grid<T>& other) const noexcept -> bool = default;
 
-  inline constexpr auto at(const math::Vector3U& u) const noexcept -> const T& {
+  inline constexpr auto at(const math::Vector3U& u) const noexcept -> decltype(auto) {
     return values.at(toIndex(u, size));
   }
 
-  inline constexpr auto operator[](const math::Vector3U& u) noexcept -> T& {
+  inline constexpr auto operator[](const math::Vector3U& u) noexcept -> decltype(auto) {
     return values[toIndex(u, size)];
   }
 };
@@ -63,7 +63,7 @@ struct Change {
 
 template <class T>
 inline constexpr auto apply(Grid<T>& grid, const Change<T>& change) noexcept -> decltype(auto) {
-  grid.values[toIndex(change.u, grid.size)] = change.value;
+  grid[change.u] = change.value;
 }
 
 template <class T>
@@ -116,7 +116,7 @@ inline constexpr auto zyrotated(const Grid<T>& grid) noexcept -> decltype(auto) 
     size,
     std::views::iota(0u, size.z * size.y * size.x)
       | std::views::transform([&size, &grid](auto i) noexcept {
-          const auto u = fromIndex(i, size);
+          constexpr auto u = fromIndex(i, size);
           return grid.at({
             u.x,
             size.z - u.z - 1,

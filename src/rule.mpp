@@ -3,6 +3,7 @@ export module rule;
 import std;
 import glm;
 import stormkit.Core;
+import utils;
 
 import grid;
 
@@ -55,17 +56,6 @@ const auto groups = makeStaticArray<std::function<T(const T&)>>(
 );
 
 template <class T>
-struct std::hash<std::unordered_set<T>> {
-  inline constexpr auto operator()(const std::unordered_set<T>& set) const noexcept -> std::size_t {
-    auto seed = std::hash<std::size_t>{}(set.size());
-    for (auto i : set) {
-      seed ^= std::hash<T>{}(i);
-    }
-    return seed;
-  }
-};
-
-template <class T>
 struct std::hash<Rule<T>> {
   inline constexpr auto operator()(const Rule<T>& rule) const noexcept -> std::size_t {
     auto seed = std::hash<math::Vector3U>{}(rule.input.size);
@@ -114,33 +104,32 @@ inline constexpr auto changes(const Grid<T>& grid, const Match<T>& match) noexce
         return  value != std::nullopt
            and *value != grid.at(v);
     })
-    | std::views::transform([](auto&& output) noexcept { return Change<T>{std::get<1>(output), *std::get<0>(output)}; })
+    | std::views::transform([](auto&& output) noexcept {
+        return Change<T>{std::get<1>(output), *std::get<0>(output)};
+      })
     | std::ranges::to<std::vector>();
 }
 
-template <std::ranges::sized_range A, std::ranges::sized_range B>
-    // requires std::ranges::sized_range<A> and std::ranges::sized_range<B>
-inline constexpr auto cartesian_product(A&& a, B&& b) noexcept {
-  return std::forward<A>(a) 
-    | std::views::transform([&b] (const auto& i) noexcept {
-        return std::forward<B>(b)
-          | std::views::transform([&i] (const auto& j) noexcept { return std::make_pair(i, j); })
-          | std::ranges::to<std::vector>();
-    }) 
-  | std::views::join
-  | std::ranges::to<std::vector>();
-}
-
 template <class T>
-inline constexpr auto matches(const Grid<T>& grid, std::span<const Rule<T>> rules) noexcept -> std::vector<Match<T>> {
+inline constexpr auto matches(const Grid<T>& grid, std::span<const Rule<T>> rules) noexcept -> decltype(auto) {
   const auto& g_size = grid.size;
   return rules
-    | std::views::transform([&g_size](const Rule<T>& rule) noexcept {
-        return std::views::iota(0u, g_size.z * g_size.y * g_size.x)
-          | std::views::transform(bindBack(fromIndex, g_size))
-          | std::views::filter(bindBack(inBounds, g_size - rule.input.size))
+    | std::views::transform([&g_size](const auto& rule) noexcept {
+        const auto size = g_size - rule.input.size + math::Vector3U{1u, 1u, 1u};
+        return std::views::iota(0u, size.z * size.y * size.x)
+          | std::views::transform(bindBack(fromIndex, size))
           | std::views::transform([&rule](auto u) noexcept {
-              return Match{u, rule};
+              return Match<T>{u, rule};
+          });
+      })
+    | std::views::join
+    | std::views::filter(bindFront(::match<T>, grid))
+    | std::ranges::to<std::vector>();
+        const auto size = g_size - rule.input.size + math::Vector3U{1u, 1u, 1u};
+        return std::views::iota(0u, size.z * size.y * size.x)
+          | std::views::transform(bindBack(fromIndex, size))
+          | std::views::transform([&rule, ri](auto u) noexcept {
+              return Match<T>{u, rule, ri};
           });
       })
     | std::views::join
@@ -199,12 +188,12 @@ inline constexpr auto all(std::span<const Rule<T>> rules, const Grid<T>& grid) n
 
   static auto rg = std::mt19937{std::random_device{}()};
   std::ranges::shuffle(matches, rg);
-  const auto cleaned = std::ranges::fold_left(matches, std::vector<Match<T>>{}, [](auto&& a, auto&& m) noexcept {
-    if (std::ranges::find_if(a, [&m](auto i) noexcept { return m.u == i.u; }) == std::ranges::end(a))
-      a.push_back(m);
-    return a;
+  auto cleaned = std::vector<Match<T>>{};
+  std::ranges::for_each(matches, [&cleaned](auto&& m) noexcept {
+    if (std::ranges::find(cleaned, m.u, &Match<T>::u) == std::ranges::end(cleaned))
+      cleaned.push_back(m);
   });
-  
+
   return cleaned
     | std::views::transform(bindFront(::changes<T>, grid))
     | std::views::join
