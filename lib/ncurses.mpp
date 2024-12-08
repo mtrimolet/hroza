@@ -20,11 +20,14 @@ public:
       cbreak();    // don't wait for line break, receive each character
       noecho();    // disable input echo
       curs_set(0); // hide cursor
-      
+
       start_color();
       use_default_colors();
-      // for (auto i : std::views::iota(0u, 7u))
-      //   init_pair(i, i, COLOR_BLACK);
+
+      short fg_color, bg_color;
+      pair_content(0, &fg_color, &bg_color);
+      for (auto i : std::views::iota(1u, 7u))
+        init_pair(i, i, bg_color);
     }
     win = newwin(height + 2, width + 2, start_y, start_x);
     ::refresh(); // refresh root window
@@ -50,7 +53,7 @@ public:
   }
 
   inline constexpr auto say(std::string_view txt) -> void {
-    const auto [row, col] = getmaxyx();
+    const auto& [row, col] = getmaxyx();
     clear();
     mvwaddstr(win, row / 2, (col - std::size(txt)) / 2, std::data(txt));
     refresh();
@@ -65,7 +68,7 @@ public:
   }
 
   inline constexpr auto inchstr(auto y, auto x, auto width) -> decltype(auto) {
-    const auto [rows, cols] = getmaxyx();
+    const auto& [rows, cols] = getmaxyx();
 
     y = (y % rows) + 1;
     x = (x % cols) + 1;

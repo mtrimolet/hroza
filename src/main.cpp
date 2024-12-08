@@ -57,6 +57,12 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
     grid.size.z / 2,
   }] = 'W';
 
+  const auto offsets = std::views::zip(
+      std::vector<symbol>{'B','W','E','P','R','U','G'}, 
+      std::views::iota(0u)
+    )
+    | std::ranges::to<std::unordered_map<symbol, UInt>>();
+
   auto window = ncurses::window{grid.size.y, grid.size.x};
   window.say("hello!");
   window.waitchar();
@@ -70,7 +76,8 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   for (auto changes : /*growth*/seq_snake(grid)) {
     if (std::ranges::empty(changes)) continue;
     for (auto &[u, value] : changes) {
-      window.addch(u.y, u.x, value);
+      if (offsets.contains(value)) window.addch(u.y, u.x, value, offsets.at(value));
+      else window.addch(u.y, u.x, value);
     }
     window.refresh();
   }
