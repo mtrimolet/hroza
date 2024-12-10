@@ -3,6 +3,7 @@ export module grid;
 import std;
 import glm;
 import stormkit.Core;
+import utils;
 
 using namespace stormkit;
 
@@ -36,7 +37,7 @@ struct Grid {
   Grid(math::Vector3U _size, std::vector<T> _values) noexcept : size{_size}, values{_values} {}
   Grid(math::Vector3U _size, T v) noexcept : size{_size}, values{std::views::repeat(v, size.z * size.y * size.x) | std::ranges::to<std::vector>()} {}
 
-  Grid(std::initializer_list<std::initializer_list<std::initializer_list<T>>> _values) noexcept
+  Grid(auto&& _values) noexcept
     : size{
         std::empty(_values) or std::empty(std::ranges::begin(_values)[0]) ? 0
           : std::ranges::size(std::ranges::begin(std::ranges::begin(_values)[0])[0]),
@@ -53,6 +54,22 @@ struct Grid {
   inline constexpr auto operator[](const math::Vector3U& u) noexcept -> decltype(auto) {
     return values[toIndex(u, size)];
   }
+
+  static inline constexpr auto parse(auto Zsep, auto Ysep, std::basic_string_view<T> str) noexcept -> decltype(auto) {
+    return Grid<T>{str
+      | std::views::split(Zsep)
+      | std::views::transform([Ysep](auto&& square){ 
+          return square
+            | std::views::split(Ysep)
+            | std::views::transform([](auto&& line){
+                return line
+                  | std::ranges::to<std::vector>();
+              })
+            | std::ranges::to<std::vector>(); 
+        })
+      | std::ranges::to<std::vector>()
+    };
+  }
 };
 
 template <class T>
@@ -62,9 +79,21 @@ struct Change {
 };
 
 template <class T>
-inline constexpr auto apply(Grid<T>& grid, const Change<T>& change) noexcept -> decltype(auto) {
-  grid[change.u] = change.value;
-}
+struct TracedGrid : Grid<T> {
+  std::vector<Change<T>> history;
+
+  TracedGrid(math::Vector3U _size, std::vector<T> _values) noexcept 
+    : Grid<T>{_size, _values}, history{} {}
+  TracedGrid(math::Vector3U _size, T v) noexcept
+    : Grid<T>{_size, v}, history{} {}
+  TracedGrid(std::initializer_list<std::initializer_list<std::initializer_list<T>>> _values) noexcept
+    : Grid<T>{_values}, history{} {}
+
+  inline constexpr auto apply(const Change<T>& change) noexcept -> decltype(auto) {
+    history.push_back(change);
+    Grid<T>::operator[](change.u) = change.value;
+  }
+};
 
 template <class T>
 inline constexpr auto xreflected(const Grid<T>& grid) noexcept -> decltype(auto) {

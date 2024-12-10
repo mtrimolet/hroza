@@ -11,75 +11,71 @@ using namespace stormkit;
 export {
   
 template <class T>
-using Action = std::function<std::vector<Change<T>>(Grid<T>&)>;
+using Action = std::function<std::vector<Change<T>>(TracedGrid<T>&)>;
 
 template <class T>
-inline auto limit(UInt count, const Action<T>& action, Grid<T>& grid) noexcept -> std::generator<std::vector<Change<T>>> {
-  for (; count > 0u; count--) {
-    auto changes = action(grid);
-    if (std::ranges::empty(changes)) break;
-    std::ranges::for_each(changes, [&grid](const auto& change) noexcept { return apply(grid, change); });
+struct NoLimit {
+  Action<T> action;
+  inline auto operator()(TracedGrid<T>& grid) noexcept -> std::generator<std::vector<Change<T>>> {
+    const auto changes = action(grid);
+    if (std::ranges::empty(changes)) co_return;
+    std::ranges::for_each(changes, [&grid](auto&& c) noexcept {
+      grid.apply(c);
+    });
     co_yield changes;
   }
-}
+};
 
 template <class T>
 struct Limit {
   UInt count;
   Action<T> action;
-  inline constexpr auto operator()(Grid<T>& grid) const noexcept-> decltype(auto) {
-    return limit<T>(count, action, grid);
-  }
-};
+  inline auto operator()(TracedGrid<T>& grid) noexcept -> std::generator<std::vector<Change<T>>> {
+    if (count == 0) co_return;
+    
+    const auto changes = action(grid);
+    if (std::ranges::empty(changes)) co_return;
+    std::ranges::for_each(changes, [&grid](auto&& c) noexcept {
+      grid.apply(c);
+    });
 
-template <class T>
-inline auto no_limit(const Action<T>& action, Grid<T>& grid) -> std::generator<std::vector<Change<T>>> {
-  for (;;) {
-    auto changes = action(grid);
-    if (std::ranges::empty(changes)) break;
-    std::ranges::for_each(changes, [&grid](const auto& change) noexcept { return apply(grid, change); });
+    count--;
     co_yield changes;
   }
-}
-
-template <class T>
-struct NoLimit {
-  Action<T> action;
-  inline constexpr auto operator()(Grid<T>& grid) const noexcept -> decltype(auto) {
-    return limit<T>(0xff, action, grid);
-  }
 };
 
 template <class T>
-using Node = std::function<std::generator<std::vector<Change<T>>>(Grid<T>&)>;
+using Node = std::function<std::generator<std::vector<Change<T>>>(TracedGrid<T>&)>;
 
 template <class T>
-inline auto sequence(std::span<const Node<T>> nodes, Grid<T>& grid) noexcept -> std::generator<std::vector<Change<T>>> {
-  for (auto current_node : nodes)
-    for (auto changes : current_node(grid)) {
-      if (std::ranges::empty(changes)) break;
-      std::ranges::for_each(changes, [&grid](const auto& change) noexcept { return apply(grid, change); });
+inline auto sequence(std::span<Node<T>> nodes, TracedGrid<T>& grid) noexcept -> std::generator<std::vector<Change<T>>> {
+  auto current_node = std::ranges::begin(nodes);
+  while (current_node != std::ranges::end(nodes)) {
+    auto found = false;
+    for (auto changes : (*current_node)(grid)) {
+      if (not found) found = true;
       co_yield changes;
+    }
+    if (not found)
+      current_node++;
   }
 }
 
 template <class T>
 struct Sequence {
   std::vector<Node<T>> nodes;
-  inline constexpr auto operator()(Grid<T>& grid) const noexcept -> decltype(auto) {
+  inline constexpr auto operator()(TracedGrid<T>& grid) noexcept -> decltype(auto) {
     return sequence<T>(nodes, grid);
   }
 };
 
 template <class T>
-inline auto markov(std::span<const Node<T>> nodes, Grid<T>& grid) noexcept -> std::generator<std::vector<Change<T>>> {
+inline auto markov(std::span<Node<T>> nodes, TracedGrid<T>& grid) noexcept -> std::generator<std::vector<Change<T>>> {
   auto current_node = std::ranges::begin(nodes);
   while (current_node != std::ranges::end(nodes)) {
     auto found = false;
     for (auto changes : (*current_node)(grid)) {
-      if (std::ranges::empty(changes)) break;
       if (not found) found = true;
-      std::ranges::for_each(changes, [&grid](const auto& change) noexcept { return apply(grid, change); });
       co_yield changes;
     }
     if (found)
@@ -92,7 +88,7 @@ inline auto markov(std::span<const Node<T>> nodes, Grid<T>& grid) noexcept -> st
 template <class T>
 struct Markov {
   std::vector<Node<T>> nodes;
-  inline constexpr auto operator()(Grid<T>& grid) const noexcept -> decltype(auto) {
+  inline constexpr auto operator()(TracedGrid<T>& grid) noexcept -> decltype(auto) {
     return markov<T>(nodes, grid);
   }
 };
