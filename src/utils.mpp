@@ -22,8 +22,8 @@ std::function<ReturnType (Args...)> memoize(std::function<ReturnType (Args...)> 
 }
 
 template <>
-struct std::hash<glm::vec<3, unsigned int, glm::packed_highp>> {
-  inline constexpr auto operator()(glm::vec<3, unsigned int, glm::packed_highp> u) const noexcept -> std::size_t {
+struct std::hash<math::Vector3U> {
+  inline constexpr auto operator()(math::Vector3U u) const noexcept -> std::size_t {
     return std::hash<UInt>{}(u.x) ^ std::hash<UInt>{}(u.y) ^ std::hash<UInt>{}(u.z);
   }
 };

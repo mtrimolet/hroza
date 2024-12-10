@@ -23,7 +23,6 @@ constexpr symbol Ignored = '*';
 const auto basic_snake_offsets = std::views::zip(
   "BWDPGR"sv, std::views::iota(0u)
 ) 
-// | std::views::take(std::ranges::size("BWDPGR") - 1)
 | std::ranges::to<std::unordered_map<symbol, UInt>>();
 
 auto basic_snake = Sequence<symbol>{{
@@ -90,7 +89,7 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   // [tmpfix] remove when stormkit userMain allows for non-packaged build
   chdir("/Users/mtrimolet/Desktop/mtrimolet/markovjunior/hroza");
 
-  auto grid = TracedGrid<symbol>{{67u, 67u, 1u}, 'B'};
+  auto grid = TracedGrid<symbol>{{37u, 37u, 1u}, 'B'};
   grid[{
     grid.size.x / 2,
     grid.size.y / 2,
@@ -101,8 +100,7 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   window.say("hello!");
   window.waitchar();
 
-  // for (auto [line, y] : std::views::zip(grid.values | std::views::chunk(grid.size.x), std::views::iota(0u))) {
-  for (auto [value, u] : std::views::zip(grid.values, std::views::iota(0u) | std::views::transform(bindBack(fromIndex, grid.size)))) {
+  for (const auto& [u, value] : std::views::zip(locations(grid.size), grid)) {
     if (basic_snake_offsets.contains(value))
       window.addch(u.y, u.x, value, basic_snake_offsets.at(value));
     else
@@ -111,7 +109,7 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   window.refresh();
   
   for (auto changes : basic_snake(grid)) {
-    for (auto &[u, value] : changes) {
+    for (const auto& [u, value] : changes) {
       if (basic_snake_offsets.contains(value))
         window.addch(u.y, u.x, value, basic_snake_offsets.at(value));
       else

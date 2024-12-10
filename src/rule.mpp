@@ -18,25 +18,22 @@ struct Rule {
 
   inline constexpr auto operator==(const Rule<T>& other) const noexcept -> bool = default;
 
-  static inline constexpr auto parse(auto Zsep, auto Ysep, auto Ignored, std::basic_string_view<T> _input, std::basic_string_view<T> _output) noexcept -> decltype(auto) {
-    const auto input = Grid<T>::parse(Zsep, Ysep, _input);
-    const auto output = Grid<T>::parse(Zsep, Ysep, _output);
+  static inline constexpr auto parse(T Zsep, T Ysep, T Ignored, std::basic_string_view<T> _input, std::basic_string_view<T> _output) noexcept -> decltype(auto) {
+    auto input = Grid<T>::parse(Zsep, Ysep, _input);
+    auto output = Grid<T>::parse(Zsep, Ysep, _output);
 
-    return Rule<T>{{
-      input.size,
-      input.values
+    return Rule<T>{
+      input
         | std::views::transform([Ignored](const T& t) noexcept {
             return t == Ignored ? std::nullopt : std::optional{std::unordered_set{t}};
         })
-        | std::ranges::to<std::vector>()
-    }, {
-      output.size,
-      output.values
+        | std::ranges::to<Grid<std::optional<std::unordered_set<T>>>>(input.size),
+      output
         | std::views::transform([Ignored](const T& t) noexcept {
             return t == Ignored ? std::nullopt : std::optional{t};
         })
-        | std::ranges::to<std::vector>()
-    }};
+        | std::ranges::to<Grid<std::optional<T>>>(output.size),
+    };
   }
 };
 
@@ -66,25 +63,25 @@ inline constexpr auto zyrotated(const Rule<T>& rule) noexcept -> decltype(auto) 
 
 template <class T>
 const auto groups = makeStaticArray<std::function<T(const T&)>>(
-  [](const auto& rule) noexcept { return auto{rule}; },
-  [](const auto& rule) noexcept { return xyrotated(rule); },
-  [](const auto& rule) noexcept { return xyrotated(xyrotated(rule)); },
-  [](const auto& rule) noexcept { return xyrotated(xyrotated(xyrotated(rule))); },
-  [](const auto& rule) noexcept { return xreflected(rule); },
-  [](const auto& rule) noexcept { return xyrotated(xreflected(rule)); },
-  [](const auto& rule) noexcept { return xyrotated(xyrotated(xreflected(rule))); },
-  [](const auto& rule) noexcept { return xyrotated(xyrotated(xyrotated(xreflected(rule)))); },
+  [](const T& rule) noexcept { return auto{rule}; },
+  [](const T& rule) noexcept { return xyrotated(rule); },
+  [](const T& rule) noexcept { return xyrotated(xyrotated(rule)); },
+  [](const T& rule) noexcept { return xyrotated(xyrotated(xyrotated(rule))); },
+  [](const T& rule) noexcept { return xreflected(rule); },
+  [](const T& rule) noexcept { return xyrotated(xreflected(rule)); },
+  [](const T& rule) noexcept { return xyrotated(xyrotated(xreflected(rule))); },
+  [](const T& rule) noexcept { return xyrotated(xyrotated(xyrotated(xreflected(rule)))); },
 );
 
 template <class T>
 struct std::hash<Rule<T>> {
   inline constexpr auto operator()(const Rule<T>& rule) const noexcept -> std::size_t {
     auto seed = std::hash<math::Vector3U>{}(rule.input.size);
-    for (auto i : rule.input.values) {
-      seed ^= std::hash<std::optional<std::unordered_set<T>>>{}(i);
+    for (auto v : rule.input) {
+      seed ^= std::hash<std::optional<std::unordered_set<T>>>{}(v);
     }
-    for (auto o : rule.output.values) {
-      seed ^= std::hash<std::optional<T>>{}(o);
+    for (auto v : rule.output) {
+      seed ^= std::hash<std::optional<T>>{}(v);
     }
     return seed;
   }
@@ -106,10 +103,12 @@ struct Match {
 template <class T>
 inline constexpr auto match(const Grid<T>& grid, const Match<T>& match) noexcept -> bool {
   return std::ranges::all_of(
-    std::views::zip(match.rule.input.values, std::views::iota(0) 
-      | std::views::transform([&match](auto i) noexcept { return match.u + fromIndex(i, match.rule.input.size); })),
+    std::views::zip(
+      locations(match.rule.input.size) | std::views::transform([&match](auto u) noexcept { return match.u + u; }),
+      match.rule.input,
+    ),
     [&grid](const auto& input) noexcept {
-      const auto& [value, v] = input;
+      const auto& [v, value] = input;
       return value == std::nullopt
          or std::ranges::find(*value, grid.at(v)) != std::ranges::end(*value);
     }
@@ -118,15 +117,17 @@ inline constexpr auto match(const Grid<T>& grid, const Match<T>& match) noexcept
 
 template <class T>
 inline constexpr auto changes(const Grid<T>& grid, const Match<T>& match) noexcept -> decltype(auto) {
-  return std::views::zip(match.rule.output.values, std::views::iota(0)
-      | std::views::transform([&match](auto i) noexcept { return match.u + fromIndex(i, match.rule.output.size); }))
+  return std::views::zip(
+    locations(match.rule.output.size) | std::views::transform([&match](auto u) noexcept { return match.u + u; }),
+    match.rule.output,
+  )
     | std::views::filter([&grid](const auto& output) noexcept {
-        const auto& [value, v] = output;
+        const auto& [v, value] = output;
         return  value != std::nullopt
            and *value != grid.at(v);
     })
     | std::views::transform([](auto&& output) noexcept {
-        return Change<T>{std::get<1>(output), *std::get<0>(output)};
+        return Change<T>{std::get<0>(output), *std::get<1>(output)};
       })
     | std::ranges::to<std::vector>();
 }
@@ -134,7 +135,7 @@ inline constexpr auto changes(const Grid<T>& grid, const Match<T>& match) noexce
 template <class T>
 inline constexpr auto matches(const Grid<T>& grid, std::span<const Rule<T>> rules, std::span<const Change<T>> changes) noexcept -> decltype(auto) {
   const auto locations = std::ranges::empty(changes)
-    ? std::views::iota(0u, grid.size.z * grid.size.y * grid.size.x) | std::views::transform(bindBack(fromIndex, grid.size)) | std::ranges::to<std::vector>()
+    ? ::locations(grid.size) | std::ranges::to<std::vector>()
     : changes | std::views::transform(&Change<T>::u) | std::ranges::to<std::vector>();
 
   return rules
