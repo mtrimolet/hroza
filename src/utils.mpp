@@ -71,13 +71,13 @@ inline constexpr auto cartesian_product(A&& a, B&& b) noexcept -> decltype(auto)
 }
 
 template <std::ranges::sized_range A>
-inline constexpr auto chunk(A&& a, RangeExtent size) noexcept -> decltype(auto) {
+inline constexpr auto chunk(A&& a, RangeExtent extent) noexcept -> decltype(auto) {
   return std::views::iota(0u, std::ranges::size(a))
-    | std::views::stride(size)
-    | std::views::transform([&a, size](auto i) noexcept {
+    | std::views::stride(extent)
+    | std::views::transform([&a, extent](auto i) noexcept {
         return std::ranges::subrange(
           std::ranges::begin(a) + i,
-          std::ranges::begin(a) + i + size,
+          std::ranges::begin(a) + i + extent,
         );
     });
 }

@@ -9,29 +9,29 @@ using namespace stormkit;
 
 export {
 
-inline constexpr auto toIndex(const math::Vector3U& u, const math::Vector3U& size) noexcept -> decltype(auto) {
+inline constexpr auto toIndex(const math::Vector3U& u, const math::Vector3U& extents) noexcept -> decltype(auto) {
   return u.x * 1
-       + u.y * size.x
-       + u.z * size.x * size.y;
+       + u.y * extents.x
+       + u.z * extents.x * extents.y;
 }
 
-inline constexpr auto fromIndex(UInt u, const math::Vector3U& size) noexcept -> decltype(auto) {
+inline constexpr auto fromIndex(UInt u, const math::Vector3U& extents) noexcept -> decltype(auto) {
   return math::Vector3U{
-    (u / (1)) % size.x,
-    (u / (size.x)) % size.y,
-    (u / (size.x * size.y)) % size.z,
+    (u / (1)) % extents.x,
+    (u / (extents.x)) % extents.y,
+    (u / (extents.x * extents.y)) % extents.z,
   };
 }
 
-inline constexpr auto locations(const math::Vector3U& size) noexcept -> decltype(auto) {
-  return std::views::iota(0u, size.z * size.y * size.x)
-    | std::views::transform(bindBack(fromIndex, size));
+inline constexpr auto locations(const math::Vector3U& extents) noexcept -> decltype(auto) {
+  return std::views::iota(0u, extents.z * extents.y * extents.x)
+    | std::views::transform(bindBack(fromIndex, extents));
 }
 
-inline constexpr auto inBounds(const math::Vector3U& u, const math::Vector3U& highest) -> decltype(auto) {
-  return u.x <= highest.x
-      && u.y <= highest.y
-      && u.z <= highest.z;
+inline constexpr auto inBounds(const math::Vector3U& u, const math::Vector3U& extents) -> decltype(auto) {
+  return u.x <= extents.x
+      && u.y <= extents.y
+      && u.z <= extents.z;
 }
 
 template <class R, class T>
@@ -41,21 +41,21 @@ concept container_compatible_range =
 
 template <class T>
 struct Grid {
-  math::Vector3U size;
+  math::Vector3U extents;
   std::vector<T> values;
 
   template<container_compatible_range<T> R>
-  Grid(std::from_range_t, R&& _values, math::Vector3U _size) noexcept : size{_size}, values{std::from_range, _values} {}
-  Grid(math::Vector3U _size, T v) noexcept : Grid{std::from_range, std::views::repeat(v, _size.z * _size.y * _size.x), _size} {}
+  Grid(std::from_range_t, R&& _values, math::Vector3U _extents) noexcept : extents{_extents}, values{std::from_range, _values} {}
+  Grid(math::Vector3U _extents, T v) noexcept : Grid{std::from_range, std::views::repeat(v, _extents.z * _extents.y * _extents.x), _extents} {}
 
   inline constexpr auto operator==(const Grid<T>& other) const noexcept -> bool = default;
 
   inline constexpr auto at(const math::Vector3U& u) const noexcept -> decltype(auto) {
-    return values.at(toIndex(u, size));
+    return values.at(toIndex(u, extents));
   }
 
   inline constexpr auto operator[](const math::Vector3U& u) noexcept -> decltype(auto) {
-    return values[toIndex(u, size)];
+    return values[toIndex(u, extents)];
   }
 
   inline constexpr auto begin() const noexcept -> decltype(auto) {
@@ -85,7 +85,7 @@ struct Grid {
             | std::ranges::to<std::vector>(); 
         })
       | std::ranges::to<std::vector>();
-    auto _size = math::Vector3U{
+    auto _extents = math::Vector3U{
       std::ranges::empty(_values) or std::ranges::empty(_values[0]) ? 0u
         : std::ranges::size(_values[0][0]),
       std::ranges::empty(_values) ? 0u
@@ -96,7 +96,7 @@ struct Grid {
     return _values
       | std::views::join
       | std::views::join
-      | std::ranges::to<Grid<T>>(_size);
+      | std::ranges::to<Grid<T>>(_extents);
   }
 };
 
@@ -110,8 +110,8 @@ template <class T>
 struct TracedGrid : Grid<T> {
   std::vector<Change<T>> history;
 
-  TracedGrid(math::Vector3U _size, T v) noexcept
-    : Grid<T>{_size, v}, history{} {}
+  TracedGrid(math::Vector3U _extents, T v) noexcept
+    : Grid<T>{_extents, v}, history{} {}
 
   inline constexpr auto apply(const Change<T>& change) noexcept -> decltype(auto) {
     history.push_back(change);
@@ -121,39 +121,39 @@ struct TracedGrid : Grid<T> {
 
 template <class T>
 inline constexpr auto xreflected(const Grid<T>& grid) noexcept -> decltype(auto) {
-  auto size = auto{grid.size};
-  return locations(size)
-    | std::views::transform([&size, &grid](auto u) noexcept {
-        return grid.at({ size.x - u.x - 1u, u.y, u.z });
+  auto extents = auto{grid.extents};
+  return locations(extents)
+    | std::views::transform([&extents, &grid](auto u) noexcept {
+        return grid.at({ extents.x - u.x - 1u, u.y, u.z });
     })
-    | std::ranges::to<Grid<T>>(size);
+    | std::ranges::to<Grid<T>>(extents);
 }
 
 template <class T>
 inline constexpr auto xyrotated(const Grid<T>& grid) noexcept -> decltype(auto) {
-  auto size = math::Vector3U{
-    grid.size.y,
-    grid.size.x,
-    grid.size.z,
+  auto extents = math::Vector3U{
+    grid.extents.y,
+    grid.extents.x,
+    grid.extents.z,
   };
-  return locations(size)
-    | std::views::transform([&size, &grid](auto u) noexcept {
-        return grid.at({ u.y, size.x - u.x - 1, u.z });
+  return locations(extents)
+    | std::views::transform([&extents, &grid](auto u) noexcept {
+        return grid.at({ u.y, extents.x - u.x - 1, u.z });
     })
-    | std::ranges::to<Grid<T>>(size);
+    | std::ranges::to<Grid<T>>(extents);
 }
 
 template <class T>
 inline constexpr auto zyrotated(const Grid<T>& grid) noexcept -> decltype(auto) {
-  auto size = math::Vector3U{
-    grid.size.x,
-    grid.size.z,
-    grid.size.y,
+  auto extents = math::Vector3U{
+    grid.extents.x,
+    grid.extents.z,
+    grid.extents.y,
   };
-  return locations(size)
-    | std::views::transform([&size, &grid](auto u) noexcept {
-        return grid.at({ u.x, size.z - u.z - 1, u.y });
+  return locations(extents)
+    | std::views::transform([&extents, &grid](auto u) noexcept {
+        return grid.at({ u.x, extents.z - u.z - 1, u.y });
     })
-    | std::ranges::to<Grid<T>>(size);
+    | std::ranges::to<Grid<T>>(extents);
 }
 }

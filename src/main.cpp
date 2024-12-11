@@ -91,16 +91,16 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
 
   auto grid = TracedGrid<symbol>{{37u, 37u, 1u}, 'B'};
   grid[{
-    grid.size.x / 2,
-    grid.size.y / 2,
-    grid.size.z / 2,
+    grid.extents.x / 2,
+    grid.extents.y / 2,
+    grid.extents.z / 2,
   }] = 'W';
 
-  auto window = ncurses::window{grid.size.y, grid.size.x};
+  auto window = ncurses::window{grid.extents.y, grid.extents.x};
   window.say("hello!");
   window.waitchar();
 
-  for (const auto& [u, value] : std::views::zip(locations(grid.size), grid)) {
+  for (const auto& [u, value] : std::views::zip(locations(grid.extents), grid)) {
     if (basic_snake_offsets.contains(value))
       window.addch(u.y, u.x, value, basic_snake_offsets.at(value));
     else
