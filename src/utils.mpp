@@ -9,6 +9,11 @@ using namespace stormkit;
 
 export {
 
+template <class R, class T>
+concept container_compatible_range = 
+  std::ranges::input_range<R>
+  and std::convertible_to<std::ranges::range_reference_t<R>, T>;
+
 // from: https://stackoverflow.com/a/13370695
 template <typename ReturnType, typename... Args>
 std::function<ReturnType (Args...)> memoize(std::function<ReturnType (Args...)> func) {
@@ -20,13 +25,6 @@ std::function<ReturnType (Args...)> memoize(std::function<ReturnType (Args...)> 
           return cache[t];
   });
 }
-
-template <>
-struct std::hash<math::Vector3U> {
-  inline constexpr auto operator()(math::Vector3U u) const noexcept -> std::size_t {
-    return std::hash<UInt>{}(u.x) ^ std::hash<UInt>{}(u.y) ^ std::hash<UInt>{}(u.z);
-  }
-};
 
 template <class T>
 struct std::hash<std::unordered_set<T>> {
@@ -50,11 +48,30 @@ struct std::hash<std::vector<T>> {
   }
 };
 
-template <class... T>
-struct std::hash<std::tuple<T...>> {
-  inline constexpr auto operator()(const std::tuple<T...>& tuple) const noexcept -> std::size_t {
-    return std::hash<std::size_t>{}(std::tuple_size_v<std::tuple<T...>>)
-      ^ (std::hash<T>{}(tuple) ^ ...);
+// template <class... T>
+// struct std::hash<std::tuple<T...>> {
+//   inline constexpr auto operator()(const std::tuple<T...>& tuple) const noexcept -> std::size_t {
+//     return (std::hash<std::size_t>{}(std::tuple_size_v<std::tuple<T...>>) 
+//          ^ ...
+//          ^ std::hash<T>{}(tuple));
+//   }
+// };
+
+template <>
+struct std::hash<math::Vector3U> {
+  inline constexpr auto operator()(math::Vector3U u) const noexcept -> std::size_t {
+    return std::hash<UInt>{}(u.x)
+         ^ std::hash<UInt>{}(u.y)
+         ^ std::hash<UInt>{}(u.z);
+  }
+};
+
+template <>
+struct std::hash<std::dims<3>> {
+  inline constexpr auto operator()(std::dims<3> u) const noexcept -> std::size_t {
+    return std::hash<UInt>{}(u.extent(0))
+         ^ std::hash<UInt>{}(u.extent(1))
+         ^ std::hash<UInt>{}(u.extent(2));
   }
 };
 
@@ -81,4 +98,53 @@ inline constexpr auto chunk(A&& a, RangeExtent extent) noexcept -> decltype(auto
         );
     });
 }
+
+inline constexpr auto dot(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
+  return a.x * b.x
+       + a.y * b.y
+       + a.z * b.z;
+}
+
+inline constexpr auto mod(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
+  return math::Vector3U{
+    a.x % b.x,
+    a.y % b.y,
+    a.z % b.z,
+  };
+}
+
+inline constexpr auto mod(const math::Vector3U& a, UInt b) noexcept -> decltype(auto) {
+  return math::Vector3U{
+    a.x % b,
+    a.y % b,
+    a.z % b,
+  };
+}
+
+inline constexpr auto div(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
+  return math::Vector3U{
+    a.x / b.x,
+    a.y / b.y,
+    a.z / b.z,
+  };
+}
+
+inline constexpr auto div(const math::Vector3U& a, UInt b) noexcept -> decltype(auto) {
+  return math::Vector3U{
+    a.x / b,
+    a.y / b,
+    a.z / b,
+  };
+}
+
+inline constexpr auto allLessThan(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
+  return math::all(math::lessThan(a, b));
+}
+
+template <>
+struct std::equal_to<math::Vector3U> {
+  inline constexpr auto operator()(const math::Vector3U& a, const math::Vector3U& b) noexcept -> bool {
+    return math::all(math::equal(a, b));
+  }
+};
 }

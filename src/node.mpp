@@ -13,31 +13,39 @@ export {
 template <class T>
 using Action = std::function<std::vector<Change<T>>(TracedGrid<T>&)>;
 
+}
+
 template <class T>
-struct NoLimit {
+struct ActionNode {
   Action<T> action;
-  inline auto operator()(TracedGrid<T>& grid) noexcept -> std::generator<std::vector<Change<T>>> {
+  inline constexpr auto operator()(TracedGrid<T>& grid) noexcept -> std::vector<Change<T>> {
     const auto changes = action(grid);
+    std::ranges::for_each(changes, bindFront(&TracedGrid<T>::apply, &grid));
+    return changes;
+  }
+};
+
+export {
+
+template <class T>
+struct NoLimit : ActionNode<T> {
+  inline auto operator()(TracedGrid<T>& grid) noexcept -> std::generator<std::vector<Change<T>>> {
+    const auto changes = ActionNode<T>::operator()(grid);
     if (std::ranges::empty(changes)) co_return;
-    std::ranges::for_each(changes, [&grid](auto&& c) noexcept {
-      grid.apply(c);
-    });
     co_yield changes;
   }
 };
 
 template <class T>
-struct Limit {
+struct Limit : ActionNode<T> {
   UInt count;
-  Action<T> action;
+  Limit(UInt _count, Action<T>&& _action) noexcept : ActionNode<T>{std::move(_action)}, count{_count} {}
+
   inline auto operator()(TracedGrid<T>& grid) noexcept -> std::generator<std::vector<Change<T>>> {
     if (count == 0) co_return;
     
-    const auto changes = action(grid);
+    const auto changes = ActionNode<T>::operator()(grid);
     if (std::ranges::empty(changes)) co_return;
-    std::ranges::for_each(changes, [&grid](auto&& c) noexcept {
-      grid.apply(c);
-    });
 
     count--;
     co_yield changes;
@@ -48,48 +56,38 @@ template <class T>
 using Node = std::function<std::generator<std::vector<Change<T>>>(TracedGrid<T>&)>;
 
 template <class T>
-inline auto sequence(std::span<Node<T>> nodes, TracedGrid<T>& grid) noexcept -> std::generator<std::vector<Change<T>>> {
-  auto current_node = std::ranges::begin(nodes);
-  while (current_node != std::ranges::end(nodes)) {
-    auto found = false;
-    for (auto changes : (*current_node)(grid)) {
-      if (not found) found = true;
-      co_yield changes;
-    }
-    if (not found)
-      current_node++;
-  }
-}
-
-template <class T>
 struct Sequence {
   std::vector<Node<T>> nodes;
-  inline constexpr auto operator()(TracedGrid<T>& grid) noexcept -> decltype(auto) {
-    return sequence<T>(nodes, grid);
+  inline auto operator()(TracedGrid<T>& grid) noexcept -> std::generator<std::vector<Change<T>>> {
+    auto current_node = std::ranges::begin(nodes);
+    while (current_node != std::ranges::end(nodes)) {
+      auto found = false;
+      for (auto changes : (*current_node)(grid)) {
+        if (not found) found = true;
+        co_yield changes;
+      }
+      if (not found)
+        current_node++;
+    }
   }
 };
 
 template <class T>
-inline auto markov(std::span<Node<T>> nodes, TracedGrid<T>& grid) noexcept -> std::generator<std::vector<Change<T>>> {
-  auto current_node = std::ranges::begin(nodes);
-  while (current_node != std::ranges::end(nodes)) {
-    auto found = false;
-    for (auto changes : (*current_node)(grid)) {
-      if (not found) found = true;
-      co_yield changes;
-    }
-    if (found)
-      current_node = std::ranges::begin(nodes);
-    else
-      current_node++;
-  }
-}
-
-template <class T>
 struct Markov {
   std::vector<Node<T>> nodes;
-  inline constexpr auto operator()(TracedGrid<T>& grid) noexcept -> decltype(auto) {
-    return markov<T>(nodes, grid);
+  inline auto operator()(TracedGrid<T>& grid) noexcept -> std::generator<std::vector<Change<T>>> {
+    auto current_node = std::ranges::begin(nodes);
+    while (current_node != std::ranges::end(nodes)) {
+      auto found = false;
+      for (auto changes : (*current_node)(grid)) {
+        if (not found) found = true;
+        co_yield changes;
+      }
+      if (found)
+        current_node = std::ranges::begin(nodes);
+      else
+        current_node++;
+    }
   }
 };
 

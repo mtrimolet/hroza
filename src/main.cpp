@@ -16,12 +16,14 @@ using namespace std::literals;
 using namespace stormkit;
 using symbol = char;
 
+namespace {
 constexpr symbol Zsep = ' ';
 constexpr symbol Ysep = '/';
 constexpr symbol Ignored = '*';
 
+const auto basic_snake_symbols = "BWDPGR"sv;
 const auto basic_snake_offsets = std::views::zip(
-  "BWDPGR"sv, std::views::iota(0u)
+  basic_snake_symbols, std::views::iota(0u)
 ) 
 | std::ranges::to<std::unordered_map<symbol, UInt>>();
 
@@ -50,8 +52,9 @@ auto basic_snake = Sequence<symbol>{{
   }},
 }};
 
+const auto seq_snake_symbols = "BWEPRUG"sv;
 const auto seq_snake_offsets = std::views::zip(
-  "BWEPRUG"sv, std::views::iota(0u)
+  seq_snake_symbols, std::views::iota(0u)
 ) 
 | std::ranges::to<std::unordered_map<symbol, UInt>>();
 
@@ -84,23 +87,20 @@ auto growth = Markov<symbol>{{
     Rule<symbol>::parse(Zsep, Ysep, Ignored, "WB", "WW"),
   } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}}
 }};
+}
 
 auto main(std::span<const std::string_view> args) noexcept -> int {
   // [tmpfix] remove when stormkit userMain allows for non-packaged build
   chdir("/Users/mtrimolet/Desktop/mtrimolet/markovjunior/hroza");
 
-  auto grid = TracedGrid<symbol>{{37u, 37u, 1u}, 'B'};
-  grid[{
-    grid.extents.x / 2,
-    grid.extents.y / 2,
-    grid.extents.z / 2,
-  }] = 'W';
+  auto grid = TracedGrid<symbol>{std::dims<3>{1u, 37u, 37u}, 'B'};
+  grid[div(toSentinel(grid.extents), 2u)] = 'W';
 
-  auto window = ncurses::window{grid.extents.y, grid.extents.x};
+  auto window = ncurses::window{grid.extents.extent(1), grid.extents.extent(2)};
   window.say("hello!");
   window.waitchar();
 
-  for (const auto& [u, value] : std::views::zip(locations(grid.extents), grid)) {
+  for (const auto& [u, value] : std::views::zip(mdiota(toSentinel(grid.extents)), grid)) {
     if (basic_snake_offsets.contains(value))
       window.addch(u.y, u.x, value, basic_snake_offsets.at(value));
     else

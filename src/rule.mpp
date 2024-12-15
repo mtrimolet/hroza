@@ -76,7 +76,7 @@ const auto groups = makeStaticArray<std::function<T(const T&)>>(
 template <class T>
 struct std::hash<Rule<T>> {
   inline constexpr auto operator()(const Rule<T>& rule) const noexcept -> std::size_t {
-    auto seed = std::hash<math::Vector3U>{}(rule.input.extents);
+    auto seed = std::hash<std::dims<3>>{}(rule.input.extents);
     for (auto v : rule.input) {
       seed ^= std::hash<std::optional<std::unordered_set<T>>>{}(v);
     }
@@ -101,30 +101,31 @@ struct Match {
 };
 
 template <class T>
-inline constexpr auto match(const Grid<T>& grid, const Match<T>& match) noexcept -> bool {
+inline constexpr auto match(std::mdspan<const T, std::dims<3>> grid, const Match<T>& match) noexcept -> bool {
   return std::ranges::all_of(
     std::views::zip(
-      locations(match.rule.input.extents) | std::views::transform([&match](auto u) noexcept { return match.u + u; }),
+      mdiota(toSentinel(match.rule.input.extents)) | std::views::transform([&match](auto u) noexcept { return match.u + u; }),
       match.rule.input,
     ),
     [&grid](const auto& input) noexcept {
       const auto& [v, value] = input;
+      const auto& gval = grid[v.z, v.y, v.x];
       return value == std::nullopt
-         or std::ranges::find(*value, grid.at(v)) != std::ranges::end(*value);
+         or std::ranges::find(*value, gval) != std::ranges::end(*value);
     }
   );
 }
 
 template <class T>
-inline constexpr auto changes(const Grid<T>& grid, const Match<T>& match) noexcept -> decltype(auto) {
+inline constexpr auto changes(std::mdspan<const T, std::dims<3>> grid, const Match<T>& match) noexcept -> decltype(auto) {
   return std::views::zip(
-    locations(match.rule.output.extents) | std::views::transform([&match](auto u) noexcept { return match.u + u; }),
+    mdiota(toSentinel(match.rule.output.extents)) | std::views::transform([&mu{match.u}](auto u) noexcept { return mu + u; }),
     match.rule.output,
   )
     | std::views::filter([&grid](const auto& output) noexcept {
         const auto& [v, value] = output;
         return  value != std::nullopt
-           and *value != grid.at(v);
+           and *value != grid[v.z, v.y, v.x];
     })
     | std::views::transform([](auto&& output) noexcept {
         return Change<T>{std::get<0>(output), *std::get<1>(output)};
@@ -133,28 +134,79 @@ inline constexpr auto changes(const Grid<T>& grid, const Match<T>& match) noexce
 }
 
 template <class T>
-inline constexpr auto matches(const Grid<T>& grid, std::span<const Rule<T>> rules, std::span<const Change<T>> changes) noexcept -> decltype(auto) {
-  const auto locations = std::ranges::empty(changes)
-    ? ::locations(grid.extents) | std::ranges::to<std::vector>()
-    : changes | std::views::transform(&Change<T>::u) | std::ranges::to<std::vector>();
+inline constexpr auto matches(std::mdspan<const T, std::dims<3>> grid, std::span<const Rule<T>> rules, std::span<const Change<T>> changes) noexcept -> decltype(auto) {
+  if (std::ranges::empty(changes)) {
+    return rules
+      | std::views::transform([&g_extents{grid.extents()}](const Rule<T>& rule) noexcept {
+          return mdiota(toSentinel(g_extents) - toSentinel(rule.input.extents) + math::Vector3U{1u, 1u, 1u})
+            | std::views::transform([&rule](auto u) noexcept {
+                return Match<T>{u, rule};
+            });
+        })
+      | std::views::join
+      | std::views::filter(bindFront(::match<T>, grid))
+      | std::ranges::to<std::vector>();
+  }
 
-  return rules
-    | std::views::transform([&locations, &g_extents{grid.extents}](const auto& rule) noexcept {
-        return locations
-          | std::views::filter(bindBack(inBounds, g_extents - rule.input.extents))
+  return rules 
+    | std::views::transform([&changes, &g_extents{grid.extents()}](const Rule<T>& rule) noexcept {
+        auto rchanges = changes
+          | std::views::transform([
+              g_sentinel{toSentinel(g_extents)}, 
+              ri_sentinel{toSentinel(rule.input.extents)}
+            ](const Change<T>& change) noexcept {
+              // boundaries
+              const auto initial = math::Vector3U{
+                std::max(0u, change.u.x - ri_sentinel.x),
+                std::max(0u, change.u.y - ri_sentinel.y),
+                std::max(0u, change.u.z - ri_sentinel.z),
+              };
+              const auto sentinel = math::Vector3U{
+                1u + std::min(g_sentinel.x - ri_sentinel.x, change.u.x),
+                1u + std::min(g_sentinel.y - ri_sentinel.y, change.u.y),
+                1u + std::min(g_sentinel.z - ri_sentinel.z, change.u.z),
+              };
+              return mdiota(initial, sentinel);
+          })
+          | std::views::join
+          | std::ranges::to<std::unordered_set>();
+        return rchanges
           | std::views::transform([&rule](auto u) noexcept {
               return Match<T>{u, rule};
           });
-      })
+    })
     | std::views::join
     | std::views::filter(bindFront(::match<T>, grid))
     | std::ranges::to<std::vector>();
+}
 }
 
 /********* */
 
 template <class T>
-inline constexpr auto one(std::span<const Rule<T>> rules, const Grid<T>& grid, std::span<const Change<T>> changes) noexcept -> decltype(auto) {
+struct RuleNode {
+  std::vector<Rule<T>> rules;
+  std::optional<typename std::vector<Change<T>>::const_iterator> last_matched;
+
+  RuleNode(std::vector<Rule<T>>&& _rules) noexcept
+    : rules{_rules}, last_matched{} {}
+
+  // inline constexpr auto operator()(const TracedGrid<T>& grid) noexcept -> decltype(auto) {
+  //   const auto now = std::ranges::cend(grid.history);
+  //   const auto changes =
+  //     last_matched == std::nullopt ? std::vector<Change<T>>{} :
+  //     std::ranges::subrange(*last_matched, now) | std::ranges::to<std::vector>();
+
+  //   auto res = !!!REPLACE!!!<T>(rules, grid, changes);
+  //   last_matched = std::ranges::empty(res) ? last_matched : std::optional{now};
+  //   return res;
+  // }
+};
+
+export {
+
+template <class T>
+inline constexpr auto one(std::span<const Rule<T>> rules, std::mdspan<const T, std::dims<3>> grid, std::span<const Change<T>> changes) noexcept -> decltype(auto) {
   auto matches = ::matches<T>(grid, rules, changes);
 
   static auto rg = std::mt19937{std::random_device{}()};
@@ -168,23 +220,25 @@ inline constexpr auto one(std::span<const Rule<T>> rules, const Grid<T>& grid, s
 }
 
 template <class T>
-struct One {
-  std::vector<Rule<T>> rules;
+struct One : RuleNode<T> {
+  using RuleNode<T>::rules;
+  using RuleNode<T>::last_matched;
+  One(std::vector<Rule<T>>&& x) noexcept : RuleNode<T>{std::move(x)} {}
 
   inline constexpr auto operator()(const TracedGrid<T>& grid) noexcept -> decltype(auto) {
-    // const auto now = std::ranges::cend(grid.history);
-    // const auto changes =
-    //   last_matched == std::nullopt ? std::vector<Change<T>>{} :
-    //   std::ranges::subrange(*last_matched, now) | std::ranges::to<std::vector>();
+    const auto now = std::ranges::cend(grid.history);
+    const auto changes =
+      last_matched == std::nullopt ? std::vector<Change<T>>{} :
+      std::ranges::subrange(*last_matched, now) | std::ranges::to<std::vector>();
 
-    auto res = one<T>(rules, grid, {});
+    auto res = one<T>(rules, {std::data(grid.values), grid.extents}, changes);
     // last_matched = std::ranges::empty(res) ? std::nullopt : std::optional{now};
     return res;
   }
 };
 
 template <class T>
-inline constexpr auto prl(std::span<const Rule<T>> rules, const Grid<T>& grid, std::span<const Change<T>> changes) noexcept -> decltype(auto) {
+inline constexpr auto prl(std::span<const Rule<T>> rules, std::mdspan<const T, std::dims<3>> grid, std::span<const Change<T>> changes) noexcept -> decltype(auto) {
   return ::matches<T>(grid, rules, changes)
     | std::views::transform(bindFront(::changes<T>, grid)) 
     | std::views::join 
@@ -192,65 +246,60 @@ inline constexpr auto prl(std::span<const Rule<T>> rules, const Grid<T>& grid, s
 }
 
 template <class T>
-struct Prl {
-  std::vector<Rule<T>> rules;
-  // std::optional<typename std::vector<Change<T>>::const_iterator> last_matched;
-
-  // Prl() noexcept = default;
-  // Prl(std::vector<Rule<T>>&& _rules) noexcept
-  //   : rules{_rules}, last_matched{} {}
+struct Prl : RuleNode<T> {
+  using RuleNode<T>::rules;
+  using RuleNode<T>::last_matched;
+  Prl(std::vector<Rule<T>>&& x) noexcept : RuleNode<T>{std::move(x)} {}
 
   inline constexpr auto operator()(const TracedGrid<T>& grid) noexcept -> decltype(auto) {
-    // const auto now = std::ranges::cend(grid.history);
-    // const auto changes =
-    //   last_matched == std::nullopt ? std::vector<Change<T>>{} :
-    //   std::ranges::subrange(*last_matched, now) | std::ranges::to<std::vector>();
+    const auto now = std::ranges::cend(grid.history);
+    const auto changes =
+      last_matched == std::nullopt ? std::vector<Change<T>>{} :
+      std::ranges::subrange(*last_matched, now) | std::ranges::to<std::vector>();
 
-    auto res = prl<T>(rules, grid, {});
+    auto res = prl<T>(rules, {std::data(grid.values), grid.extents}, changes);
     // last_matched = std::ranges::empty(res) ? std::nullopt : std::optional{now};
     return res;
   }
 };
 
 template <class T>
-inline constexpr auto all(std::span<const Rule<T>> rules, const Grid<T>& grid, std::span<const Change<T>> changes) noexcept -> decltype(auto) {
+inline constexpr auto all(std::span<const Rule<T>> rules, std::mdspan<const T, std::dims<3>> grid, std::span<const Change<T>> changes) noexcept -> decltype(auto) {
   auto matches = ::matches<T>(grid, rules, changes);
 
   static auto rg = std::mt19937{std::random_device{}()};
   std::ranges::shuffle(matches, rg);
 
-  auto cleaned = std::vector<Change<T>>{};
-  std::ranges::for_each(matches
-    | std::views::transform(bindFront(::changes<T>, grid)),
-    [&cleaned](auto&& changes) noexcept {
+  return std::ranges::fold_left(
+    matches | std::views::transform(bindFront(::changes<T>, grid)),
+    std::vector<Change<T>>{},
+    [](auto cleaned, const auto changes) noexcept {
       if (std::ranges::find_first_of(
         cleaned, changes,
         std::ranges::equal_to{},
         &Change<T>::u, &Change<T>::u
       ) == std::ranges::end(cleaned))
         cleaned.append_range(changes);
+      return cleaned;
     }
   );
 
-  return cleaned;
+  // return cleaned;
 }
 
 template <class T>
-struct All {
-  std::vector<Rule<T>> rules;
-  // std::optional<typename std::vector<Change<T>>::const_iterator> last_matched;
-
-  // All() noexcept = default;
-  // All(std::vector<Rule<T>>&& _rules) noexcept
-  //   : rules{_rules}, last_matched{} {}
+struct All : RuleNode<T> {
+  using RuleNode<T>::rules;
+  using RuleNode<T>::last_matched;
+  All(std::vector<Rule<T>>&& x) noexcept : RuleNode<T>{std::move(x)} {}
 
   inline constexpr auto operator()(const TracedGrid<T>& grid) noexcept -> decltype(auto) {
-    // const auto now = std::ranges::cend(grid.history);
-    // const auto changes =
-    //   last_matched == std::nullopt ? std::vector<Change<T>>{} :
-    //   std::ranges::subrange(*last_matched, now) | std::ranges::to<std::vector>();
+    const auto now = std::ranges::cend(grid.history);
+    const auto changes =
+      last_matched == std::nullopt ? std::vector<Change<T>>{} :
+      std::ranges::subrange(*last_matched, now) | std::ranges::to<std::vector>();
 
-    auto res = all<T>(rules, grid, {});
+    auto res = all<T>(rules, {std::data(grid.values), grid.extents}, changes);
     // last_matched = std::ranges::empty(res) ? std::nullopt : std::optional{now};
     return res;
   }
