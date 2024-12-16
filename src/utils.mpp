@@ -141,6 +141,10 @@ inline constexpr auto allLessThan(const math::Vector3U& a, const math::Vector3U&
   return math::all(math::lessThan(a, b));
 }
 
+inline constexpr auto allLessThanEqual(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
+  return math::all(math::lessThanEqual(a, b));
+}
+
 template <>
 struct std::equal_to<math::Vector3U> {
   inline constexpr auto operator()(const math::Vector3U& a, const math::Vector3U& b) noexcept -> bool {

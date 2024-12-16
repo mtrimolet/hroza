@@ -93,7 +93,7 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   // [tmpfix] remove when stormkit userMain allows for non-packaged build
   chdir("/Users/mtrimolet/Desktop/mtrimolet/markovjunior/hroza");
 
-  auto grid = TracedGrid<symbol>{std::dims<3>{1u, 37u, 37u}, 'B'};
+  auto grid = TracedGrid<symbol>{std::dims<3>{1u, 67u, 67u}, 'B'};
   grid[div(toSentinel(grid.extents), 2u)] = 'W';
 
   auto window = ncurses::window{grid.extents.extent(1), grid.extents.extent(2)};
