@@ -1,0 +1,146 @@
+export module examples;
+
+import std;
+import stormkit.Core;
+
+import rule;
+import node;
+
+using namespace stormkit;
+using symbol = char;
+
+export {
+namespace examples {
+
+constexpr symbol Zsep = ' ';
+constexpr symbol Ysep = '/';
+constexpr symbol Ignored = '*';
+
+struct Example {
+  std::string title;
+  std::string symbols;
+  bool origin;
+  Node<symbol> program;
+};
+
+auto growth = Example{
+  "Growth", "WB", true,
+  Markov<symbol>{{
+ NoLimit<symbol>{One{std::array{
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "WB", "WW"),
+    } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}}
+  }}
+};
+
+auto basic_snake = Example{
+  "Basic Snake", "BWDPGR", true,
+  Sequence<symbol>{{
+    NoLimit<symbol>{All{std::array{
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "WBB", "**D"),
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "DBB", "**D"),
+    } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}},
+    NoLimit<symbol>{One{std::array{
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "WBD", "PGR"),
+    } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}},
+    Limit<symbol>{2, One{std::array{
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "RBD", "GGR"),
+    } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}},
+    Limit<symbol>{15, One<symbol>{{
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "D", "W"),
+    }}},
+    Markov<symbol>{{
+      NoLimit<symbol>{One{std::array{
+        Rule<symbol>::parse(Zsep, Ysep, Ignored, "RBW", "GGR"),
+      } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}},
+      NoLimit<symbol>{All{std::array{
+        Rule<symbol>::parse(Zsep, Ysep, Ignored, "RBD", "GGR"),
+        Rule<symbol>::parse(Zsep, Ysep, Ignored, "PGG", "DBP"),
+      } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}},
+    }},
+  }}
+};
+
+auto seq_snake = Example{
+  "Sequential Snake", "BWEPRUG", true,
+  Sequence<symbol>{{
+    NoLimit<symbol>{One{std::array{
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "WBB", "PER"),
+    } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}},
+    Limit<symbol>{10, One{std::array{
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "RBB", "EER"),
+    } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}},
+    Markov<symbol>{{
+      NoLimit<symbol>{One{std::array{
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "RBB", "GGU"),
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "EEG", "GGG"),
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "PEG", "BBP"),
+      } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}},
+      NoLimit<symbol>{All<symbol>{{
+        Rule<symbol>::parse(Zsep, Ysep, Ignored, "G", "E"),
+        Rule<symbol>::parse(Zsep, Ysep, Ignored, "U", "R"),
+      }}},
+      NoLimit<symbol>{All<symbol>{{
+        Rule<symbol>::parse(Zsep, Ysep, Ignored, "R", "P"),
+        Rule<symbol>::parse(Zsep, Ysep, Ignored, "P", "R"),
+      }}},
+    }},
+  }}
+};
+
+auto basic_partitioning = Example{
+  "Basic Partitioning", "BW", false,
+  Sequence<symbol>{{
+    NoLimit<symbol>{All{std::array{
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "***/*B*/***", "***/*W*/***"),
+    } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}},
+    Markov<symbol>{{
+      NoLimit<symbol>{One{std::array{
+        Rule<symbol>::parse(Zsep, Ysep, Ignored, "WWW/WBW", "WBW/WBW"),
+      } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}},
+      NoLimit<symbol>{One{std::array{
+        Rule<symbol>::parse(Zsep, Ysep, Ignored, "WWW/BBB", "WBW/BBB"),
+      } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}},
+    }}
+  }}
+};
+
+auto cycles = Example{
+  "Cycles", "BWA", true,
+  Sequence<symbol>{{
+    NoLimit<symbol>{One{std::array{
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "WBB", "WAW"),
+    } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}},
+    Limit<symbol>{2, One{std::array{
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "WBW", "*W*"),
+    } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}},
+    NoLimit<symbol>{All{std::array{
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "A", "W"),
+    } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}},
+    NoLimit<symbol>{All{std::array{
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "BBB/BWB", "***/*B*"),
+    } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}},
+  }}
+};
+
+auto dual_retraction = Example{
+  "Dual Retraction", "BRUW", true,
+  Sequence<symbol>{{
+    NoLimit<symbol>{One{std::array{
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "BB*BB/BBBBB/BBBBR/BBBBB/BB*BB", "**R**/*WWW*/*WWWU/*WWW*/**R**"),
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "BBBBB/BBBBB/RBBB*/BBBBB/BBBBB", "*****/*****/UWWWR/*****/*****"),
+    } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}},
+    NoLimit<symbol>{All{std::array{
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "R", "W"),
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "U", "W"),
+    } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}},
+    NoLimit<symbol>{All{std::array{
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "BBB/BWB", "BBB/BBB"),
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "WWW/WBW", "WWW/WWW"),
+    } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}},
+    NoLimit<symbol>{All{std::array{
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "BBB/WWB/WWB", "***/*B*/***"),
+    } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}},
+  }}
+};
+}
+}
