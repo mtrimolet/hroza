@@ -24,11 +24,11 @@ struct Example {
 };
 
 auto growth = Example{
-  "Growth", "WB", true,
+  "Growth", "BW", true,
   Markov<symbol>{{
- NoLimit<symbol>{One{std::array{
-      Rule<symbol>::parse(Zsep, Ysep, Ignored, "WB", "WW"),
-    } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}}
+    NoLimit<symbol>{One{std::array{
+          Rule<symbol>::parse(Zsep, Ysep, Ignored, "WB", "WW"),
+        } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}}
   }}
 };
 
@@ -140,6 +140,60 @@ auto dual_retraction = Example{
     NoLimit<symbol>{All{std::array{
       Rule<symbol>::parse(Zsep, Ysep, Ignored, "BBB/WWB/WWB", "***/*B*/***"),
     } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}},
+  }}
+};
+
+auto fire_noise = Example{
+  "Fire Noise", "BGOERK", false,
+  Sequence<symbol>{{
+    Limit<symbol>{75, Prl{std::array{
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "OG", "*O"),
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "O*/*G", "**/*O"),
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "B", "G", 0.01),
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "O", "B"),
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "G", "O", 0.0001),
+    } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}},
+    NoLimit<symbol>{All{std::array{
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "*G*/GBG", "***/*G*"),
+    } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}},
+    NoLimit<symbol>{All{std::array{
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "*B*/BGB/*B*", "***/*B*/***"),
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "*BB*/BGGB/*BB*", "****/*BB*/****"),
+    } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}},
+    Markov<symbol>{{
+      Sequence<symbol>{{
+        Limit<symbol>{1, One{std::vector{Rule<symbol>::parse(Zsep, Ysep, Ignored, "G", "R")}}},
+        Limit<symbol>{10, All{std::array{
+          Rule<symbol>::parse(Zsep, Ysep, Ignored, "RG", "*R"),
+        } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}},
+        NoLimit<symbol>{All{std::array{
+          Rule<symbol>::parse(Zsep, Ysep, Ignored, "RG", "EE"),
+        } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}},
+        NoLimit<symbol>{All{std::array{
+          Rule<symbol>::parse(Zsep, Ysep, Ignored, "ER", "*E"),
+          Rule<symbol>::parse(Zsep, Ysep, Ignored, "EG", "*E"),
+        } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}},
+      }}
+    }},
+    Markov<symbol>{{
+      Sequence<symbol>{{
+        Limit<symbol>{1, One{std::vector{Rule<symbol>::parse(Zsep, Ysep, Ignored, "B", "K")}}},
+        Limit<symbol>{10, All{std::array{
+          Rule<symbol>::parse(Zsep, Ysep, Ignored, "KB", "*K"),
+        } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}},
+        NoLimit<symbol>{All{std::array{
+          Rule<symbol>::parse(Zsep, Ysep, Ignored, "KB", "GG"),
+        } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}},
+        NoLimit<symbol>{All{std::array{
+          Rule<symbol>::parse(Zsep, Ysep, Ignored, "GB", "*G"),
+          Rule<symbol>::parse(Zsep, Ysep, Ignored, "GK", "*G"),
+        } | std::views::transform(symmetries<symbol>) | std::views::join | std::ranges::to<std::vector>()}},
+      }}
+    }},
+    NoLimit<symbol>{Prl{std::vector{
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "K", "E"),
+      Rule<symbol>::parse(Zsep, Ysep, Ignored, "G", "B"),
+    }}},
   }}
 };
 }

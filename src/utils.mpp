@@ -114,11 +114,7 @@ inline constexpr auto mod(const math::Vector3U& a, const math::Vector3U& b) noex
 }
 
 inline constexpr auto mod(const math::Vector3U& a, UInt b) noexcept -> decltype(auto) {
-  return math::Vector3U{
-    a.x % b,
-    a.y % b,
-    a.z % b,
-  };
+  return mod(a, {b,b,b});
 }
 
 inline constexpr auto div(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
@@ -130,11 +126,7 @@ inline constexpr auto div(const math::Vector3U& a, const math::Vector3U& b) noex
 }
 
 inline constexpr auto div(const math::Vector3U& a, UInt b) noexcept -> decltype(auto) {
-  return math::Vector3U{
-    a.x / b,
-    a.y / b,
-    a.z / b,
-  };
+  return div(a, {b,b,b});
 }
 
 inline constexpr auto allLessThan(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
@@ -143,6 +135,34 @@ inline constexpr auto allLessThan(const math::Vector3U& a, const math::Vector3U&
 
 inline constexpr auto allLessThanEqual(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
   return math::all(math::lessThanEqual(a, b));
+}
+
+inline constexpr auto allMin(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
+  return math::Vector3U{
+    std::min(a.x, b.x),
+    std::min(a.y, b.y),
+    std::min(a.z, b.z),
+  };
+}
+
+inline constexpr auto allMax(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
+  return math::Vector3U{
+    std::max(a.x, b.x),
+    std::max(a.y, b.y),
+    std::max(a.z, b.z),
+  };
+}
+
+inline constexpr auto inBounds(const math::Vector3U& lower, const math::Vector3U& upper, const math::Vector3U& value) noexcept -> decltype(auto) {
+  ensures(allLessThan(lower, upper), "lower is greater than upper !");
+  return allLessThanEqual(lower, value) and allLessThan(value, upper);
+}
+
+inline constexpr auto overlaps(const math::Vector3U& alower, const math::Vector3U& aupper, const math::Vector3U& blower, const math::Vector3U& bupper) noexcept -> decltype(auto) {
+  ensures(allLessThan(alower, aupper), "alower is greater than aupper !");
+  ensures(allLessThan(blower, bupper), "blower is greater than bupper !");
+  return allLessThan(alower, bupper)
+     and allLessThan(blower, aupper);
 }
 
 template <>

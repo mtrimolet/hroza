@@ -69,17 +69,21 @@ template <class T>
 struct Grid {
   using Extents = std::dims<3>;
 
-  // math::Vector3U extents;
   Extents extents;
   std::vector<T> values;
 
   template<container_compatible_range<T> R>
-  // Grid(std::from_range_t, R&& _values, math::Vector3U _extents) noexcept : extents{_extents}, values{std::from_range, _values} {}
-  // Grid(math::Vector3U _extents, T v) noexcept : Grid{std::from_range, std::views::repeat(v, _extents.z * _extents.y * _extents.x), _extents} {}
   Grid(std::from_range_t, R&& _values, Extents _extents) noexcept : extents{_extents}, values{std::from_range, _values} {}
   Grid(Extents _extents, T v) noexcept : Grid{std::from_range, std::views::repeat(v, _extents.extent(0) * _extents.extent(1) * _extents.extent(2)), _extents} {}
 
   inline constexpr auto operator==(const Grid<T>& other) const noexcept -> bool = default;
+
+  inline constexpr auto data() const noexcept -> decltype(auto) {
+    return std::ranges::data(values);
+  }
+  inline constexpr auto cdata() const noexcept -> decltype(auto) {
+    return std::ranges::cdata(values);
+  }
 
   inline constexpr auto at(const math::Vector3U& u) const noexcept -> decltype(auto) {
     return values.at(toIndex(u, extents));
@@ -133,6 +137,47 @@ struct Grid {
 };
 
 template <class T>
+inline constexpr auto xreflected(const Grid<T>& grid) noexcept -> decltype(auto) {
+  auto extents = auto{grid.extents};
+  const auto sent = toSentinel(extents);
+  return mdiota(sent)
+    | std::views::transform([&sent, &grid](auto u) noexcept {
+        return grid.at({ sent.x - u.x - 1u, u.y, u.z });
+    })
+    | std::ranges::to<Grid<T>>(extents);
+}
+
+template <class T>
+inline constexpr auto xyrotated(const Grid<T>& grid) noexcept -> decltype(auto) {
+  auto extents = std::dims<3>{
+    grid.extents.extent(0),
+    grid.extents.extent(2),
+    grid.extents.extent(1),
+  };
+  const auto sent = toSentinel(extents);
+  return mdiota(sent)
+    | std::views::transform([&sent, &grid](auto u) noexcept {
+        return grid.at({ u.y, sent.x - u.x - 1, u.z });
+    })
+    | std::ranges::to<Grid<T>>(extents);
+}
+
+template <class T>
+inline constexpr auto zyrotated(const Grid<T>& grid) noexcept -> decltype(auto) {
+  auto extents = std::dims<3>{
+    grid.extents.extent(1),
+    grid.extents.extent(0),
+    grid.extents.extent(2),
+  };
+  const auto sent = toSentinel(extents);
+  return mdiota(sent)
+    | std::views::transform([&sent, &grid](auto u) noexcept {
+        return grid.at({ u.x, sent.z - u.z - 1, u.y });
+    })
+    | std::ranges::to<Grid<T>>(extents);
+}
+
+template <class T>
 struct Change {
   math::Vector3U u;
   T value;
@@ -150,70 +195,4 @@ struct TracedGrid : Grid<T> {
     Grid<T>::operator[](change.u) = change.value;
   }
 };
-
-template <class T>
-inline constexpr auto xreflected(const Grid<T>& grid) noexcept -> decltype(auto) {
-  auto extents = auto{grid.extents};
-  return mdiota(toSentinel(extents))
-    | std::views::transform([&extents, &grid](auto u) noexcept {
-        return grid.at({ extents.extent(2) - u.x - 1u, u.y, u.z });
-    })
-    | std::ranges::to<Grid<T>>(extents);
-}
-
-// template <class T>
-// inline constexpr auto xyrotated(const Grid<T>& grid) noexcept -> decltype(auto) {
-//   auto extents = Dyn3DExtents{
-//     grid.extents.y,
-//     grid.extents.x,
-//     grid.extents.z,
-//   };
-//   return mdiota(extents)
-//     | std::views::transform([&extents, &grid](auto u) noexcept {
-//         return grid.at({ u.y, extents.x - u.x - 1, u.z });
-//     })
-//     | std::ranges::to<Grid<T>>(extents);
-// }
-
-template <class T>
-inline constexpr auto xyrotated(const Grid<T>& grid) noexcept -> decltype(auto) {
-  auto extents = std::dims<3>{
-    grid.extents.extent(0),
-    grid.extents.extent(2),
-    grid.extents.extent(1),
-  };
-  return mdiota(toSentinel(extents))
-    | std::views::transform([&extents, &grid](auto u) noexcept {
-        return grid.at({ u.y, extents.extent(2) - u.x - 1, u.z });
-    })
-    | std::ranges::to<Grid<T>>(extents);
-}
-
-// template <class T>
-// inline constexpr auto zyrotated(const Grid<T>& grid) noexcept -> decltype(auto) {
-//   auto extents = math::Vector3U{
-//     grid.extents.x,
-//     grid.extents.z,
-//     grid.extents.y,
-//   };
-//   return mdiota(extents)
-//     | std::views::transform([&extents, &grid](auto u) noexcept {
-//         return grid.at({ u.x, extents.z - u.z - 1, u.y });
-//     })
-//     | std::ranges::to<Grid<T>>(extents);
-// }
-
-template <class T>
-inline constexpr auto zyrotated(const Grid<T>& grid) noexcept -> decltype(auto) {
-  auto extents = std::dims<3>{
-    grid.extents.extent(1),
-    grid.extents.extent(0),
-    grid.extents.extent(2),
-  };
-  return mdiota(toSentinel(extents))
-    | std::views::transform([&extents, &grid](auto u) noexcept {
-        return grid.at({ u.x, extents.extent(0) - u.z - 1, u.y });
-    })
-    | std::ranges::to<Grid<T>>(extents);
-}
 }
