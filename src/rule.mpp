@@ -111,10 +111,6 @@ export template <class T>
 struct Match {
   math::Vector3U u;
   Rule<T> rule;
-
-  inline constexpr auto operator==(const Match<T>& other) const noexcept -> bool {
-    return u == other.u and rule == other.rule;
-  }
 };
 
 template <class T>
