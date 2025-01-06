@@ -17,6 +17,7 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
 
   // auto example = examples::dual_retraction;
   auto example = examples::fire_noise;
+  // auto example = examples::basic_partitioning;
 
   const auto square_size = 67u;
   auto grid = TracedGrid{std::dims<3>{1u, square_size, square_size}, example.symbols[0]};
@@ -29,7 +30,7 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   const auto offsets = std::views::zip(example.symbols, std::views::iota(0))
     | std::ranges::to<std::unordered_map<char, int>>();
 
-  for (const auto& [u, value] : std::views::zip(mdiota(toSentinel(grid.extents)), grid)) {
+  for (const auto& [u, value] : std::views::zip(mdiota(grid.extents), grid)) {
     if (offsets.contains(value))
       window.addch(u.y, u.x, value, offsets.at(value));
     else

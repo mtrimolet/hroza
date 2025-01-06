@@ -7,44 +7,41 @@ import stormkit.Core;
 import grid;
 
 using namespace stormkit;
+using symbol = char;
 
 export {
   
-template <class T>
-using Action = std::function<std::vector<Change<T>>(TracedGrid<T>&)>;
+using Action = std::function<std::vector<Change<symbol>>(TracedGrid<symbol>&)>;
 
 }
 
-template <class T>
 struct ActionNode {
-  Action<T> action;
-  inline constexpr auto operator()(TracedGrid<T>& grid) noexcept -> std::vector<Change<T>> {
+  Action action;
+  inline constexpr auto operator()(TracedGrid<symbol>& grid) noexcept -> std::vector<Change<symbol>> {
     const auto changes = action(grid);
-    std::ranges::for_each(changes, bindFront(&TracedGrid<T>::apply, &grid));
+    std::ranges::for_each(changes, bindFront(&TracedGrid<symbol>::apply, &grid));
     return changes;
   }
 };
 
 export {
 
-template <class T>
-struct NoLimit : ActionNode<T> {
-  inline auto operator()(TracedGrid<T>& grid) noexcept -> std::generator<std::vector<Change<T>>> {
-    const auto changes = ActionNode<T>::operator()(grid);
+struct NoLimit : ActionNode {
+  inline auto operator()(TracedGrid<symbol>& grid) noexcept -> std::generator<std::vector<Change<symbol>>> {
+    const auto changes = ActionNode::operator()(grid);
     if (std::ranges::empty(changes)) co_return;
     co_yield changes;
   }
 };
 
-template <class T>
-struct Limit : ActionNode<T> {
+struct Limit : ActionNode {
   UInt count;
-  Limit(UInt _count, Action<T>&& _action) noexcept : ActionNode<T>{std::move(_action)}, count{_count} {}
+  Limit(UInt _count, Action&& _action) noexcept : ActionNode{std::move(_action)}, count{_count} {}
 
-  inline auto operator()(TracedGrid<T>& grid) noexcept -> std::generator<std::vector<Change<T>>> {
+  inline auto operator()(TracedGrid<symbol>& grid) noexcept -> std::generator<std::vector<Change<symbol>>> {
     if (count == 0) co_return;
     
-    const auto changes = ActionNode<T>::operator()(grid);
+    const auto changes = ActionNode::operator()(grid);
     if (std::ranges::empty(changes)) co_return;
 
     count--;
@@ -52,13 +49,11 @@ struct Limit : ActionNode<T> {
   }
 };
 
-template <class T>
-using Node = std::function<std::generator<std::vector<Change<T>>>(TracedGrid<T>&)>;
+using Node = std::function<std::generator<std::vector<Change<symbol>>>(TracedGrid<symbol>&)>;
 
-template <class T>
 struct Sequence {
-  std::vector<Node<T>> nodes;
-  inline auto operator()(TracedGrid<T>& grid) noexcept -> std::generator<std::vector<Change<T>>> {
+  std::vector<Node> nodes;
+  inline auto operator()(TracedGrid<symbol>& grid) noexcept -> std::generator<std::vector<Change<symbol>>> {
     auto current_node = std::ranges::begin(nodes);
     while (current_node != std::ranges::end(nodes)) {
       auto found = false;
@@ -72,10 +67,9 @@ struct Sequence {
   }
 };
 
-template <class T>
 struct Markov {
-  std::vector<Node<T>> nodes;
-  inline auto operator()(TracedGrid<T>& grid) noexcept -> std::generator<std::vector<Change<T>>> {
+  std::vector<Node> nodes;
+  inline auto operator()(TracedGrid<symbol>& grid) noexcept -> std::generator<std::vector<Change<symbol>>> {
     auto current_node = std::ranges::begin(nodes);
     while (current_node != std::ranges::end(nodes)) {
       auto found = false;

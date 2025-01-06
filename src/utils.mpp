@@ -165,6 +165,12 @@ inline constexpr auto overlaps(const math::Vector3U& alower, const math::Vector3
      and allLessThan(blower, aupper);
 }
 
+inline constexpr auto intersect(const math::Vector3U& alower, const math::Vector3U& aupper, const math::Vector3U& blower, const math::Vector3U& bupper) noexcept -> decltype(auto) {
+  if (not overlaps(alower, aupper, blower, bupper))
+    return std::make_tuple(math::Vector3U{0u, 0u, 0u}, math::Vector3U{0u, 0u, 0u});
+  return std::make_tuple(allMax(alower, blower), allMin(aupper, bupper));
+}
+
 template <>
 struct std::equal_to<math::Vector3U> {
   inline constexpr auto operator()(const math::Vector3U& a, const math::Vector3U& b) noexcept -> bool {

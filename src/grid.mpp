@@ -17,7 +17,7 @@ inline constexpr auto toSentinel(const std::dims<3>& extents) noexcept -> declty
   };
 }
 
-inline constexpr auto fromSentinel(math::Vector3U sentinel) noexcept -> decltype(auto) {
+inline constexpr auto fromSentinel(const math::Vector3U& sentinel) noexcept -> decltype(auto) {
   return std::dims<3>{
     sentinel.z,
     sentinel.y,
@@ -25,44 +25,28 @@ inline constexpr auto fromSentinel(math::Vector3U sentinel) noexcept -> decltype
   };
 }
 
-// inline constexpr auto toIndex(const math::Vector3U& u, const math::Vector3U& extents) noexcept -> decltype(auto) {
-//   return u.x * 1
-//        + u.y * extents.x
-//        + u.z * extents.x * extents.y;
-// }
-
 inline constexpr auto toIndex(math::Vector3U u, const std::dims<3>& extents) noexcept -> decltype(auto) {
   return dot(u, {1u, extents.extent(2), extents.extent(2) * extents.extent(1)});
 }
 
-// inline constexpr auto fromIndex(UInt u, const math::Vector3U& extents) noexcept -> decltype(auto) {
-//   return math::Vector3U{
-//     (u / (1)) % extents.x,
-//     (u / (extents.x)) % extents.y,
-//     (u / (extents.x * extents.y)) % extents.z,
-//   };
-// }
-
-inline constexpr auto fromIndex(UInt u, const std::dims<3>& extents) noexcept -> decltype(auto) {
+inline constexpr auto fromIndex(UInt i, const std::dims<3>& extents) noexcept -> decltype(auto) {
   return mod(
-    div({u, u, u}, { 1u, extents.extent(2), extents.extent(2) * extents.extent(1)}),
+    div({i, i, i}, { 1u, extents.extent(2), extents.extent(2) * extents.extent(1)}),
     toSentinel(extents)
   );
 }
 
-// inline constexpr auto mdiota(const math::Vector3U& extents) noexcept -> decltype(auto) {
-//   return std::views::iota(0u, extents.z * extents.y * extents.x)
-//     | std::views::transform(bindBack(fromIndex, extents));
-// }
-
-inline constexpr auto mdiota(math::Vector3U initial, math::Vector3U sentinel) noexcept -> decltype(auto) {
-  const auto extents = fromSentinel(sentinel);
-  return std::views::iota(toIndex(initial, extents), sentinel.z * sentinel.y * sentinel.x)
-    | std::views::transform(bindBack(fromIndex, extents));
+inline constexpr auto mdiota(const math::Vector3U& initial, const math::Vector3U& sentinel) noexcept -> decltype(auto) {
+  const auto s = sentinel - initial;
+  return std::views::iota(0u, s.z * s.y * s.x)
+    | std::views::transform(bindBack(fromIndex, fromSentinel(s)))
+    | std::views::transform([initial](auto&& u) noexcept {
+        return initial + u;
+    });
 }
 
-inline constexpr auto mdiota(math::Vector3U sentinel) noexcept -> decltype(auto) {
-  return mdiota({0u, 0u, 0u}, sentinel);
+inline constexpr auto mdiota(const std::dims<3>& extents) noexcept -> decltype(auto) {
+  return mdiota({0u, 0u, 0u}, toSentinel(extents));
 }
 
 template <class T>
@@ -139,9 +123,8 @@ struct Grid {
 template <class T>
 inline constexpr auto xreflected(const Grid<T>& grid) noexcept -> decltype(auto) {
   auto extents = auto{grid.extents};
-  const auto sent = toSentinel(extents);
-  return mdiota(sent)
-    | std::views::transform([&sent, &grid](auto u) noexcept {
+  return mdiota(extents)
+    | std::views::transform([sent{toSentinel(extents)}, &grid](auto u) noexcept {
         return grid.at({ sent.x - u.x - 1u, u.y, u.z });
     })
     | std::ranges::to<Grid<T>>(extents);
@@ -154,9 +137,8 @@ inline constexpr auto xyrotated(const Grid<T>& grid) noexcept -> decltype(auto) 
     grid.extents.extent(2),
     grid.extents.extent(1),
   };
-  const auto sent = toSentinel(extents);
-  return mdiota(sent)
-    | std::views::transform([&sent, &grid](auto u) noexcept {
+  return mdiota(extents)
+    | std::views::transform([sent{toSentinel(extents)}, &grid](auto u) noexcept {
         return grid.at({ u.y, sent.x - u.x - 1, u.z });
     })
     | std::ranges::to<Grid<T>>(extents);
@@ -169,9 +151,8 @@ inline constexpr auto zyrotated(const Grid<T>& grid) noexcept -> decltype(auto) 
     grid.extents.extent(0),
     grid.extents.extent(2),
   };
-  const auto sent = toSentinel(extents);
-  return mdiota(sent)
-    | std::views::transform([&sent, &grid](auto u) noexcept {
+  return mdiota(extents)
+    | std::views::transform([sent{toSentinel(extents)}, &grid](auto u) noexcept {
         return grid.at({ u.x, sent.z - u.z - 1, u.y });
     })
     | std::ranges::to<Grid<T>>(extents);
