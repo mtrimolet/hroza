@@ -164,7 +164,9 @@ struct RulesMatcher {
     if (std::ranges::empty(changes)) {
       return rules
         | std::views::transform([g_sentinel{toSentinel(grid.extents())}](const Rule& rule) noexcept {
-            return mdiota(fromSentinel(g_sentinel - toSentinel(rule.input.extents) + math::Vector3U{1u, 1u, 1u}))
+            const auto ri_sentinel = toSentinel(rule.input.extents);
+            const auto sentinel = g_sentinel - (ri_sentinel - math::Vector3U{1u, 1u, 1u});
+            return mdiota({sentinel})
               | std::views::transform([&rule](auto u) noexcept {
                   return Match{u, rule};
               });
@@ -181,15 +183,11 @@ struct RulesMatcher {
                 ri_sentinel{toSentinel(rule.input.extents)}
               ](const Change<symbol>& change) noexcept {
                 // boundaries
-                const auto initial = allMax(
-                  change.u + math::Vector3U{1u, 1u, 1u},
-                  ri_sentinel
-                ) - ri_sentinel;
-                const auto sentinel = allMin(
-                  g_sentinel - ri_sentinel,
-                  change.u
-                ) + math::Vector3U{1u, 1u, 1u};
-                return mdiota(initial, sentinel);
+                const auto bounded_zone = intersect(
+                  Area3U{ri_sentinel} + change.u,
+                  {ri_sentinel - math::Vector3U{1u, 1u, 1u}, g_sentinel}
+                ) - (ri_sentinel - math::Vector3U{1u, 1u, 1u});
+                return mdiota(bounded_zone);
             })
             | std::views::join
             | std::ranges::to<std::unordered_set>();
@@ -319,12 +317,12 @@ struct All : RulesMatcher, Foo {
         if (std::ranges::none_of(
           result,
           [&match](const auto& visited) noexcept {
-            const auto [i, s] = intersect(
-              visited.u, visited.u + toSentinel(visited.rule.output.extents),
-              match.u, match.u + toSentinel(match.rule.output.extents),
+            const auto overlap = intersect(
+              Area3U{toSentinel(visited.rule.output.extents)} + visited.u,
+              Area3U{toSentinel(match.rule.output.extents)} + match.u
             );
             return std::ranges::any_of(
-              mdiota(i, s),
+              mdiota(overlap),
               [](auto&& p) noexcept {
                 const auto& [v, m] = p;
                 return v and m and *v != *m;

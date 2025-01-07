@@ -49,6 +49,10 @@ inline constexpr auto mdiota(const std::dims<3>& extents) noexcept -> decltype(a
   return mdiota({0u, 0u, 0u}, toSentinel(extents));
 }
 
+inline constexpr auto mdiota(const Area3U& zone) noexcept -> decltype(auto) {
+  return mdiota(zone.lower, zone.upper);
+}
+
 template <class T>
 struct Grid {
   using Extents = std::dims<3>;

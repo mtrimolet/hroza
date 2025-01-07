@@ -153,22 +153,45 @@ inline constexpr auto allMax(const math::Vector3U& a, const math::Vector3U& b) n
   };
 }
 
-inline constexpr auto inBounds(const math::Vector3U& lower, const math::Vector3U& upper, const math::Vector3U& value) noexcept -> decltype(auto) {
-  ensures(allLessThan(lower, upper), "lower is greater than upper !");
-  return allLessThanEqual(lower, value) and allLessThan(value, upper);
+struct Area3U {
+  math::Vector3U lower;
+  math::Vector3U upper;
+
+  Area3U(math::Vector3U _lower, math::Vector3U _upper) noexcept
+  : lower{}, upper{} {
+    ensures(allLessThan(_lower, _upper), "first value must be allLessThan than second !");
+    lower = _lower;
+    upper = _upper;
+  }
+
+  Area3U(math::Vector3U _upper) noexcept
+  : lower{0, 0, 0}, upper{_upper} {}
+  Area3U() noexcept
+  : lower{0, 0, 0}, upper{0, 0, 0} {}
+
+  inline constexpr auto operator+(const math::Vector3U& u) const noexcept -> decltype(auto) {
+    return Area3U{lower + u, upper + u};
+  }
+
+  inline constexpr auto operator-(const math::Vector3U& u) const noexcept -> decltype(auto) {
+    return Area3U{lower - u, upper - u};
+  }
+};
+
+inline constexpr auto inBounds(const Area3U& zone, const math::Vector3U& value) noexcept -> decltype(auto) {
+  return allLessThanEqual(zone.lower, value) 
+     and allLessThan(value, zone.upper);
 }
 
-inline constexpr auto overlaps(const math::Vector3U& alower, const math::Vector3U& aupper, const math::Vector3U& blower, const math::Vector3U& bupper) noexcept -> decltype(auto) {
-  ensures(allLessThan(alower, aupper), "alower is greater than aupper !");
-  ensures(allLessThan(blower, bupper), "blower is greater than bupper !");
-  return allLessThan(alower, bupper)
-     and allLessThan(blower, aupper);
+inline constexpr auto overlaps(const Area3U& a, const Area3U& b) noexcept -> decltype(auto) {
+  return allLessThan(a.lower, b.upper)
+     and allLessThan(b.lower, a.upper);
 }
 
-inline constexpr auto intersect(const math::Vector3U& alower, const math::Vector3U& aupper, const math::Vector3U& blower, const math::Vector3U& bupper) noexcept -> decltype(auto) {
-  if (not overlaps(alower, aupper, blower, bupper))
-    return std::make_tuple(math::Vector3U{0u, 0u, 0u}, math::Vector3U{0u, 0u, 0u});
-  return std::make_tuple(allMax(alower, blower), allMin(aupper, bupper));
+inline constexpr auto intersect(const Area3U& a, const Area3U& b) noexcept -> decltype(auto) {
+  if (not overlaps(a, b))
+    return Area3U{};
+  return Area3U{allMax(a.lower, b.lower), allMin(a.upper, b.upper)};
 }
 
 template <>
