@@ -27,14 +27,21 @@ struct Rule {
 
   inline constexpr auto operator==(const Rule& other) const noexcept -> bool = default;
 
-  static inline constexpr auto parse(std::basic_string_view<symbol> _input, std::basic_string_view<symbol> _output, double p = 1.0) noexcept -> decltype(auto) {
+  static inline constexpr auto parse(
+    std::unordered_map<symbol, std::unordered_set<symbol>> unions,
+    std::basic_string_view<symbol> _input,
+    std::basic_string_view<symbol> _output,
+    double p = 1.0
+  ) noexcept -> decltype(auto) {
     auto input = Grid<symbol>::parse(Zsep, Ysep, _input);
     auto output = Grid<symbol>::parse(Zsep, Ysep, _output);
 
     return Rule{
       input
-        | std::views::transform([](const symbol& t) noexcept {
-            return t == Ignored ? std::nullopt : std::optional{std::unordered_set{t}};
+        | std::views::transform([&unions](const symbol& t) noexcept {
+            return t == Ignored ? std::nullopt
+                 : unions.contains(t) ? unions.at(t)
+                 : std::optional{std::unordered_set{t}};
         })
         | std::ranges::to<Grid<std::optional<std::unordered_set<symbol>>>>(input.extents),
       output

@@ -16,8 +16,9 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   chdir("/Users/mtrimolet/Desktop/mtrimolet/markovjunior/hroza");
 
   // auto example = examples::dual_retraction;
-  auto example = examples::fire_noise;
+  // auto example = examples::fire_noise;
   // auto example = examples::basic_partitioning;
+  auto example = examples::basic_dungeon_growth;
 
   const auto square_size = 67u;
   auto grid = TracedGrid{std::dims<3>{1u, square_size, square_size}, example.symbols[0]};
