@@ -25,7 +25,7 @@ auto growth = Example{
   "Growth", "BW", true,
   Markov{{
     NoLimit{One{std::array{
-          Rule::parse({}, "WB", "WW"),
+          Rule::parse("WB", "WW"),
         } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}}
   }}
 };
@@ -34,25 +34,25 @@ auto basic_snake = Example{
   "Basic Snake", "BWDPGR", true,
   Sequence{{
     NoLimit{All{std::array{
-      Rule::parse({}, "WBB", "**D"),
-      Rule::parse({}, "DBB", "**D"),
+      Rule::parse("WBB", "**D"),
+      Rule::parse("DBB", "**D"),
     } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
     NoLimit{One{std::array{
-      Rule::parse({}, "WBD", "PGR"),
+      Rule::parse("WBD", "PGR"),
     } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
     Limit{2, One{std::array{
-      Rule::parse({}, "RBD", "GGR"),
+      Rule::parse("RBD", "GGR"),
     } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
     Limit{15, One{{
-      Rule::parse({}, "D", "W"),
+      Rule::parse("D", "W"),
     }}},
     Markov{{
       NoLimit{One{std::array{
-        Rule::parse({}, "RBW", "GGR"),
+        Rule::parse("RBW", "GGR"),
       } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
       NoLimit{All{std::array{
-        Rule::parse({}, "RBD", "GGR"),
-        Rule::parse({}, "PGG", "DBP"),
+        Rule::parse("RBD", "GGR"),
+        Rule::parse("PGG", "DBP"),
       } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
     }},
   }}
@@ -62,24 +62,24 @@ auto seq_snake = Example{
   "Sequential Snake", "BWEPRUG", true,
   Sequence{{
     NoLimit{One{std::array{
-      Rule::parse({}, "WBB", "PER"),
+      Rule::parse("WBB", "PER"),
     } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
     Limit{10, One{std::array{
-      Rule::parse({}, "RBB", "EER"),
+      Rule::parse("RBB", "EER"),
     } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
     Markov{{
       NoLimit{One{std::array{
-      Rule::parse({}, "RBB", "GGU"),
-      Rule::parse({}, "EEG", "GGG"),
-      Rule::parse({}, "PEG", "BBP"),
+      Rule::parse("RBB", "GGU"),
+      Rule::parse("EEG", "GGG"),
+      Rule::parse("PEG", "BBP"),
       } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
       NoLimit{All{{
-        Rule::parse({}, "G", "E"),
-        Rule::parse({}, "U", "R"),
+        Rule::parse("G", "E"),
+        Rule::parse("U", "R"),
       }}},
       NoLimit{All{{
-        Rule::parse({}, "R", "P"),
-        Rule::parse({}, "P", "R"),
+        Rule::parse("R", "P"),
+        Rule::parse("P", "R"),
       }}},
     }},
   }}
@@ -89,14 +89,14 @@ auto basic_partitioning = Example{
   "Basic Partitioning", "BW", false,
   Sequence{{
     NoLimit{All{std::array{
-      Rule::parse({}, "***/*B*/***", "***/*W*/***"),
+      Rule::parse("***/*B*/***", "***/*W*/***"),
     } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
     Markov{{
       NoLimit{One{std::array{
-        Rule::parse({}, "WWW/WBW", "WBW/WBW"),
+        Rule::parse("WWW/WBW", "WBW/WBW"),
       } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
       NoLimit{One{std::array{
-        Rule::parse({}, "WWW/BBB", "WBW/BBB"),
+        Rule::parse("WWW/BBB", "WBW/BBB"),
       } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
     }}
   }}
@@ -106,16 +106,16 @@ auto cycles = Example{
   "Cycles", "BWA", true,
   Sequence{{
     NoLimit{One{std::array{
-      Rule::parse({}, "WBB", "WAW"),
+      Rule::parse("WBB", "WAW"),
     } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
     Limit{2, One{std::array{
-      Rule::parse({}, "WBW", "*W*"),
+      Rule::parse("WBW", "*W*"),
     } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
     NoLimit{All{std::array{
-      Rule::parse({}, "A", "W"),
+      Rule::parse("A", "W"),
     } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
     NoLimit{All{std::array{
-      Rule::parse({}, "BBB/BWB", "***/*B*"),
+      Rule::parse("BBB/BWB", "***/*B*"),
     } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
   }}
 };
@@ -124,19 +124,19 @@ auto dual_retraction = Example{
   "Dual Retraction", "BRUW", true,
   Sequence{{
     NoLimit{One{std::array{
-      Rule::parse({}, "BB*BB/BBBBB/BBBBR/BBBBB/BB*BB", "**R**/*WWW*/*WWWU/*WWW*/**R**"),
-      Rule::parse({}, "BBBBB/BBBBB/RBBB*/BBBBB/BBBBB", "*****/*****/UWWWR/*****/*****"),
+      Rule::parse("BB*BB/BBBBB/BBBBR/BBBBB/BB*BB", "**R**/*WWW*/*WWWU/*WWW*/**R**"),
+      Rule::parse("BBBBB/BBBBB/RBBB*/BBBBB/BBBBB", "*****/*****/UWWWR/*****/*****"),
     } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
     NoLimit{All{std::array{
-      Rule::parse({}, "R", "W"),
-      Rule::parse({}, "U", "W"),
+      Rule::parse("R", "W"),
+      Rule::parse("U", "W"),
     } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
     NoLimit{All{std::array{
-      Rule::parse({}, "BBB/BWB", "BBB/BBB"),
-      Rule::parse({}, "WWW/WBW", "WWW/WWW"),
+      Rule::parse("BBB/BWB", "BBB/BBB"),
+      Rule::parse("WWW/WBW", "WWW/WWW"),
     } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
     NoLimit{All{std::array{
-      Rule::parse({}, "BBB/WWB/WWB", "***/*B*/***"),
+      Rule::parse("BBB/WWB/WWB", "***/*B*/***"),
     } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
   }}
 };
@@ -145,52 +145,52 @@ auto fire_noise = Example{
   "Fire Noise", "BGOERK", false,
   Sequence{{
     Limit{75, Prl{std::array{
-      Rule::parse({}, "OG", "*O"),
-      Rule::parse({}, "O*/*G", "**/*O"),
-      Rule::parse({}, "B", "G", 0.01),
-      Rule::parse({}, "O", "B"),
-      Rule::parse({}, "G", "O", 0.0001),
+      Rule::parse("OG", "*O"),
+      Rule::parse("O*/*G", "**/*O"),
+      Rule::parse("B", "G", 0.01),
+      Rule::parse("O", "B"),
+      Rule::parse("G", "O", 0.0001),
     } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
     NoLimit{All{std::array{
-      Rule::parse({}, "*G*/GBG", "***/*G*"),
+      Rule::parse("*G*/GBG", "***/*G*"),
     } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
     NoLimit{All{std::array{
-      Rule::parse({}, "*B*/BGB/*B*", "***/*B*/***"),
-      Rule::parse({}, "*BB*/BGGB/*BB*", "****/*BB*/****"),
+      Rule::parse("*B*/BGB/*B*", "***/*B*/***"),
+      Rule::parse("*BB*/BGGB/*BB*", "****/*BB*/****"),
     } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
     Markov{{
       Sequence{{
-        Limit{1, One{std::vector{Rule::parse({}, "G", "R")}}},
+        Limit{1, One{std::vector{Rule::parse("G", "R")}}},
         Limit{10, All{std::array{
-          Rule::parse({}, "RG", "*R"),
+          Rule::parse("RG", "*R"),
         } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
         NoLimit{All{std::array{
-          Rule::parse({}, "RG", "EE"),
+          Rule::parse("RG", "EE"),
         } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
         NoLimit{All{std::array{
-          Rule::parse({}, "ER", "*E"),
-          Rule::parse({}, "EG", "*E"),
+          Rule::parse("ER", "*E"),
+          Rule::parse("EG", "*E"),
         } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
       }}
     }},
     Markov{{
       Sequence{{
-        Limit{1, One{std::vector{Rule::parse({}, "B", "K")}}},
+        Limit{1, One{std::vector{Rule::parse("B", "K")}}},
         Limit{10, All{std::array{
-          Rule::parse({}, "KB", "*K"),
+          Rule::parse("KB", "*K"),
         } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
         NoLimit{All{std::array{
-          Rule::parse({}, "KB", "GG"),
+          Rule::parse("KB", "GG"),
         } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
         NoLimit{All{std::array{
-          Rule::parse({}, "GB", "*G"),
-          Rule::parse({}, "GK", "*G"),
+          Rule::parse("GB", "*G"),
+          Rule::parse("GK", "*G"),
         } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
       }}
     }},
     NoLimit{Prl{std::vector{
-      Rule::parse({}, "K", "E"),
-      Rule::parse({}, "G", "B"),
+      Rule::parse("K", "E"),
+      Rule::parse("G", "B"),
     }}},
   }}
 };

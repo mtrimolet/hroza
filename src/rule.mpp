@@ -51,6 +51,14 @@ struct Rule {
       p,
     };
   }
+
+  static inline constexpr auto parse(
+    std::basic_string_view<symbol> _input,
+    std::basic_string_view<symbol> _output,
+    double p = 1.0
+  ) noexcept -> decltype(auto) {
+    return parse({}, _input, _output, p);
+  }
 };
 
 inline constexpr auto xreflected(const Rule& rule) noexcept -> decltype(auto) {
