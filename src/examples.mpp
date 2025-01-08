@@ -5,6 +5,7 @@ import stormkit.Core;
 import utils;
 
 import rule;
+import rulenode;
 import node;
 
 using namespace stormkit;
