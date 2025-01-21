@@ -108,11 +108,11 @@ struct RulesMatcher {
 
 /********* */
 
-struct Foo {
+struct EventTracker {
   std::optional<RangeOffset> prev;
 
   template <std::ranges::input_range History>
-  inline constexpr auto bar(History&& history) noexcept -> decltype(auto) {
+  inline constexpr auto getNewEvents(History&& history) noexcept -> decltype(auto) {
     const auto now = std::ranges::cend(history);
     const auto since = prev
       .transform(bindFront(std::plus{}, std::ranges::cbegin(history)))
@@ -126,12 +126,12 @@ struct Foo {
 /********* */
 
 export
-struct One : RulesMatcher, Foo {
+struct One : RulesMatcher, EventTracker {
   One(std::vector<Rule>&& x) noexcept
-    : RulesMatcher{std::move(x)}, Foo{} {}
+    : RulesMatcher{std::move(x)}, EventTracker{} {}
 
   inline constexpr auto operator()(const TracedGrid<symbol>& grid) noexcept -> decltype(auto) {
-    const auto changes = Foo::bar(grid.history)
+    const auto changes = EventTracker::getNewEvents(grid.history)
       | std::ranges::to<std::vector>();
 
     auto mdgrid = std::mdspan{std::ranges::cdata(grid), grid.extents};
@@ -150,12 +150,12 @@ struct One : RulesMatcher, Foo {
 };
 
 export
-struct Prl : RulesMatcher, Foo {
+struct Prl : RulesMatcher, EventTracker {
   Prl(std::vector<Rule>&& x) noexcept
-    : RulesMatcher{std::move(x)}, Foo{} {}
+    : RulesMatcher{std::move(x)}, EventTracker{} {}
 
   inline constexpr auto operator()(const TracedGrid<symbol>& grid) noexcept -> decltype(auto) {
-    const auto changes = Foo::bar(grid.history)
+    const auto changes = EventTracker::getNewEvents(grid.history)
       | std::ranges::to<std::vector>();
 
     auto mdgrid = std::mdspan{std::ranges::cdata(grid), grid.extents};
@@ -175,12 +175,12 @@ struct Prl : RulesMatcher, Foo {
 };
 
 export
-struct All : RulesMatcher, Foo {
+struct All : RulesMatcher, EventTracker {
   All(std::vector<Rule>&& x) noexcept
-    : RulesMatcher{std::move(x)}, Foo{} {}
+    : RulesMatcher{std::move(x)}, EventTracker{} {}
 
   inline constexpr auto operator()(const TracedGrid<symbol>& grid) noexcept -> decltype(auto) {
-    const auto changes = Foo::bar(grid.history)
+    const auto changes = EventTracker::getNewEvents(grid.history)
       | std::ranges::to<std::vector>();
 
     auto mdgrid = std::mdspan{std::ranges::cdata(grid), grid.extents};
