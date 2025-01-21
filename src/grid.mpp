@@ -40,9 +40,7 @@ inline constexpr auto mdiota(const math::Vector3U& initial, const math::Vector3U
   const auto s = sentinel - initial;
   return std::views::iota(0u, s.z * s.y * s.x)
     | std::views::transform(bindBack(fromIndex, fromSentinel(s)))
-    | std::views::transform([initial](auto&& u) noexcept {
-        return initial + u;
-    });
+    | std::views::transform(bindFront(std::plus{}, initial));
 }
 
 inline constexpr auto mdiota(const std::dims<3>& extents) noexcept -> decltype(auto) {

@@ -21,7 +21,7 @@ struct Match {
 inline constexpr auto match(grid_view grid, const Match& match) noexcept -> bool {
   return std::ranges::all_of(
     std::views::zip(
-      mdiota(match.rule.input.extents) | std::views::transform([&mu{match.u}](auto u) noexcept { return mu + u; }),
+      mdiota(Area3U{toSentinel(match.rule.input.extents)} + match.u),
       match.rule.input,
     ),
     [grid{std::move(grid)}](const auto& input) noexcept {
@@ -34,7 +34,7 @@ inline constexpr auto match(grid_view grid, const Match& match) noexcept -> bool
 
 inline constexpr auto changes(grid_view grid, const Match& match) noexcept -> decltype(auto) {
   return std::views::zip(
-    mdiota(match.rule.output.extents) | std::views::transform([&mu{match.u}](auto u) noexcept { return mu + u; }),
+    mdiota(Area3U{toSentinel(match.rule.output.extents)} + match.u),
     match.rule.output,
   )
     | std::views::filter([grid{std::move(grid)}](const auto& output) noexcept {
@@ -115,9 +115,7 @@ struct Foo {
   inline constexpr auto bar(History&& history) noexcept -> decltype(auto) {
     const auto now = std::ranges::cend(history);
     const auto since = prev
-      .transform([p{std::ranges::cbegin(history)}](auto i) noexcept { 
-        return p + i;
-      })
+      .transform(bindFront(std::plus{}, std::ranges::cbegin(history)))
       .value_or(now);
     prev = std::ranges::size(history);
 
@@ -137,9 +135,7 @@ struct One : RulesMatcher, Foo {
       | std::ranges::to<std::vector>();
 
     auto mdgrid = std::mdspan{std::ranges::cdata(grid), grid.extents};
-    std::erase_if(this->matches, [mdgrid](auto&& m) noexcept {
-      return not ::match(mdgrid, m);
-    });
+    std::erase_if(this->matches, std::not_fn(bindFront(::match, mdgrid)));
     RulesMatcher::refreshMatches(mdgrid, changes);
 
     static auto rg = std::mt19937{std::random_device{}()};
@@ -163,9 +159,7 @@ struct Prl : RulesMatcher, Foo {
       | std::ranges::to<std::vector>();
 
     auto mdgrid = std::mdspan{std::ranges::cdata(grid), grid.extents};
-    std::erase_if(this->matches, [mdgrid](auto&& m) noexcept {
-      return not ::match(mdgrid, m);
-    });
+    std::erase_if(this->matches, std::not_fn(bindFront(::match, mdgrid)));
     RulesMatcher::refreshMatches(mdgrid, changes);
 
     return this->matches
@@ -190,9 +184,7 @@ struct All : RulesMatcher, Foo {
       | std::ranges::to<std::vector>();
 
     auto mdgrid = std::mdspan{std::ranges::cdata(grid), grid.extents};
-    std::erase_if(this->matches, [mdgrid](auto&& m) noexcept {
-      return not ::match(mdgrid, m);
-    });
+    std::erase_if(this->matches, std::not_fn(bindFront(::match, mdgrid)));
     RulesMatcher::refreshMatches(mdgrid, changes);
 
     static auto rg = std::mt19937{std::random_device{}()};
