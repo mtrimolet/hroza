@@ -146,11 +146,6 @@ struct One : RulesMatcher, Foo {
     std::ranges::shuffle(this->matches, rg);
 
     return this->matches
-      | std::views::filter([](auto&& match) noexcept {
-          static auto rg = std::mt19937{std::random_device{}()};
-          static auto prob = std::uniform_real_distribution<>(0.0, 1.0);
-          return match.rule.p == 1.0 or prob(rg) <= match.rule.p;
-      })
       | std::views::take(1)
       | std::views::transform(bindFront(::changes, mdgrid))
       | std::views::join
@@ -206,12 +201,8 @@ struct All : RulesMatcher, Foo {
     // else
     std::ranges::shuffle(this->matches, rg);
 
-    auto filtered = std::ranges::fold_left(this->matches
-      | std::views::filter([](const Match& match) noexcept {
-          static auto rg = std::mt19937{std::random_device{}()};
-          static auto prob = std::uniform_real_distribution<>(0.0, 1.0);
-          return match.rule.p == 1.0 or prob(rg) <= match.rule.p;
-      }),
+    auto filtered = std::ranges::fold_left(
+      this->matches,
       std::vector<Match>{},
       [](auto&& result, auto&& match) noexcept {
         if (std::ranges::none_of(
