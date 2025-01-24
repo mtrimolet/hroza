@@ -139,6 +139,8 @@ struct One : RulesMatcher, EventTracker {
     RulesMatcher::refreshMatches(mdgrid, changes);
 
     static auto rg = std::mt19937{std::random_device{}()};
+    // if potentials
+    // else
     std::ranges::shuffle(this->matches, rg);
 
     return this->matches
@@ -184,11 +186,9 @@ struct All : RulesMatcher, EventTracker {
       | std::ranges::to<std::vector>();
 
     auto mdgrid = std::mdspan{std::ranges::cdata(grid), grid.extents};
-    std::erase_if(this->matches, std::not_fn(bindFront(::match, mdgrid)));
     RulesMatcher::refreshMatches(mdgrid, changes);
 
     static auto rg = std::mt19937{std::random_device{}()};
-
     // if potentials
     // else
     std::ranges::shuffle(this->matches, rg);
@@ -223,6 +223,8 @@ struct All : RulesMatcher, EventTracker {
         return result;
       }
     );
+
+    this->matches.clear();
 
     return std::move(filtered)
       | std::views::transform(bindFront(::changes, mdgrid)) 

@@ -2,6 +2,7 @@ export module rule;
 
 import std;
 import glm;
+import frozen;
 import stormkit.Core;
 import utils;
 
@@ -87,16 +88,26 @@ inline constexpr auto zyrotated(const Rule& rule) noexcept -> decltype(auto) {
 }
 
 template <class T>
-const auto groups = makeStaticArray<std::function<T(const T&)>>(
+const auto square_groups = makeStaticArray<std::function<T(const T&)>>(
   [](const T& rule) noexcept { return auto{rule}; },
-  [](const T& rule) noexcept { return xyrotated(rule); },
-  [](const T& rule) noexcept { return xyrotated(xyrotated(rule)); },
-  [](const T& rule) noexcept { return xyrotated(xyrotated(xyrotated(rule))); },
   [](const T& rule) noexcept { return xreflected(rule); },
-  [](const T& rule) noexcept { return xyrotated(xreflected(rule)); },
-  [](const T& rule) noexcept { return xyrotated(xyrotated(xreflected(rule))); },
-  [](const T& rule) noexcept { return xyrotated(xyrotated(xyrotated(xreflected(rule)))); },
+  [](const T& rule) noexcept { return xyrotated(rule); },
+  [](const T& rule) noexcept { return xreflected(xyrotated(rule)); },
+  [](const T& rule) noexcept { return xyrotated(xyrotated(rule)); },
+  [](const T& rule) noexcept { return xreflected(xyrotated(xyrotated(rule))); },
+  [](const T& rule) noexcept { return xyrotated(xyrotated(xyrotated(rule))); },
+  [](const T& rule) noexcept { return xreflected(xyrotated(xyrotated(xyrotated(rule)))); },
 );
+
+constexpr auto square_subgroups =
+  frozen::make_unordered_map<frozen::string, std::array<bool, 8>, 6>({
+    {"()",     {true, false, false, false, false, false, false, false}},
+    {"(x)",    {true,  true, false, false, false, false, false, false}},
+    {"(y)",    {true, false, false, false,  true, false, false, false}},
+    {"(x)(y)", {true,  true, false, false,  true,  true, false, false}},
+    {"(xy+)",  {true, false,  true, false,  true, false,  true, false}},
+    {"(xy)",   {true,  true,  true,  true,  true,  true,  true,  true}}
+  });
 
 export {
 template <>
@@ -114,8 +125,9 @@ struct std::hash<Rule> {
 };
 
 inline constexpr auto symmetries(const Rule& rule, std::string_view subgroup = "") noexcept -> decltype(auto) {
-  return groups<Rule>
-    | std::views::transform([&rule](const auto& action) noexcept { return action(rule); })
+  return std::views::zip(square_groups<Rule>, square_subgroups.at(std::empty(subgroup) ? "(xy)" : subgroup))
+    | std::views::filter(monadic::get<1>())
+    | std::views::transform([&rule](const auto& action) noexcept { return std::get<0>(action)(rule); })
     | std::ranges::to<std::unordered_set>();
 }
 }

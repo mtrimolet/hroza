@@ -19,9 +19,10 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   // auto example = examples::parseXmlExample("Basic Snake", "./models/BasicSnake.xml");
   // auto example = examples::parseXmlExample("Sequential Snake", "./models/SequentialSnake.xml");
   // auto example = examples::parseXmlExample("Basic Partitioning", "./models/BasicPartitioning.xml");
+  auto example = examples::parseXmlExample("Basic Brick Wall", "./models/BasicBrickWall.xml");
   // auto example = examples::parseXmlExample("Cycles", "./models/Cycles.xml");
   // auto example = examples::parseXmlExample("Dual Retraction", "./models/DualRetraction.xml");
-  auto example = examples::parseXmlExample("Fire Noise", "./models/FireNoise.xml");
+  // auto example = examples::parseXmlExample("Fire Noise", "./models/FireNoise.xml");
   // auto example = examples::parseXmlExample("Basic Dungeon Growth", "./models/BasicDungeonGrowth.xml");
 
   const auto square_size = 67u;

@@ -121,7 +121,7 @@ inline constexpr auto parseXmlExample(std::string title, std::string_view filepa
 
   const auto symbols = xnode.attribute("values").as_string();
   // ensure no duplicate
-  const auto origin = xnode.attribute("origin").as_bool(true);
+  const auto origin = xnode.attribute("origin").as_bool(false);
 
   auto program = parseXmlNode(xnode);
   if (xnode.name() != "sequence"s && xnode.name() != "markov"s)
