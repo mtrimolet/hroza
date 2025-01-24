@@ -15,10 +15,14 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   // [tmpfix] remove when stormkit userMain allows for non-packaged build
   chdir("/Users/mtrimolet/Desktop/mtrimolet/markovjunior/hroza");
 
-  // auto example = examples::dual_retraction;
-  // auto example = examples::fire_noise;
-  // auto example = examples::basic_partitioning;
-  auto example = examples::basic_dungeon_growth;
+  // auto example = examples::parseXmlExample("Growth", "./models/Growth.xml");
+  // auto example = examples::parseXmlExample("Basic Snake", "./models/BasicSnake.xml");
+  // auto example = examples::parseXmlExample("Sequential Snake", "./models/SequentialSnake.xml");
+  // auto example = examples::parseXmlExample("Basic Partitioning", "./models/BasicPartitioning.xml");
+  // auto example = examples::parseXmlExample("Cycles", "./models/Cycles.xml");
+  // auto example = examples::parseXmlExample("Dual Retraction", "./models/DualRetraction.xml");
+  auto example = examples::parseXmlExample("Fire Noise", "./models/FireNoise.xml");
+  // auto example = examples::parseXmlExample("Basic Dungeon Growth", "./models/BasicDungeonGrowth.xml");
 
   const auto square_size = 67u;
   auto grid = TracedGrid{std::dims<3>{1u, square_size, square_size}, example.symbols[0]};

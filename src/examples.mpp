@@ -4,15 +4,107 @@ import std;
 import stormkit.Core;
 import utils;
 
+import pugixml;
+
 import rule;
 import rulenode;
 import node;
 
 using namespace stormkit;
+using namespace std::literals;
 using symbol = char;
 
 export {
 namespace examples {
+inline constexpr auto parseXmlRule(
+  const pugi::xml_node& xnode,
+  std::unordered_map<symbol, std::unordered_set<symbol>> unions = {}
+) noexcept -> decltype(auto) {
+  return Rule::parse(
+    unions,
+    xnode.attribute("in").as_string(),
+    xnode.attribute("out").as_string(),
+    xnode.attribute("p").as_double(1.0),
+  );
+}
+
+inline constexpr auto parseXmlRules(
+  const pugi::xml_node& xnode,
+  std::unordered_map<symbol, std::unordered_set<symbol>> unions = {},
+  std::string_view symmetry = ""
+) noexcept -> decltype(auto) {
+  auto xrules = xnode.children("rule") | std::ranges::to<std::vector>();
+  if (std::ranges::empty(xrules)) xrules.push_back(xnode);
+  return xrules
+     | std::views::transform(bindBack(parseXmlRule, unions))
+     | std::views::transform(bindBack(symmetries, symmetry))
+     | std::views::join
+     | std::ranges::to<std::vector>();
+}
+
+inline constexpr auto parseXmlRuleNode(
+  const pugi::xml_node& xnode,
+  std::unordered_map<symbol, std::unordered_set<symbol>> unions = {},
+  std::string_view symmetry = ""
+) noexcept -> Action {
+  const auto tag = xnode.name();
+  if (tag == "one"s) {
+    return One{parseXmlRules(xnode, unions, symmetry)};
+  }
+  else if (tag == "prl"s) {
+    return Prl{parseXmlRules(xnode, unions, symmetry)};
+  }
+  else if (tag == "all"s) {
+    return All{parseXmlRules(xnode, unions, symmetry)};
+  }
+
+  ensures(false, std::format("unknown tag {}", tag));
+  std::unreachable();
+}
+
+inline constexpr auto parseXmlNode(
+  const pugi::xml_node& xnode,
+  std::unordered_map<symbol, std::unordered_set<symbol>> unions = {},
+  std::string_view symmetry = ""
+) noexcept -> Node {
+  symmetry = xnode.attribute("symmetry").as_string(std::data(symmetry));
+  unions.insert_range(xnode.children("union") | std::views::transform([](const pugi::xml_node& xnode) noexcept {
+    return std::make_pair(
+      xnode.attribute("symbol").as_string()[0],
+      std::string{xnode.attribute("values").as_string()} | std::ranges::to<std::unordered_set>()
+    );
+  }));
+  
+  const auto tag = xnode.name();
+  if (tag == "sequence"s) {
+    return Sequence{
+      xnode.children()
+        | std::views::filter([](const pugi::xml_node& c) noexcept { return c.name() != "union"s; })
+        | std::views::transform(bindBack(parseXmlNode, unions, symmetry))
+        | std::ranges::to<std::vector>()
+    };
+  }
+  else if (tag == "markov"s) {
+    return Markov{
+      xnode.children()
+        | std::views::filter([](const pugi::xml_node& c) noexcept { return c.name() != "union"s; })
+        | std::views::transform(bindBack(parseXmlNode, unions, symmetry))
+        | std::ranges::to<std::vector>()
+    };
+  }
+  else if (tag == "one"s
+        or tag == "prl"s
+        or tag == "all"s) {
+    const auto steps = xnode.attribute("steps").as_uint(0);
+    if (steps == 0)
+      return NoLimit{parseXmlRuleNode(xnode, unions, symmetry)};
+    else
+      return Limit{steps, parseXmlRuleNode(xnode, unions, symmetry)};
+  }
+  
+  ensures(false, std::format("unknown tag {}", tag));
+  std::unreachable();
+}
 
 struct Example {
   std::string title;
@@ -21,203 +113,26 @@ struct Example {
   Node program;
 };
 
-auto growth = Example{
-  "Growth", "BW", true,
-  Markov{{
-    NoLimit{One{std::array{
-          Rule::parse("WB", "WW"),
-        } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}}
-  }}
-};
+inline constexpr auto parseXmlExample(std::string title, std::string_view filepath) noexcept -> decltype(auto) {
+  auto xexample = pugi::xml_document{};
+  const auto result = xexample.load_file(std::data(filepath));
+  ensures(result, std::format("Error while parsing xml ({}:{}) : {}", filepath, result.offset, result.description()));
+  const auto xnode = xexample.first_child();
 
-auto basic_snake = Example{
-  "Basic Snake", "BWDPGR", true,
-  Sequence{{
-    NoLimit{All{std::array{
-      Rule::parse("WBB", "**D"),
-      Rule::parse("DBB", "**D"),
-    } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-    NoLimit{One{std::array{
-      Rule::parse("WBD", "PGR"),
-    } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-    Limit{2, One{std::array{
-      Rule::parse("RBD", "GGR"),
-    } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-    Limit{15, One{{
-      Rule::parse("D", "W"),
-    }}},
-    Markov{{
-      NoLimit{One{std::array{
-        Rule::parse("RBW", "GGR"),
-      } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-      NoLimit{All{std::array{
-        Rule::parse("RBD", "GGR"),
-        Rule::parse("PGG", "DBP"),
-      } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-    }},
-  }}
-};
+  const auto symbols = xnode.attribute("values").as_string();
+  // ensure no duplicate
+  const auto origin = xnode.attribute("origin").as_bool(true);
 
-auto seq_snake = Example{
-  "Sequential Snake", "BWEPRUG", true,
-  Sequence{{
-    NoLimit{One{std::array{
-      Rule::parse("WBB", "PER"),
-    } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-    Limit{10, One{std::array{
-      Rule::parse("RBB", "EER"),
-    } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-    Markov{{
-      NoLimit{One{std::array{
-      Rule::parse("RBB", "GGU"),
-      Rule::parse("EEG", "GGG"),
-      Rule::parse("PEG", "BBP"),
-      } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-      NoLimit{All{{
-        Rule::parse("G", "E"),
-        Rule::parse("U", "R"),
-      }}},
-      NoLimit{All{{
-        Rule::parse("R", "P"),
-        Rule::parse("P", "R"),
-      }}},
-    }},
-  }}
-};
+  auto program = parseXmlNode(xnode);
+  if (xnode.name() != "sequence"s && xnode.name() != "markov"s)
+    program = Markov{{program}};
 
-auto basic_partitioning = Example{
-  "Basic Partitioning", "BW", false,
-  Sequence{{
-    NoLimit{All{std::array{
-      Rule::parse("***/*B*/***", "***/*W*/***"),
-    } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-    Markov{{
-      NoLimit{One{std::array{
-        Rule::parse("WWW/WBW", "WBW/WBW"),
-      } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-      NoLimit{One{std::array{
-        Rule::parse("WWW/BBB", "WBW/BBB"),
-      } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-    }}
-  }}
-};
+  return Example{
+    std::move(title),
+    std::move(symbols), std::move(origin),
+    std::move(program)
+  };
+}
 
-auto cycles = Example{
-  "Cycles", "BWA", true,
-  Sequence{{
-    NoLimit{One{std::array{
-      Rule::parse("WBB", "WAW"),
-    } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-    Limit{2, One{std::array{
-      Rule::parse("WBW", "*W*"),
-    } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-    NoLimit{All{std::array{
-      Rule::parse("A", "W"),
-    } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-    NoLimit{All{std::array{
-      Rule::parse("BBB/BWB", "***/*B*"),
-    } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-  }}
-};
-
-auto dual_retraction = Example{
-  "Dual Retraction", "BRUW", true,
-  Sequence{{
-    NoLimit{One{std::array{
-      Rule::parse("BB*BB/BBBBB/BBBBR/BBBBB/BB*BB", "**R**/*WWW*/*WWWU/*WWW*/**R**"),
-      Rule::parse("BBBBB/BBBBB/RBBB*/BBBBB/BBBBB", "*****/*****/UWWWR/*****/*****"),
-    } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-    NoLimit{All{std::array{
-      Rule::parse("R", "W"),
-      Rule::parse("U", "W"),
-    } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-    NoLimit{All{std::array{
-      Rule::parse("BBB/BWB", "BBB/BBB"),
-      Rule::parse("WWW/WBW", "WWW/WWW"),
-    } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-    NoLimit{All{std::array{
-      Rule::parse("BBB/WWB/WWB", "***/*B*/***"),
-    } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-  }}
-};
-
-auto fire_noise = Example{
-  "Fire Noise", "BGOERK", false,
-  Sequence{{
-    Limit{75, Prl{std::array{
-      Rule::parse("OG", "*O"),
-      Rule::parse("O*/*G", "**/*O"),
-      Rule::parse("B", "G", 0.01),
-      Rule::parse("O", "B"),
-      Rule::parse("G", "O", 0.0001),
-    } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-    NoLimit{All{std::array{
-      Rule::parse("*G*/GBG", "***/*G*"),
-    } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-    NoLimit{All{std::array{
-      Rule::parse("*B*/BGB/*B*", "***/*B*/***"),
-      Rule::parse("*BB*/BGGB/*BB*", "****/*BB*/****"),
-    } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-    Markov{{
-      Sequence{{
-        Limit{1, One{std::vector{Rule::parse("G", "R")}}},
-        Limit{10, All{std::array{
-          Rule::parse("RG", "*R"),
-        } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-        NoLimit{All{std::array{
-          Rule::parse("RG", "EE"),
-        } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-        NoLimit{All{std::array{
-          Rule::parse("ER", "*E"),
-          Rule::parse("EG", "*E"),
-        } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-      }}
-    }},
-    Markov{{
-      Sequence{{
-        Limit{1, One{std::vector{Rule::parse("B", "K")}}},
-        Limit{10, All{std::array{
-          Rule::parse("KB", "*K"),
-        } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-        NoLimit{All{std::array{
-          Rule::parse("KB", "GG"),
-        } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-        NoLimit{All{std::array{
-          Rule::parse("GB", "*G"),
-          Rule::parse("GK", "*G"),
-        } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-      }}
-    }},
-    NoLimit{Prl{std::vector{
-      Rule::parse("K", "E"),
-      Rule::parse("G", "B"),
-    }}},
-  }}
-};
-
-auto basic_dungeon_growth = Example{
-  "Basic Dungeon Growth", "BRACDG", true,
-  Sequence{{
-    NoLimit{One{std::array{
-      Rule::parse({{'?', {'B', 'R'}}}, "**?**/*BBB*/*BBB?/*BBB*/**R**", "AARAA/ADDDA/ADDDR/ADDDA/AACAA"),
-    } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-    NoLimit{One{std::array{
-      Rule::parse({{'?', {'B', 'R'}}}, "ACA/BBB", "ARA/BBB"),
-    } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-    NoLimit{All{std::vector{
-      Rule::parse({{'?', {'B', 'R'}}}, "C", "D"),
-      Rule::parse({{'?', {'B', 'R'}}}, "R", "D"),
-    }}},
-    NoLimit{All{std::array{
-      Rule::parse({{'?', {'B', 'R'}}}, "BD", "*A"),
-    } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-    NoLimit{All{std::array{
-      Rule::parse({{'?', {'B', 'R'}}}, "DDD/ADA/DDD", "***/D*D/***"),
-    } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-    NoLimit{All{std::array{
-      Rule::parse({{'?', {'B', 'R'}}}, "DDD/DAD/DDD", "***/*D*/***"),
-    } | std::views::transform(symmetries) | std::views::join | std::ranges::to<std::vector>()}},
-  }}
-};
 }
 }

@@ -113,7 +113,7 @@ struct std::hash<Rule> {
   }
 };
 
-inline constexpr auto symmetries(const Rule& rule) noexcept -> decltype(auto) {
+inline constexpr auto symmetries(const Rule& rule, std::string_view subgroup = "") noexcept -> decltype(auto) {
   return groups<Rule>
     | std::views::transform([&rule](const auto& action) noexcept { return action(rule); })
     | std::ranges::to<std::unordered_set>();
