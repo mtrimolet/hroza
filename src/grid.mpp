@@ -93,14 +93,17 @@ struct Grid {
     return std::ranges::cend(values);
   }
 
-  static inline constexpr auto parse(T Zsep, T Ysep, std::basic_string_view<T> str) noexcept -> decltype(auto) {
+  static inline constexpr auto parse(std::string_view str, std::function<T(char)> project = std::identity{}) noexcept -> decltype(auto) {
+    static constexpr char ZSEP = ' ', YSEP = '/';
+
     auto values = str
-      | std::views::split(Zsep)
-      | std::views::transform([Ysep](auto&& square){ 
+      | std::views::split(ZSEP)
+      | std::views::transform([&project](auto&& square){ 
           return square
-            | std::views::split(Ysep)
-            | std::views::transform([](auto&& line){
+            | std::views::split(YSEP)
+            | std::views::transform([&project](auto&& line){
                 return line
+                  | std::views::transform(project)
                   | std::ranges::to<std::vector>();
               })
             | std::ranges::to<std::vector>(); 

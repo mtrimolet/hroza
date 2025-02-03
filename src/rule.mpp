@@ -11,10 +11,6 @@ import grid;
 using namespace stormkit;
 using symbol = char;
 
-constexpr symbol Zsep = ' ';
-constexpr symbol Ysep = '/';
-constexpr symbol Ignored = '*';
-
 export {
 
 struct Rule {
@@ -29,33 +25,28 @@ struct Rule {
 
   static inline constexpr auto parse(
     std::unordered_map<symbol, std::unordered_set<symbol>> unions,
-    std::basic_string_view<symbol> _input,
-    std::basic_string_view<symbol> _output,
+    std::string_view _input,
+    std::string_view _output,
     double p = 1.0
   ) noexcept -> decltype(auto) {
-    auto input = Grid<symbol>::parse(Zsep, Ysep, _input);
-    auto output = Grid<symbol>::parse(Zsep, Ysep, _output);
+    static constexpr auto IGNORED = '*';
 
     return Rule{
-      input
-        | std::views::transform([&unions](const symbol& t) noexcept {
-            return t == Ignored ? std::nullopt
-                 : unions.contains(t) ? std::optional{unions.at(t)}
-                 : std::optional{std::unordered_set{t}};
-        })
-        | std::ranges::to<Grid<std::optional<std::unordered_set<symbol>>>>(input.extents),
-      output
-        | std::views::transform([](const symbol& t) noexcept {
-            return t == Ignored ? std::nullopt : std::optional{t};
-        })
-        | std::ranges::to<Grid<std::optional<symbol>>>(output.extents),
+      Grid<std::optional<std::unordered_set<symbol>>>::parse(_input, [&unions](auto&& t) noexcept {
+        return t == IGNORED ? std::nullopt
+          : unions.contains(t) ? std::optional{unions.at(t)}
+          : std::optional{std::unordered_set{t}};
+      }),
+      Grid<std::optional<symbol>>::parse(_output, [](auto&& t) noexcept {
+        return t == IGNORED ? std::nullopt : std::optional{t};
+      }),
       p,
     };
   }
 
   static inline constexpr auto parse(
-    std::basic_string_view<symbol> _input,
-    std::basic_string_view<symbol> _output,
+    std::string_view _input,
+    std::string_view _output,
     double p = 1.0
   ) noexcept -> decltype(auto) {
     return parse({}, _input, _output, p);
