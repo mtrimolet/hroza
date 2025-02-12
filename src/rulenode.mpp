@@ -7,10 +7,12 @@ import utils;
 
 import grid;
 import rule;
+import field;
 
 using namespace stormkit;
 using symbol = char;
 using grid_view = std::mdspan<const symbol, std::dims<3>>;
+using potential_view = std::unordered_map<symbol, std::mdspan<const std::optional<UInt>, std::dims<3>>>;
 
 export
 struct Match {
@@ -47,48 +49,17 @@ inline constexpr auto changes(grid_view grid, const Match& match) noexcept -> de
     });
 }
 
-struct RulesMatcher {
-  std::vector<Rule> rules;
-  std::vector<Match> matches;
-
-  RulesMatcher(std::vector<Rule>&& _rules) noexcept
-    : rules{std::move(_rules)} {}
-
-  inline constexpr auto newMatches(
-    grid_view grid,
-    std::span<const Change<symbol>> changes = {}
-  ) const noexcept -> decltype(auto) {
-    if (std::ranges::empty(changes)) {
-      return rules
-        | std::views::transform([g_sentinel{toSentinel(grid.extents())}](const Rule& rule) noexcept {
-            const auto ri_sentinel = toSentinel(rule.input.extents);
-            const auto sentinel = g_sentinel - (ri_sentinel - math::Vector3U{1u, 1u, 1u});
-            return mdiota({sentinel})
-              | std::views::transform([&rule](auto u) noexcept {
-                  return Match{u, rule};
-              });
-        })
-        | std::views::join
-        | std::ranges::to<std::vector>();
-    }
-
+inline constexpr auto matches(
+  grid_view grid,
+  std::span<const Rule> rules,
+  std::span<const Change<symbol>> changes = {}
+) noexcept -> decltype(auto) {
+  if (std::ranges::empty(changes)) {
     return rules
-      | std::views::transform([&changes, &g_extents{grid.extents()}](const Rule& rule) noexcept {
-          auto rchanges = changes
-            | std::views::transform([
-                g_sentinel{toSentinel(g_extents)}, 
-                ri_sentinel{toSentinel(rule.input.extents)}
-              ](const Change<symbol>& change) noexcept {
-                // boundaries
-                const auto bounded_zone = intersect(
-                  Area3U{ri_sentinel} + change.u,
-                  {ri_sentinel - math::Vector3U{1u, 1u, 1u}, g_sentinel}
-                ) - (ri_sentinel - math::Vector3U{1u, 1u, 1u});
-                return mdiota(bounded_zone);
-            })
-            | std::views::join
-            | std::ranges::to<std::unordered_set>();
-          return std::move(rchanges)
+      | std::views::transform([g_sentinel{toSentinel(grid.extents())}](const Rule& rule) noexcept {
+          const auto ri_sentinel = toSentinel(rule.input.extents);
+          const auto sentinel = g_sentinel - (ri_sentinel - math::Vector3U{1u, 1u, 1u});
+          return mdiota({sentinel})
             | std::views::transform([&rule](auto u) noexcept {
                 return Match{u, rule};
             });
@@ -97,11 +68,40 @@ struct RulesMatcher {
       | std::ranges::to<std::vector>();
   }
 
-  inline constexpr auto refreshMatches(
-    grid_view grid,
-    std::span<const Change<symbol>> changes = {}
-  ) noexcept -> decltype(auto) {
-    matches.append_range(newMatches(grid, changes)
+  return rules
+    | std::views::transform([&changes, &g_extents{grid.extents()}](const Rule& rule) noexcept {
+        auto rchanges = changes
+          | std::views::transform([
+              g_sentinel{toSentinel(g_extents)}, 
+              ri_sentinel{toSentinel(rule.input.extents)}
+            ](const Change<symbol>& change) noexcept {
+              // boundaries
+              const auto bounded_zone = intersect(
+                Area3U{ri_sentinel} + change.u,
+                {ri_sentinel - math::Vector3U{1u, 1u, 1u}, g_sentinel}
+              ) - (ri_sentinel - math::Vector3U{1u, 1u, 1u});
+              return mdiota(bounded_zone);
+          })
+          | std::views::join
+          | std::ranges::to<std::unordered_set>();
+        return std::move(rchanges)
+          | std::views::transform([&rule](auto u) noexcept {
+              return Match{u, rule};
+          });
+    })
+    | std::views::join
+    | std::ranges::to<std::vector>();
+}
+
+struct RulesMatcher {
+  std::vector<Rule> rules;
+  std::vector<Match> matches;
+
+  RulesMatcher(std::vector<Rule>&& _rules) noexcept
+    : rules{std::move(_rules)}, matches{} {}
+
+  inline constexpr auto refreshMatches(grid_view grid, std::span<const Change<symbol>> changes = {}) noexcept -> decltype(auto) {
+    matches.append_range(::matches(grid, rules, changes)
       | std::views::filter(bindFront(::match, grid)));
   }
 };
@@ -125,10 +125,45 @@ struct EventTracker {
 
 /********* */
 
+inline constexpr auto score(grid_view grid, potential_view ps, std::unordered_map<symbol, Field> fields, const Match& match) noexcept -> decltype(auto) {
+  return std::ranges::fold_left(
+    std::views::zip(
+      mdiota(Area3U{toSentinel(match.rule.output.extents)} + match.u),
+      match.rule.input,
+      match.rule.output
+    )
+    | std::views::filter([&grid, &ps] (auto&& _tuple) noexcept {
+        const auto& [u, i, o] = _tuple;
+        return o != std::nullopt
+           and i != std::nullopt
+           and not i->contains(*o)
+           and ps.contains(*o)
+           and ps.at(*o)[u.z, u.y, u.x] != std::nullopt
+           and ps.contains(grid[u.z, u.y, u.x])
+           and ps.at(grid[u.z, u.y, u.x])[u.z, u.y, u.x] != std::nullopt;
+    })
+    | std::views::transform([&grid, &ps, &fields] (auto&& _tuple) noexcept {
+        const auto& [u, i, o] = _tuple;
+        // fields.inversed ?
+        return *(ps.at(*o)[u.z, u.y, u.x]) - *(ps.at(grid[u.z, u.y, u.x])[u.z, u.y, u.x]);
+    }),
+    0, std::plus{}
+  );
+}
+
+struct PotentialFields {
+  double temperature;
+  std::unordered_map<symbol, Field> fields;
+};
+
+/********* */
+
 export
-struct One : RulesMatcher, EventTracker {
-  One(std::vector<Rule>&& x) noexcept
-    : RulesMatcher{std::move(x)}, EventTracker{} {}
+struct One : EventTracker, RulesMatcher, PotentialFields {
+  One(double temperature, std::unordered_map<symbol, Field>&& _fields, std::vector<Rule>&& _rules) noexcept
+    : EventTracker{},
+    RulesMatcher{std::move(_rules)},
+    PotentialFields{temperature, std::move(_fields)} {}
 
   inline constexpr auto operator()(const TracedGrid<symbol>& grid) noexcept -> decltype(auto) {
     const auto changes = EventTracker::getNewEvents(grid.history)
@@ -137,11 +172,48 @@ struct One : RulesMatcher, EventTracker {
     auto mdgrid = std::mdspan{std::ranges::cdata(grid), grid.extents};
     std::erase_if(this->matches, std::not_fn(bindFront(::match, mdgrid)));
     RulesMatcher::refreshMatches(mdgrid, changes);
+    if (std::ranges::empty(this->matches)) return std::vector<Change<symbol>>{};
 
-    static auto rg = std::mt19937{std::random_device{}()};
-    // if potentials
-    // else
-    std::ranges::shuffle(this->matches, rg);
+    const auto potentials = this->fields
+      | std::views::transform([potential{bindBack(&Field::potential, mdgrid)}](const auto& x) noexcept {
+          const auto& [c, f] = x;
+          return std::make_pair(c, potential(f));
+      })
+      | std::ranges::to<std::unordered_map>();
+    
+    if (not std::ranges::empty(potentials)
+        and std::ranges::all_of(potentials, [](const auto& x) noexcept {
+          return std::ranges::empty(std::get<1>(x));
+        })
+    )
+      return std::vector<Change<symbol>>{};
+
+    const auto mdpotentials = potentials
+      | std::views::transform([](const auto& x) noexcept {
+          const auto& [c, p] = x;
+          return std::make_pair(c, std::mdspan{std::ranges::cdata(p), p.extents});
+      })
+      | std::ranges::to<std::unordered_map>();
+
+    if (not std::ranges::empty(mdpotentials)) {
+      const auto score = bindFront(::score, mdgrid, mdpotentials, this->fields);
+      const auto first_h = score(this->matches[0]);
+      std::ranges::sort(
+        this->matches,
+        std::ranges::less{},
+        [this, &score, &first_h](const Match& m) noexcept {
+          static auto rg = std::mt19937{std::random_device{}()};
+          static auto prob = std::uniform_real_distribution<>(0.0, 1.0);
+          const auto h = score(m);
+          const auto u = prob(rg);
+          return this->temperature > 0 ? std::pow(u, std::exp((h - first_h) / this->temperature)) : -h + 0.001 * u;
+        }
+      );
+    }
+    else {
+      static auto rg = std::mt19937{std::random_device{}()};
+      std::ranges::shuffle(this->matches, rg);
+    }
 
     return this->matches
       | std::views::take(1)
@@ -152,7 +224,7 @@ struct One : RulesMatcher, EventTracker {
 };
 
 export
-struct Prl : RulesMatcher, EventTracker {
+struct Prl : EventTracker, RulesMatcher {
   Prl(std::vector<Rule>&& x) noexcept
     : RulesMatcher{std::move(x)}, EventTracker{} {}
 
@@ -177,21 +249,63 @@ struct Prl : RulesMatcher, EventTracker {
 };
 
 export
-struct All : RulesMatcher, EventTracker {
-  All(std::vector<Rule>&& x) noexcept
-    : RulesMatcher{std::move(x)}, EventTracker{} {}
+struct All : EventTracker, RulesMatcher, PotentialFields {
+  All(double temperature, std::unordered_map<symbol, Field>&& _fields, std::vector<Rule>&& _rules) noexcept
+    : EventTracker{},
+    RulesMatcher{std::move(_rules)},
+    PotentialFields{temperature, std::move(_fields)} {}
 
   inline constexpr auto operator()(const TracedGrid<symbol>& grid) noexcept -> decltype(auto) {
     const auto changes = EventTracker::getNewEvents(grid.history)
       | std::ranges::to<std::vector>();
 
-    auto mdgrid = std::mdspan{std::ranges::cdata(grid), grid.extents};
+    const auto mdgrid = std::mdspan{std::ranges::cdata(grid), grid.extents};
     RulesMatcher::refreshMatches(mdgrid, changes);
+    if (std::ranges::empty(this->matches)) return std::vector<Change<symbol>>{};
 
-    static auto rg = std::mt19937{std::random_device{}()};
-    // if potentials
-    // else
-    std::ranges::shuffle(this->matches, rg);
+    const auto potentials = this->fields
+      | std::views::filter([first_run{std::ranges::empty(changes)}](const auto& f) noexcept {
+          return first_run or std::get<1>(f).recompute;
+      })
+      | std::views::transform([potential{bindBack(&Field::potential, mdgrid)}](const auto& x) noexcept {
+          const auto& [c, f] = x;
+          return std::make_pair(c, potential(f));
+      })
+      | std::ranges::to<std::unordered_map>();
+    
+    if (not std::ranges::empty(potentials)
+        and std::ranges::all_of(potentials, [](const auto& x) noexcept {
+          return std::ranges::empty(std::get<1>(x));
+        })
+    )
+      return std::vector<Change<symbol>>{};
+
+    const auto mdpotentials = potentials
+      | std::views::transform([](const auto& x) noexcept {
+          const auto& [c, p] = x;
+          return std::make_pair(c, std::mdspan{std::ranges::cdata(p), p.extents});
+      })
+      | std::ranges::to<std::unordered_map>();
+
+    if (not std::ranges::empty(mdpotentials)) {
+      const auto score = bindFront(::score, mdgrid, mdpotentials, this->fields);
+      const auto first_h = score(this->matches[0]);
+      std::ranges::sort(
+        this->matches,
+        std::ranges::less{},
+        [this, &score, &first_h](const Match& m) noexcept {
+          static auto rg = std::mt19937{std::random_device{}()};
+          static auto prob = std::uniform_real_distribution<>(0.0, 1.0);
+          const auto h = score(m);
+          const auto u = prob(rg);
+          return this->temperature > 0 ? std::pow(u, std::exp((h - first_h) / this->temperature)) : -h + 0.001 * u;
+        }
+      );
+    }
+    else {
+      static auto rg = std::mt19937{std::random_device{}()};
+      std::ranges::shuffle(this->matches, rg);
+    }
 
     auto filtered = std::ranges::fold_left(
       this->matches,

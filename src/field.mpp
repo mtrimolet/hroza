@@ -1,0 +1,76 @@
+export module field;
+
+import std;
+import glm;
+import stormkit.Core;
+import utils;
+
+import grid;
+
+using namespace stormkit;
+using symbol = char;
+using grid_view = std::mdspan<const symbol, std::dims<3>>;
+// using potential_view = std::mdspan<const std::unordered_map<symbol, UInt>, std::dims<3>>;
+
+export
+struct Field {
+  bool recompute, essential, inversed;
+  std::optional<std::unordered_set<symbol>> substrate, zero;
+
+  static inline constexpr auto parse(
+    bool recompute, bool essential,
+    std::string_view on,
+    std::string_view from,
+    std::string_view to
+  ) noexcept -> decltype(auto) {
+    static constexpr auto IGNORED = '*';
+    const auto& zero = std::ranges::empty(from) ? to : from;
+    return Field{
+      recompute, essential,
+      not std::ranges::empty(from),
+      on == std::format("{}", IGNORED) ? std::nullopt : std::optional{on | std::ranges::to<std::unordered_set>()},
+      zero == std::format("{}", IGNORED) ? std::nullopt : std::optional{zero | std::ranges::to<std::unordered_set>()}
+    };
+  }
+
+  inline constexpr auto potential(grid_view grid) const noexcept -> decltype(auto) {
+    auto potential = Grid<std::optional<UInt>>{grid.extents(), std::nullopt};
+
+    for (
+      auto q = mdiota(grid.extents())
+        | std::views::filter([this, &grid](auto&& u) noexcept {
+            return zero == std::nullopt
+                or zero->contains(grid[u.z, u.y, u.x]);
+        })
+        | std::views::transform([&potential](auto&& u) noexcept {
+            potential[u] = 0u;
+            return std::make_pair(u, 0u);
+        })
+        | std::ranges::to<std::queue>();
+      not std::ranges::empty(q);
+      q.pop()
+    ) {
+      const auto& [u, value] = q.front();
+      const auto g_sentinel = toSentinel(grid.extents());
+      const auto neighborhood = intersect(
+        Area3U{{3, 3, g_sentinel.z == 1 ? 1 : 3}} + u,
+        {math::Vector3U{1, 1, g_sentinel.z == 1 ? 0 : 1}, g_sentinel}
+      ) - math::Vector3U{1, 1, g_sentinel.z == 1 ? 0 : 1};
+      q.push_range(
+        mdiota(neighborhood)
+        | std::views::filter([this, &potential, &grid](auto&& n) noexcept {
+            return potential[n] == std::nullopt
+               and (substrate == std::nullopt
+                 or substrate->contains(grid[n.z, n.y, n.x])
+               );
+        })
+        | std::views::transform([&potential, &value](auto&& n) noexcept {
+            potential[n] = value + 1;
+            return std::make_pair(n, value + 1);
+        })
+      );
+    }
+
+    return potential;
+  }
+};

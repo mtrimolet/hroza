@@ -23,7 +23,11 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   // auto example = examples::parseXmlExample("Cycles", "./models/Cycles.xml");
   // auto example = examples::parseXmlExample("Dual Retraction", "./models/DualRetraction.xml");
   // auto example = examples::parseXmlExample("Fire Noise", "./models/FireNoise.xml");
-  auto example = examples::parseXmlExample("Basic Dungeon Growth", "./models/BasicDungeonGrowth.xml");
+  // auto example = examples::parseXmlExample("Basic Dungeon Growth", "./models/BasicDungeonGrowth.xml");
+  // auto example = examples::parseXmlExample("Nystrom Dungeon", "./models/NystromDungeon.xml");
+  // auto example = examples::parseXmlExample("Basic Keys", "./models/BasicKeys.xml");
+  // auto example = examples::parseXmlExample("Biased Growth", "./models/BiasedGrowth.xml");
+  auto example = examples::parseXmlExample("Keys", "./models/Keys.xml");
 
   const auto square_size = 67u;
   auto grid = TracedGrid{std::dims<3>{1u, square_size, square_size}, example.symbols[0]};

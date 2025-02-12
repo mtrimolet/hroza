@@ -7,6 +7,7 @@ import utils;
 import pugixml;
 
 import rule;
+import field;
 import rulenode;
 import node;
 
@@ -16,6 +17,29 @@ using symbol = char;
 
 export {
 namespace examples {
+inline constexpr auto parseXmlField(
+  const pugi::xml_node& xnode
+) noexcept -> decltype(auto) {
+  return std::make_pair(
+    xnode.attribute("for").as_string()[0],
+    Field::parse(
+      xnode.attribute("recompute").as_bool(false),
+      xnode.attribute("essential").as_bool(false),
+      xnode.attribute("on").as_string(),
+      xnode.attribute("from").as_string(),
+      xnode.attribute("to").as_string(),
+    )
+  );
+}
+
+inline constexpr auto parseXmlFields(
+  const pugi::xml_node& xnode
+) noexcept -> decltype(auto) {
+  return xnode.children("field")
+    | std::views::transform(parseXmlField)
+    | std::ranges::to<std::unordered_map>();
+}
+
 inline constexpr auto parseXmlRule(
   const pugi::xml_node& xnode,
   std::unordered_map<symbol, std::unordered_set<symbol>> unions = {}
@@ -49,13 +73,23 @@ inline constexpr auto parseXmlRuleNode(
 ) noexcept -> Action {
   const auto tag = xnode.name();
   if (tag == "one"s) {
-    return One{parseXmlRules(xnode, unions, symmetry)};
+    return One{
+      xnode.attribute("temperature").as_double(0.0),
+      parseXmlFields(xnode),
+      parseXmlRules(xnode, unions, symmetry)
+    };
   }
   else if (tag == "prl"s) {
-    return Prl{parseXmlRules(xnode, unions, symmetry)};
+    return Prl{
+      parseXmlRules(xnode, unions, symmetry)
+    };
   }
   else if (tag == "all"s) {
-    return All{parseXmlRules(xnode, unions, symmetry)};
+    return All{
+      xnode.attribute("temperature").as_double(0.0),
+      parseXmlFields(xnode),
+      parseXmlRules(xnode, unions, symmetry)
+    };
   }
 
   ensures(false, std::format("unknown tag {}", tag));
