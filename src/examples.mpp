@@ -134,5 +134,27 @@ inline constexpr auto parseXmlExample(std::string title, std::string_view filepa
   };
 }
 
+inline constexpr auto parseXmlPalette(std::string_view filepath) noexcept -> decltype(auto) {
+  auto xpalette = pugi::xml_document{};
+  auto result = xpalette.load_file(std::data(filepath));
+  ensures(result, std::format("Error while parsing xml ({}:{}) : {}", filepath, result.offset, result.description()));
+
+  return xpalette.child("colors").children("color")
+    | std::views::transform([](const auto& xcolor) noexcept {
+        const auto symbol_str = std::string{xcolor.attribute("symbol").as_string()};
+        ensures(!std::ranges::empty(symbol_str),
+                std::format("missing '{}' attribute in '{}' node [:{}]", "symbol", "color", xcolor.offset_debug()));
+        ensures(std::ranges::size(symbol_str) == 1,
+                std::format("only one character allowed for '{}' attribute of 'color' node [:{}]", "symbol", "color", xcolor.offset_debug()));
+        
+        const auto value = std::string{xcolor.attribute("value").as_string()};
+        ensures(!std::ranges::empty(value),
+                std::format("missing '{}' attribute in '{}' node [:{}]", "value", "color", xcolor.offset_debug()));
+        
+        return std::make_pair(symbol_str[0], (255u << 24u) + fromBase<std::uint32_t>(value, 16));
+    })
+    | std::ranges::to<std::unordered_map>();
+}
+
 }
 }

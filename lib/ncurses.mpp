@@ -23,11 +23,6 @@ public:
 
       start_color();
       use_default_colors();
-
-      short fg_color, bg_color;
-      pair_content(0, &fg_color, &bg_color);
-      for (auto i : std::views::iota(1u, 7u))
-        init_pair(i, i, bg_color);
     }
     win = newwin(height + 2, width + 2, start_y, start_x);
     ::refresh(); // refresh root window
@@ -84,6 +79,46 @@ public:
 
     data.resize(width);
     return data;
+  }
+
+  inline constexpr auto hascolors() const -> decltype(auto) {
+    return has_colors();
+  }
+
+  inline constexpr auto canchangecolor() const -> decltype(auto) {
+    return can_change_color();
+  }
+  
+  
+  inline constexpr auto setpalette(std::span<const std::uint32_t> colors) -> void {
+    if (canchangecolor()) 
+      std::ranges::for_each(
+        std::views::zip(colors, std::views::iota(0u))
+          | std::views::take(COLORS),
+        [](auto&& t) noexcept {
+          const auto& [i, r, g, b] = t;
+          init_color(i, r, g, b);
+          init_pair(i, i, -1);
+        },
+        [](auto&& t) noexcept {
+          const auto& [c, i] = t;
+          static constexpr auto MAX_COLOR_VALUE = 1000;
+          static constexpr auto COLOR_RATIO = MAX_COLOR_VALUE / 0xff;
+          const short
+            r = ((c >> 16) & 0x000000ff) * COLOR_RATIO,
+            g = ((c >> 8)  & 0x000000ff) * COLOR_RATIO,
+            b = ( c        & 0x000000ff) * COLOR_RATIO;
+          return std::make_tuple(i, r, g, b);
+        }
+      );
+    else 
+      std::ranges::for_each(
+        std::views::iota(0u, std::ranges::size(colors))
+          | std::views::take(COLORS),
+        [](auto&& i) noexcept {
+          init_pair(i, i, -1);
+        }
+      );
   }
 
   inline constexpr auto addch(auto y, auto x, chtype ch) -> void {

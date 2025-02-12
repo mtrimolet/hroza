@@ -13,6 +13,8 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   // [tmpfix] remove when stormkit userMain allows for non-packaged build
   chdir("/Users/mtrimolet/Desktop/mtrimolet/markovjunior/hroza");
 
+  const auto palette = examples::parseXmlPalette("./resources/palette.xml");
+
   // auto example = examples::parseXmlExample("Growth", "./models/Growth.xml");
   // auto example = examples::parseXmlExample("Basic Snake", "./models/BasicSnake.xml");
   // auto example = examples::parseXmlExample("Sequential Snake", "./models/SequentialSnake.xml");
@@ -31,23 +33,36 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   window.say(example.title);
   window.waitchar();
 
-  const auto offsets = std::views::zip(example.symbols, std::views::iota(0))
-    | std::ranges::to<std::unordered_map<char, int>>();
+  window.setpalette(example.symbols
+    | std::views::transform([&palette](const auto& s) noexcept {
+        return palette.contains(s) 
+          ? palette.at(s) 
+          : 0xffffff;
+    })
+    | std::ranges::to<std::vector>()
+  );
+
+  const auto offsets = std::views::zip(example.symbols, std::views::iota(0u))
+    | std::ranges::to<std::unordered_map<char, unsigned int>>();
 
   for (const auto& [u, value] : std::views::zip(mdiota(grid.extents), grid)) {
-    if (offsets.contains(value))
-      window.addch(u.y, u.x, value, offsets.at(value));
-    else
+    if (window.hascolors()) {
+      const auto offset = offsets.contains(value) ? offsets.at(value) : 0;
+      window.addch(u.y, u.x, value, offset);
+    } else {
       window.addch(u.y, u.x, value);
+    }
   }
   window.refresh();
-  
+
   for (auto changes : example.program(grid)) {
     for (const auto& [u, value] : changes) {
-      if (offsets.contains(value))
-        window.addch(u.y, u.x, value, offsets.at(value));
-      else
+      if (window.hascolors()) {
+        const auto offset = offsets.contains(value) ? offsets.at(value) : 0;
+        window.addch(u.y, u.x, value, offset);
+      } else {
         window.addch(u.y, u.x, value);
+      }
     }
     window.refresh();
   }
