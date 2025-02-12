@@ -123,8 +123,14 @@ inline constexpr auto parseXmlExample(std::string title, std::string_view filepa
   // ensure no duplicate
   const auto origin = xnode.attribute("origin").as_bool(false);
 
-  auto program = parseXmlNode(xnode);
-  if (xnode.name() != "sequence"s && xnode.name() != "markov"s)
+  const auto unions = std::string_view{symbols}
+    | std::views::transform([](auto&& c) noexcept { 
+        return std::make_pair(c, std::unordered_set{c});
+      })
+    | std::ranges::to<std::unordered_map>();
+
+  auto program = parseXmlNode(xnode, unions);
+  if (xnode.name() != "sequence"s and xnode.name() != "markov"s)
     program = Markov{{program}};
 
   return Example{

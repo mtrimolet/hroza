@@ -25,31 +25,31 @@ struct Rule {
 
   static inline constexpr auto parse(
     std::unordered_map<symbol, std::unordered_set<symbol>> unions,
-    std::string_view _input,
-    std::string_view _output,
+    std::string_view input,
+    std::string_view output,
     double p = 1.0
   ) noexcept -> decltype(auto) {
     static constexpr auto IGNORED = '*';
 
     return Rule{
-      Grid<std::optional<std::unordered_set<symbol>>>::parse(_input, [&unions](auto&& t) noexcept {
+      Grid<std::optional<std::unordered_set<symbol>>>::parse(input, [&unions](auto&& t) noexcept {
         return t == IGNORED ? std::nullopt
           : unions.contains(t) ? std::optional{unions.at(t)}
           : std::optional{std::unordered_set{t}};
       }),
-      Grid<std::optional<symbol>>::parse(_output, [](auto&& t) noexcept {
+      Grid<std::optional<symbol>>::parse(output, [](auto&& t) noexcept {
         return t == IGNORED ? std::nullopt : std::optional{t};
       }),
-      p,
+      p
     };
   }
 
   static inline constexpr auto parse(
-    std::string_view _input,
-    std::string_view _output,
+    std::string_view input,
+    std::string_view output,
     double p = 1.0
   ) noexcept -> decltype(auto) {
-    return parse({}, _input, _output, p);
+    return parse({}, input, output, p);
   }
 };
 
