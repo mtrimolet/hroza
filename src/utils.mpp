@@ -113,8 +113,16 @@ inline constexpr auto mod(const math::Vector3U& a, const math::Vector3U& b) noex
   };
 }
 
+inline constexpr auto operator%(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
+  return mod(a, b);
+}
+
 inline constexpr auto mod(const math::Vector3U& a, UInt b) noexcept -> decltype(auto) {
   return mod(a, {b,b,b});
+}
+
+inline constexpr auto operator%(const math::Vector3U& a, UInt b) noexcept -> decltype(auto) {
+  return mod(a, b);
 }
 
 inline constexpr auto div(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
@@ -125,16 +133,38 @@ inline constexpr auto div(const math::Vector3U& a, const math::Vector3U& b) noex
   };
 }
 
+inline constexpr auto operator/(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
+  return div(a, b);
+}
+
 inline constexpr auto div(const math::Vector3U& a, UInt b) noexcept -> decltype(auto) {
   return div(a, {b,b,b});
+}
+
+inline constexpr auto operator/(const math::Vector3U& a, UInt b) noexcept -> decltype(auto) {
+  return div(a, b);
 }
 
 inline constexpr auto allLessThan(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
   return math::all(math::lessThan(a, b));
 }
 
+inline constexpr auto operator<(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
+  return allLessThan(a, b);
+}
+
 inline constexpr auto allLessThanEqual(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
   return math::all(math::lessThanEqual(a, b));
+}
+
+inline constexpr auto operator<=(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
+  return allLessThanEqual(a, b);
+}
+
+inline constexpr auto operator<=>(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
+  return a < b ? std::weak_ordering::less
+       : not (a <= b) ? std::weak_ordering::greater
+       : std::weak_ordering::equivalent;
 }
 
 inline constexpr auto allMin(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
@@ -159,7 +189,7 @@ struct Area3U {
 
   Area3U(math::Vector3U _lower, math::Vector3U _upper) noexcept
   : lower{}, upper{} {
-    ensures(allLessThan(_lower, _upper), "first value must be allLessThan than second !");
+    ensures(_lower < _upper, "first value must be allLessThan than second !");
     lower = _lower;
     upper = _upper;
   }
@@ -179,13 +209,13 @@ struct Area3U {
 };
 
 inline constexpr auto inBounds(const Area3U& zone, const math::Vector3U& value) noexcept -> decltype(auto) {
-  return allLessThanEqual(zone.lower, value) 
-     and allLessThan(value, zone.upper);
+  return zone.lower <= value
+     and value < zone.upper;
 }
 
 inline constexpr auto overlaps(const Area3U& a, const Area3U& b) noexcept -> decltype(auto) {
-  return allLessThan(a.lower, b.upper)
-     and allLessThan(b.lower, a.upper);
+  return a.lower < b.upper
+     and b.lower < a.upper;
 }
 
 inline constexpr auto intersect(const Area3U& a, const Area3U& b) noexcept -> decltype(auto) {
