@@ -75,12 +75,11 @@ inline constexpr auto matches(
               g_sentinel{toSentinel(g_extents)}, 
               ri_sentinel{toSentinel(rule.input.extents)}
             ](const Change<symbol>& change) noexcept {
-              // boundaries
-              const auto bounded_zone = intersect(
+              const auto update_zone = intersect(
                 Area3U{ri_sentinel} + change.u,
-                {ri_sentinel - math::Vector3U{1u, 1u, 1u}, g_sentinel}
+                Area3U{g_sentinel} + (ri_sentinel - math::Vector3U{1u, 1u, 1u})
               ) - (ri_sentinel - math::Vector3U{1u, 1u, 1u});
-              return mdiota(bounded_zone);
+              return mdiota(update_zone);
           })
           | std::views::join
           | std::ranges::to<std::unordered_set>();

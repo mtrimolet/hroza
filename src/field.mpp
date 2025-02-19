@@ -34,11 +34,15 @@ struct Field {
   }
 
   inline constexpr auto potential(grid_view grid) const noexcept -> decltype(auto) {
+    const auto g_sentinel = toSentinel(grid.extents());
+    const auto neigh_zone = Area3U{{3, 3, g_sentinel.z == 1 ? 1 : 3}};
+    const auto neigh_offset = (neigh_zone.upper - math::Vector3U{1, 1, 1}) / 2 ;
+
     auto potential = Grid<std::optional<UInt>>{grid.extents(), std::nullopt};
 
     for (
-      auto q = mdiota(grid.extents())
-        | std::views::filter([this, &grid](auto&& u) noexcept {
+      auto q = mdiota(g_sentinel)
+        | std::views::filter([zero{this->zero}, &grid](auto&& u) noexcept {
             return zero == std::nullopt
                 or zero->contains(grid[u.z, u.y, u.x]);
         })
@@ -51,14 +55,13 @@ struct Field {
       q.pop()
     ) {
       const auto& [u, value] = q.front();
-      const auto g_sentinel = toSentinel(grid.extents());
       const auto neighborhood = intersect(
-        Area3U{{3, 3, g_sentinel.z == 1 ? 1 : 3}} + u,
-        {math::Vector3U{1, 1, g_sentinel.z == 1 ? 0 : 1}, g_sentinel}
-      ) - math::Vector3U{1, 1, g_sentinel.z == 1 ? 0 : 1};
+        neigh_zone + u,
+        Area3U{g_sentinel} + neigh_offset
+      ) - neigh_offset;
       q.push_range(
         mdiota(neighborhood)
-        | std::views::filter([this, &potential, &grid](auto&& n) noexcept {
+        | std::views::filter([substrate{this->substrate}, &potential, &grid](auto&& n) noexcept {
             return potential[n] == std::nullopt
                and (substrate == std::nullopt
                  or substrate->contains(grid[n.z, n.y, n.x])
