@@ -31,7 +31,7 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
 
   const auto square_size = 67u;
   auto grid = TracedGrid{std::dims<3>{1u, square_size, square_size}, example.symbols[0]};
-  if (example.origin) grid[div(toSentinel(grid.extents), 2u)] = example.symbols[1];
+  if (example.origin) grid[toSentinel(grid.extents) / 2] = example.symbols[1];
 
   auto window = ncurses::window{grid.extents.extent(1), grid.extents.extent(2)};
   window.say(example.title);

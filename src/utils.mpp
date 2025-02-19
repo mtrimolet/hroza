@@ -216,6 +216,14 @@ struct Area3U {
   inline constexpr auto operator-(const math::Vector3U& u) const noexcept -> decltype(auto) {
     return Area3U{lower - u, upper - u};
   }
+
+  inline constexpr auto operator*(UInt u) const noexcept -> decltype(auto) {
+    return Area3U{lower, upper * u};
+  }
+
+  inline constexpr auto operator/(UInt u) const noexcept -> decltype(auto) {
+    return Area3U{lower, upper / u};
+  }
 };
 
 inline constexpr auto inBounds(const Area3U& zone, const math::Vector3U& value) noexcept -> decltype(auto) {
