@@ -87,7 +87,7 @@ const auto square_groups = makeStaticArray<std::function<T(const T&)>>(
   [](const T& rule) noexcept { return xyrotated(xyrotated(rule)); },
   [](const T& rule) noexcept { return xreflected(xyrotated(xyrotated(rule))); },
   [](const T& rule) noexcept { return xyrotated(xyrotated(xyrotated(rule))); },
-  [](const T& rule) noexcept { return xreflected(xyrotated(xyrotated(xyrotated(rule)))); },
+  [](const T& rule) noexcept { return xreflected(xyrotated(xyrotated(xyrotated(rule)))); }
 );
 
 constexpr auto square_subgroups =

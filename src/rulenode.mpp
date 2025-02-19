@@ -24,7 +24,7 @@ inline constexpr auto match(grid_view grid, const Match& match) noexcept -> bool
   return std::ranges::all_of(
     std::views::zip(
       mdiota(Area3U{toSentinel(match.rule.input.extents)} + match.u),
-      match.rule.input,
+      match.rule.input
     ),
     [grid{std::move(grid)}](const auto& input) noexcept {
       const auto& [v, value] = input;
@@ -37,7 +37,7 @@ inline constexpr auto match(grid_view grid, const Match& match) noexcept -> bool
 inline constexpr auto changes(grid_view grid, const Match& match) noexcept -> decltype(auto) {
   return std::views::zip(
     mdiota(Area3U{toSentinel(match.rule.output.extents)} + match.u),
-    match.rule.output,
+    match.rule.output
   )
     | std::views::filter([grid{std::move(grid)}](const auto& output) noexcept {
         const auto& [v, value] = output;

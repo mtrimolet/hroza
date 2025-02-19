@@ -27,7 +27,7 @@ inline constexpr auto parseXmlField(
       xnode.attribute("essential").as_bool(false),
       xnode.attribute("on").as_string(),
       xnode.attribute("from").as_string(),
-      xnode.attribute("to").as_string(),
+      xnode.attribute("to").as_string()
     )
   );
 }
@@ -48,7 +48,7 @@ inline constexpr auto parseXmlRule(
     unions,
     xnode.attribute("in").as_string(),
     xnode.attribute("out").as_string(),
-    xnode.attribute("p").as_double(1.0),
+    xnode.attribute("p").as_double(1.0)
   );
 }
 
