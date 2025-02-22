@@ -118,7 +118,7 @@ struct std::hash<Rule> {
 inline constexpr auto symmetries(const Rule& rule, std::string_view subgroup = "") noexcept -> decltype(auto) {
   return std::views::zip(square_groups<Rule>, square_subgroups.at(std::empty(subgroup) ? "(xy)" : subgroup))
     | std::views::filter(monadic::get<1>())
-    | std::views::transform([&rule](const auto& action) noexcept { return std::get<0>(action)(rule); })
+    | std::views::transform([&rule](auto&& action) noexcept { return std::get<0>(action)(rule); })
     | std::ranges::to<std::unordered_set>();
 }
 }

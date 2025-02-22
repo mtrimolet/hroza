@@ -24,7 +24,7 @@ struct Field {
     std::string_view to
   ) noexcept -> decltype(auto) {
     static constexpr auto IGNORED = '*';
-    const auto& zero = std::ranges::empty(from) ? to : from;
+    auto&& zero = std::ranges::empty(from) ? to : from;
     return Field{
       recompute, essential,
       not std::ranges::empty(from),
@@ -54,7 +54,7 @@ struct Field {
       not std::ranges::empty(q);
       q.pop()
     ) {
-      const auto& [u, value] = q.front();
+      auto&& [u, value] = q.front();
       const auto neighborhood = intersect(
         neigh_zone + u,
         Area3U{g_sentinel} + neigh_offset

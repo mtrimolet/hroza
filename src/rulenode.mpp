@@ -26,8 +26,8 @@ inline constexpr auto match(grid_view grid, const Match& match) noexcept -> bool
       mdiota(Area3U{toSentinel(match.rule.input.extents)} + match.u),
       match.rule.input
     ),
-    [grid{std::move(grid)}](const auto& input) noexcept {
-      const auto& [v, value] = input;
+    [grid{std::move(grid)}](auto&& input) noexcept {
+      auto&& [v, value] = input;
       return value == std::nullopt
           or value->contains(grid[v.z, v.y, v.x]);
     }
@@ -39,8 +39,8 @@ inline constexpr auto changes(grid_view grid, const Match& match) noexcept -> de
     mdiota(Area3U{toSentinel(match.rule.output.extents)} + match.u),
     match.rule.output
   )
-    | std::views::filter([grid{std::move(grid)}](const auto& output) noexcept {
-        const auto& [v, value] = output;
+    | std::views::filter([grid{std::move(grid)}](auto&& output) noexcept {
+        auto&& [v, value] = output;
         return  value != std::nullopt
            and *value != grid[v.z, v.y, v.x];
     })
@@ -132,7 +132,7 @@ inline constexpr auto score(grid_view grid, potential_view ps, std::unordered_ma
       match.rule.output
     )
     | std::views::filter([&grid, &ps] (auto&& _tuple) noexcept {
-        const auto& [u, i, o] = _tuple;
+        auto&& [u, i, o] = _tuple;
         return o != std::nullopt
            and i != std::nullopt
            and not i->contains(*o)
@@ -142,7 +142,7 @@ inline constexpr auto score(grid_view grid, potential_view ps, std::unordered_ma
            and ps.at(grid[u.z, u.y, u.x])[u.z, u.y, u.x] != std::nullopt;
     })
     | std::views::transform([&grid, &ps, &fields] (auto&& _tuple) noexcept {
-        const auto& [u, i, o] = _tuple;
+        auto&& [u, i, o] = _tuple;
         // fields.inversed ?
         return *(ps.at(*o)[u.z, u.y, u.x]) - *(ps.at(grid[u.z, u.y, u.x])[u.z, u.y, u.x]);
     }),
@@ -174,22 +174,22 @@ struct One : EventTracker, RulesMatcher, PotentialFields {
     if (std::ranges::empty(this->matches)) return std::vector<Change<symbol>>{};
 
     const auto potentials = this->fields
-      | std::views::transform([potential{bindBack(&Field::potential, mdgrid)}](const auto& x) noexcept {
-          const auto& [c, f] = x;
+      | std::views::transform([potential{bindBack(&Field::potential, mdgrid)}](auto&& x) noexcept {
+          auto&& [c, f] = x;
           return std::make_pair(c, potential(f));
       })
       | std::ranges::to<std::unordered_map>();
     
     if (not std::ranges::empty(potentials)
-        and std::ranges::all_of(potentials, [](const auto& x) noexcept {
+        and std::ranges::all_of(potentials, [](auto&& x) noexcept {
           return std::ranges::empty(std::get<1>(x));
         })
     )
       return std::vector<Change<symbol>>{};
 
     const auto mdpotentials = potentials
-      | std::views::transform([](const auto& x) noexcept {
-          const auto& [c, p] = x;
+      | std::views::transform([](auto&& x) noexcept {
+          auto&& [c, p] = x;
           return std::make_pair(c, std::mdspan{std::ranges::cdata(p), p.extents});
       })
       | std::ranges::to<std::unordered_map>();
@@ -263,25 +263,25 @@ struct All : EventTracker, RulesMatcher, PotentialFields {
     if (std::ranges::empty(this->matches)) return std::vector<Change<symbol>>{};
 
     const auto potentials = this->fields
-      | std::views::filter([first_run{std::ranges::empty(changes)}](const auto& f) noexcept {
+      | std::views::filter([first_run{std::ranges::empty(changes)}](auto&& f) noexcept {
           return first_run or std::get<1>(f).recompute;
       })
-      | std::views::transform([potential{bindBack(&Field::potential, mdgrid)}](const auto& x) noexcept {
-          const auto& [c, f] = x;
+      | std::views::transform([potential{bindBack(&Field::potential, mdgrid)}](auto&& x) noexcept {
+          auto&& [c, f] = x;
           return std::make_pair(c, potential(f));
       })
       | std::ranges::to<std::unordered_map>();
     
     if (not std::ranges::empty(potentials)
-        and std::ranges::all_of(potentials, [](const auto& x) noexcept {
+        and std::ranges::all_of(potentials, [](auto&& x) noexcept {
           return std::ranges::empty(std::get<1>(x));
         })
     )
       return std::vector<Change<symbol>>{};
 
     const auto mdpotentials = potentials
-      | std::views::transform([](const auto& x) noexcept {
-          const auto& [c, p] = x;
+      | std::views::transform([](auto&& x) noexcept {
+          auto&& [c, p] = x;
           return std::make_pair(c, std::mdspan{std::ranges::cdata(p), p.extents});
       })
       | std::ranges::to<std::unordered_map>();
@@ -312,7 +312,7 @@ struct All : EventTracker, RulesMatcher, PotentialFields {
       [](auto&& result, auto&& match) noexcept {
         if (std::ranges::none_of(
           result,
-          [&match](const auto& visited) noexcept {
+          [&match](auto&& visited) noexcept {
             const auto overlap = intersect(
               Area3U{toSentinel(visited.rule.output.extents)} + visited.u,
               Area3U{toSentinel(match.rule.output.extents)} + match.u
@@ -320,7 +320,7 @@ struct All : EventTracker, RulesMatcher, PotentialFields {
             return std::ranges::any_of(
               mdiota(overlap),
               [](auto&& p) noexcept {
-                const auto& [v, m] = p;
+                auto&& [v, m] = p;
                 return v and m and *v != *m;
               },
               [&visited, &match](auto&& u) noexcept {

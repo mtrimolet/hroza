@@ -48,7 +48,7 @@ public:
   }
 
   inline constexpr auto say(std::string_view txt) -> void {
-    const auto& [row, col] = getmaxyx();
+    auto&& [row, col] = getmaxyx();
     clear();
     mvwaddstr(win, row / 2, (col - std::size(txt)) / 2, std::data(txt));
     refresh();
@@ -63,7 +63,7 @@ public:
   }
 
   inline constexpr auto inchstr(auto y, auto x, auto width) -> decltype(auto) {
-    const auto& [rows, cols] = getmaxyx();
+    auto&& [rows, cols] = getmaxyx();
 
     y = (y % rows) + 1;
     x = (x % cols) + 1;
@@ -96,12 +96,12 @@ public:
         std::views::zip(colors, std::views::iota(0u))
           | std::views::take(COLORS),
         [](auto&& t) noexcept {
-          const auto& [i, r, g, b] = t;
+          auto&& [i, r, g, b] = t;
           init_color(i, r, g, b);
           init_pair(i, i, -1);
         },
         [](auto&& t) noexcept {
-          const auto& [c, i] = t;
+          auto&& [c, i] = t;
           static constexpr auto MAX_COLOR_VALUE = 1000;
           static constexpr auto COLOR_RATIO = MAX_COLOR_VALUE / 0xff;
           const short

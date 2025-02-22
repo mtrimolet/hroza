@@ -88,9 +88,9 @@ struct std::hash<std::dims<3>> {
 template <std::ranges::sized_range A, std::ranges::sized_range B>
 inline constexpr auto cartesian_product(A&& a, B&& b) noexcept -> decltype(auto) {
   return std::forward<A>(a) 
-    | std::views::transform([&b] (const auto& i) noexcept {
+    | std::views::transform([&b] (auto&& i) noexcept {
         return std::forward<B>(b)
-          | std::views::transform([&i] (const auto& j) noexcept { return std::make_pair(i, j); })
+          | std::views::transform([&i] (auto&& j) noexcept { return std::make_pair(i, j); })
           | std::ranges::to<std::vector>();
     }) 
   | std::views::join

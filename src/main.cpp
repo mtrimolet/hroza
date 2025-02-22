@@ -38,7 +38,7 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   window.waitchar();
 
   window.setpalette(example.symbols
-    | std::views::transform([&palette](const auto& s) noexcept {
+    | std::views::transform([&palette](auto&& s) noexcept {
         return palette.contains(s) 
           ? palette.at(s) 
           : 0xffffff;
@@ -49,7 +49,7 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   const auto offsets = std::views::zip(example.symbols, std::views::iota(0u))
     | std::ranges::to<std::unordered_map<char, unsigned int>>();
 
-  for (const auto& [u, value] : std::views::zip(mdiota(grid.extents), grid)) {
+  for (auto&& [u, value] : std::views::zip(mdiota(grid.extents), grid)) {
     if (window.hascolors()) {
       const auto offset = offsets.contains(value) ? offsets.at(value) : 0;
       window.addch(u.y, u.x, value, offset);
@@ -60,7 +60,7 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   window.refresh();
 
   for (auto changes : example.program(grid)) {
-    for (const auto& [u, value] : changes) {
+    for (auto&& [u, value] : changes) {
       if (window.hascolors()) {
         const auto offset = offsets.contains(value) ? offsets.at(value) : 0;
         window.addch(u.y, u.x, value, offset);

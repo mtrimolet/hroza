@@ -180,7 +180,7 @@ inline constexpr auto parseXmlPalette(std::string_view filepath) noexcept -> dec
   ensures(result, std::format("Error while parsing xml ({}:{}) : {}", filepath, result.offset, result.description()));
 
   return xpalette.child("colors").children("color")
-    | std::views::transform([](const auto& xcolor) noexcept {
+    | std::views::transform([](auto&& xcolor) noexcept {
         const auto symbol_str = std::string{xcolor.attribute("symbol").as_string()};
         ensures(!std::ranges::empty(symbol_str),
                 std::format("missing '{}' attribute in '{}' node [:{}]", "symbol", "color", xcolor.offset_debug()));
