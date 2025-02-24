@@ -25,15 +25,18 @@ inline constexpr auto fromSentinel(const math::Vector3U& sentinel) noexcept -> d
   };
 }
 
+inline constexpr auto strides(const std::dims<3>& extents) noexcept -> decltype(auto) {
+  return std::make_tuple(extents.extent(2) * extents.extent(1), extents.extent(2), 1u);
+}
+
 inline constexpr auto toIndex(math::Vector3U u, const std::dims<3>& extents) noexcept -> decltype(auto) {
-  return dot(u, {1u, extents.extent(2), extents.extent(2) * extents.extent(1)});
+  auto&& [z, y, x] = strides(extents);
+  return dot(u, {x, y, z});
 }
 
 inline constexpr auto fromIndex(UInt i, const std::dims<3>& extents) noexcept -> decltype(auto) {
-  return mod(
-    div({i, i, i}, { 1u, extents.extent(2), extents.extent(2) * extents.extent(1)}),
-    toSentinel(extents)
-  );
+  auto&& [z, y, x] = strides(extents);
+  return (math::Vector3U{i, i, i} / math::Vector3U{x, y, z}) % toSentinel(extents);
 }
 
 inline constexpr auto mdiota(const math::Vector3U& initial, const math::Vector3U& sentinel) noexcept -> decltype(auto) {
