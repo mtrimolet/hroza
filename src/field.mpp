@@ -57,7 +57,7 @@ struct Field {
       auto&& [u, value] = q.front();
       const auto neighborhood = intersect(
         neigh_zone + u,
-        Area3U{g_sentinel} + neigh_offset
+        Area3U{neigh_offset, g_sentinel}
       ) - neigh_offset;
       q.push_range(
         mdiota(neighborhood)
