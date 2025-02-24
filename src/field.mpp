@@ -10,7 +10,6 @@ import grid;
 using namespace stormkit;
 using symbol = char;
 using grid_view = std::mdspan<const symbol, std::dims<3>>;
-// using potential_view = std::mdspan<const std::unordered_map<symbol, UInt>, std::dims<3>>;
 
 export
 struct Field {

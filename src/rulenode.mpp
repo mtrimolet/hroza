@@ -12,7 +12,7 @@ import field;
 using namespace stormkit;
 using symbol = char;
 using grid_view = std::mdspan<const symbol, std::dims<3>>;
-using potential_view = std::unordered_map<symbol, std::mdspan<const std::optional<UInt>, std::dims<3>>>;
+using potential_view = std::mdspan<const std::optional<UInt>, std::dims<3>>;
 
 export
 struct Match {
@@ -126,7 +126,12 @@ struct EventTracker {
 
 /********* */
 
-inline constexpr auto score(grid_view grid, potential_view ps, std::unordered_map<symbol, Field> fields, const Match& match) noexcept -> decltype(auto) {
+inline constexpr auto score(
+  grid_view grid,
+  std::unordered_map<symbol, potential_view> ps,
+  std::unordered_map<symbol, Field> fields,
+  const Match& match
+) noexcept -> decltype(auto) {
   return std::ranges::fold_left(
     std::views::zip(
       mdiota(Area3U{toSentinel(match.rule.output.extents)} + match.u),
