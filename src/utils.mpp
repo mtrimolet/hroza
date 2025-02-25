@@ -30,7 +30,7 @@ template <class T>
 struct std::hash<std::unordered_set<T>> {
   inline constexpr auto operator()(const std::unordered_set<T>& set) const noexcept -> std::size_t {
     auto seed = std::hash<std::size_t>{}(set.size());
-    for (auto i : set) {
+    for (auto&& i : set) {
       seed ^= std::hash<T>{}(i);
     }
     return seed;
@@ -41,7 +41,7 @@ template <class T>
 struct std::hash<std::vector<T>> {
   inline constexpr auto operator()(const std::vector<T>& vec) const noexcept -> std::size_t {
     auto seed = std::hash<std::size_t>{}(vec.size());
-    for (auto i : vec) {
+    for (auto&& i : vec) {
       seed ^= std::hash<T>{}(i);
     }
     return seed;
