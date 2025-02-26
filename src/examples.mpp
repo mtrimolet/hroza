@@ -7,7 +7,7 @@ import utils;
 import pugixml;
 
 import rule;
-import field;
+import inference;
 import rulenode;
 import node;
 
@@ -22,7 +22,7 @@ inline constexpr auto parseXmlField(
 ) noexcept -> decltype(auto) {
   return std::make_pair(
     xnode.attribute("for").as_string()[0],
-    Field::parse(
+    DijkstraField::parse(
       xnode.attribute("recompute").as_bool(false),
       xnode.attribute("essential").as_bool(false),
       xnode.attribute("on").as_string(),
@@ -102,7 +102,7 @@ inline constexpr auto parseXmlNode(
   std::string_view symmetry = ""
 ) noexcept -> Node {
   symmetry = xnode.attribute("symmetry").as_string(std::data(symmetry));
-  unions.insert_range(xnode.children("union") | std::views::transform([](const pugi::xml_node& xnode) noexcept {
+  unions.insert_range(xnode.children("union") | std::views::transform([](const pugi::xml_node& xnode) static noexcept {
     return std::make_pair(
       xnode.attribute("symbol").as_string()[0],
       std::string{xnode.attribute("values").as_string()} | std::ranges::to<std::unordered_set>()
@@ -113,7 +113,7 @@ inline constexpr auto parseXmlNode(
   if (tag == "sequence"s) {
     return Sequence{
       xnode.children()
-        | std::views::filter([](const pugi::xml_node& c) noexcept { return c.name() != "union"s; })
+        | std::views::filter([](const pugi::xml_node& c) static noexcept { return c.name() != "union"s; })
         | std::views::transform(bindBack(parseXmlNode, unions, symmetry))
         | std::ranges::to<std::vector>()
     };
@@ -121,7 +121,7 @@ inline constexpr auto parseXmlNode(
   else if (tag == "markov"s) {
     return Markov{
       xnode.children()
-        | std::views::filter([](const pugi::xml_node& c) noexcept { return c.name() != "union"s; })
+        | std::views::filter([](const pugi::xml_node& c) static noexcept { return c.name() != "union"s; })
         | std::views::transform(bindBack(parseXmlNode, unions, symmetry))
         | std::ranges::to<std::vector>()
     };
@@ -141,13 +141,13 @@ inline constexpr auto parseXmlNode(
 }
 
 struct Example {
-  std::string title;
+  std::string_view title;
   std::string symbols;
   bool origin;
   Node program;
 };
 
-inline constexpr auto parseXmlExample(std::string title, std::string_view filepath) noexcept -> decltype(auto) {
+inline constexpr auto parseXmlExample(std::string_view title, std::string_view filepath) noexcept -> decltype(auto) {
   auto xexample = pugi::xml_document{};
   const auto result = xexample.load_file(std::data(filepath));
   ensures(result, std::format("Error while parsing xml ({}:{}) : {}", filepath, result.offset, result.description()));
@@ -158,7 +158,7 @@ inline constexpr auto parseXmlExample(std::string title, std::string_view filepa
   const auto origin = xnode.attribute("origin").as_bool(false);
 
   const auto unions = std::string_view{symbols}
-    | std::views::transform([](auto&& c) noexcept { 
+    | std::views::transform([](auto&& c) static noexcept { 
         return std::make_pair(c, std::unordered_set{c});
       })
     | std::ranges::to<std::unordered_map>();
@@ -168,7 +168,7 @@ inline constexpr auto parseXmlExample(std::string title, std::string_view filepa
     program = Markov{{program}};
 
   return Example{
-    std::move(title),
+    title,
     std::move(symbols), std::move(origin),
     std::move(program)
   };
@@ -180,7 +180,7 @@ inline constexpr auto parseXmlPalette(std::string_view filepath) noexcept -> dec
   ensures(result, std::format("Error while parsing xml ({}:{}) : {}", filepath, result.offset, result.description()));
 
   return xpalette.child("colors").children("color")
-    | std::views::transform([](auto&& xcolor) noexcept {
+    | std::views::transform([](auto&& xcolor) static noexcept {
         const auto symbol_str = std::string{xcolor.attribute("symbol").as_string()};
         ensures(!std::ranges::empty(symbol_str),
                 std::format("missing '{}' attribute in '{}' node [:{}]", "symbol", "color", xcolor.offset_debug()));

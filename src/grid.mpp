@@ -4,6 +4,7 @@ import std;
 import glm;
 import stormkit.Core;
 import utils;
+import geometry;
 
 using namespace stormkit;
 
@@ -39,19 +40,18 @@ inline constexpr auto fromIndex(UInt i, const std::dims<3>& extents) noexcept ->
   return (math::Vector3U{i, i, i} / math::Vector3U{x, y, z}) % toSentinel(extents);
 }
 
+inline constexpr auto mdiota(const Area3U& zone) noexcept -> decltype(auto) {
+  return std::views::iota(0u, zone.size.z * zone.size.y * zone.size.x)
+    | std::views::transform(bindBack(fromIndex, fromSentinel(zone.size)))
+    | std::views::transform(bindFront(std::plus{}, zone.u));
+}
+
 inline constexpr auto mdiota(const math::Vector3U& initial, const math::Vector3U& sentinel) noexcept -> decltype(auto) {
-  const auto s = sentinel - initial;
-  return std::views::iota(0u, s.z * s.y * s.x)
-    | std::views::transform(bindBack(fromIndex, fromSentinel(s)))
-    | std::views::transform(bindFront(std::plus{}, initial));
+  return mdiota({initial, sentinel - initial});
 }
 
 inline constexpr auto mdiota(const std::dims<3>& extents) noexcept -> decltype(auto) {
-  return mdiota({0u, 0u, 0u}, toSentinel(extents));
-}
-
-inline constexpr auto mdiota(const Area3U& zone) noexcept -> decltype(auto) {
-  return mdiota(zone.lower, zone.upper);
+  return mdiota({toSentinel(extents)});
 }
 
 template <class T>
@@ -94,6 +94,10 @@ struct Grid {
   }
   inline constexpr auto cend() const noexcept -> decltype(auto) {
     return std::ranges::cend(values);
+  }
+
+  inline constexpr auto empty() const noexcept -> decltype(auto) {
+    return std::ranges::empty(values);
   }
 
   static inline constexpr auto parse(std::string_view str, std::function<T(char)> project = std::identity{}) noexcept -> decltype(auto) {

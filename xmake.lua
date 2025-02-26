@@ -26,6 +26,9 @@ add_requires(
     {system=false}
 )
 
+if is_mode("debug") then
+    add_defines("_LIBCPP_DEBUG")
+end
 
 add_requireconfs("**", {configs = {modules = true}})
 add_cxxflags("-fexperimental-library")

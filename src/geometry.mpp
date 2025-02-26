@@ -1,0 +1,161 @@
+export module geometry;
+
+import std;
+import glm;
+import stormkit.Core;
+
+using namespace stormkit;
+
+export {
+
+inline constexpr auto dot(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
+  return a.x * b.x
+       + a.y * b.y
+       + a.z * b.z;
+}
+
+inline constexpr auto mod(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
+  return math::Vector3U{
+    a.x % b.x,
+    a.y % b.y,
+    a.z % b.z,
+  };
+}
+
+inline constexpr auto operator%(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
+  return mod(a, b);
+}
+
+inline constexpr auto mod(const math::Vector3U& a, UInt b) noexcept -> decltype(auto) {
+  return mod(a, {b,b,b});
+}
+
+inline constexpr auto operator%(const math::Vector3U& a, UInt b) noexcept -> decltype(auto) {
+  return mod(a, b);
+}
+
+inline constexpr auto div(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
+  return math::Vector3U{
+    a.x / b.x,
+    a.y / b.y,
+    a.z / b.z,
+  };
+}
+
+inline constexpr auto operator/(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
+  return div(a, b);
+}
+
+inline constexpr auto div(const math::Vector3U& a, UInt b) noexcept -> decltype(auto) {
+  return div(a, {b,b,b});
+}
+
+inline constexpr auto operator/(const math::Vector3U& a, UInt b) noexcept -> decltype(auto) {
+  return div(a, b);
+}
+
+inline constexpr auto allLessThan(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
+  return math::all(math::lessThan(a, b));
+}
+
+inline constexpr auto operator<(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
+  return allLessThan(a, b);
+}
+
+inline constexpr auto allLessThanEqual(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
+  return math::all(math::lessThanEqual(a, b));
+}
+
+inline constexpr auto operator<=(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
+  return allLessThanEqual(a, b);
+}
+
+inline constexpr auto operator<=>(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
+  return a < b ? std::weak_ordering::less
+       : not (a <= b) ? std::weak_ordering::greater
+       : std::weak_ordering::equivalent;
+}
+
+inline constexpr auto allMin(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
+  return math::Vector3U{
+    std::min(a.x, b.x),
+    std::min(a.y, b.y),
+    std::min(a.z, b.z),
+  };
+}
+
+inline constexpr auto allMax(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
+  return math::Vector3U{
+    std::max(a.x, b.x),
+    std::max(a.y, b.y),
+    std::max(a.z, b.z),
+  };
+}
+
+struct Area3U {
+  math::Vector3U u;
+  math::Vector3U size;
+
+  Area3U(math::Vector3U _u, math::Vector3U _size) noexcept
+    : u{_u}, size{_size} {}
+
+  Area3U(math::Vector3U _size) noexcept
+    : u{0, 0, 0}, size{_size} {}
+
+  Area3U() noexcept = default;
+
+  inline constexpr auto outerbound() const noexcept -> decltype(auto) {
+    return u + size;
+  }
+
+  inline constexpr auto contains(const math::Vector3U& v) const noexcept -> decltype(auto) {
+    return u <= v
+       and v < outerbound();
+  }
+
+  inline constexpr auto operator+(const Area3U& d) const noexcept -> decltype(auto) {
+    return Area3U{u + d.u, size + d.size};
+  }
+
+  inline constexpr auto operator-(const Area3U& d) const noexcept -> decltype(auto) {
+    return Area3U{u - d.u, size - d.size};
+  }
+
+  inline constexpr auto operator+(const math::Vector3U& d) const noexcept -> decltype(auto) {
+    return operator+(Area3U{d, {0, 0, 0}});
+  }
+
+  inline constexpr auto operator-(const math::Vector3U& d) const noexcept -> decltype(auto) {
+    return operator-(Area3U{d, {0, 0, 0}});
+  }
+
+  inline constexpr auto operator*(UInt r) const noexcept -> decltype(auto) {
+    return Area3U{u * r, size * r};
+  }
+
+  inline constexpr auto operator/(UInt r) const noexcept -> decltype(auto) {
+    return Area3U{u / r, size / r};
+  }
+
+  inline constexpr auto overlaps(const Area3U& other) const noexcept -> decltype(auto) {
+    return       u < other.outerbound()
+       and other.u <       outerbound();
+  }
+
+  inline constexpr auto intersect(const Area3U& other) const noexcept -> decltype(auto) {
+    if (not overlaps(other)) return Area3U{};
+    const auto v = allMax(u, other.u);
+    return Area3U{
+      v,
+      allMin(outerbound(), other.outerbound()) - v
+    };
+  }
+};
+
+template <>
+struct std::equal_to<math::Vector3U> {
+  inline constexpr auto operator()(const math::Vector3U& a, const math::Vector3U& b) noexcept -> bool {
+    return math::all(math::equal(a, b));
+  }
+};
+}

@@ -2,9 +2,9 @@
 #include <unistd.h>
 
 import std;
-import utils;
 import ncurses;
 
+import geometry;
 import grid;
 
 import examples;
@@ -14,23 +14,14 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   chdir("/Users/mtrimolet/Desktop/mtrimolet/markovjunior/hroza");
 
   const auto palette = examples::parseXmlPalette("./resources/palette.xml");
+  const auto model = std::ranges::size(args) >= 2 ? args[1] : "Grow To";
+  const auto filename = model 
+    | std::views::filter(std::not_fn([](auto&& c) static noexcept { return std::isspace(c); }))
+    | std::ranges::to<std::string>();
+  const auto example = examples::parseXmlExample(model, std::format("./models/{}.xml", filename));
 
-  // auto example = examples::parseXmlExample("Growth", "./models/Growth.xml");
-  // auto example = examples::parseXmlExample("Basic Snake", "./models/BasicSnake.xml");
-  // auto example = examples::parseXmlExample("Sequential Snake", "./models/SequentialSnake.xml");
-  // auto example = examples::parseXmlExample("Basic Partitioning", "./models/BasicPartitioning.xml");
-  // auto example = examples::parseXmlExample("Basic Brick Wall", "./models/BasicBrickWall.xml");
-  // auto example = examples::parseXmlExample("Cycles", "./models/Cycles.xml");
-  // auto example = examples::parseXmlExample("Dual Retraction", "./models/DualRetraction.xml");
-  // auto example = examples::parseXmlExample("Fire Noise", "./models/FireNoise.xml");
-  // auto example = examples::parseXmlExample("Basic Dungeon Growth", "./models/BasicDungeonGrowth.xml");
-  // auto example = examples::parseXmlExample("Nystrom Dungeon", "./models/NystromDungeon.xml");
-  // auto example = examples::parseXmlExample("Basic Keys", "./models/BasicKeys.xml");
-  // auto example = examples::parseXmlExample("Biased Growth", "./models/BiasedGrowth.xml");
-  auto example = examples::parseXmlExample("Keys", "./models/Keys.xml");
-
-  const auto square_size = 67u;
-  auto grid = TracedGrid{std::dims<3>{1u, square_size, square_size}, example.symbols[0]};
+  const auto square_size = 60u;
+  auto grid = TracedGrid{std::dims<3>{1u, 60u, 60u}, example.symbols[0]};
   if (example.origin) grid[toSentinel(grid.extents) / 2] = example.symbols[1];
 
   auto window = ncurses::window{grid.extents.extent(1), grid.extents.extent(2)};

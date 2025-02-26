@@ -93,14 +93,14 @@ public:
   inline constexpr auto setpalette(std::span<const std::uint32_t> colors) -> void {
     if (canchangecolor()) 
       std::ranges::for_each(
-        std::views::zip(colors, std::views::iota(0u))
+        std::views::zip(colors, std::views::iota(1u))
           | std::views::take(COLORS),
-        [](auto&& t) noexcept {
+        [](auto&& t) static noexcept {
           auto&& [i, r, g, b] = t;
           init_color(i, r, g, b);
           init_pair(i, i, -1);
         },
-        [](auto&& t) noexcept {
+        [](auto&& t) static noexcept {
           auto&& [c, i] = t;
           static constexpr auto MAX_COLOR_VALUE = 1000;
           static constexpr auto COLOR_RATIO = MAX_COLOR_VALUE / 0xff;
@@ -113,7 +113,7 @@ public:
       );
     else 
       std::ranges::for_each(
-        std::views::iota(0u, std::ranges::size(colors))
+        std::views::iota(1u, std::ranges::size(colors) + 1)
           | std::views::take(COLORS),
         [](auto&& i) noexcept {
           init_pair(i, i, -1);
@@ -128,9 +128,9 @@ public:
 
   inline constexpr auto addch(auto y, auto x, chtype ch, auto c) -> void {
     const auto &[rows, cols] = getmaxyx();
-    wattron(win, COLOR_PAIR(c));
+    wattron(win, COLOR_PAIR(c + 1));
     mvwaddch(win, (y % rows) + 1, (x % cols) + 1, ch);
-    wattroff(win, COLOR_PAIR(c));
+    wattroff(win, COLOR_PAIR(c + 1));
   }
 
   inline constexpr auto addchstr(auto y, auto x, std::span<const chtype> data) -> void {

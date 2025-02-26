@@ -1,9 +1,10 @@
-export module field;
+export module inference;
 
 import std;
 import glm;
 import stormkit.Core;
 import utils;
+import geometry;
 
 import grid;
 
@@ -12,7 +13,7 @@ using symbol = char;
 using grid_view = std::mdspan<const symbol, std::dims<3>>;
 
 export
-struct Field {
+struct DijkstraField {
   bool recompute, essential, inversed;
   std::optional<std::unordered_set<symbol>> substrate, zero;
 
@@ -24,7 +25,7 @@ struct Field {
   ) noexcept -> decltype(auto) {
     static constexpr auto IGNORED = '*';
     auto&& zero = std::ranges::empty(from) ? to : from;
-    return Field{
+    return DijkstraField{
       recompute, essential,
       not std::ranges::empty(from),
       on == std::format("{}", IGNORED) ? std::nullopt : std::optional{on | std::ranges::to<std::unordered_set>()},
@@ -32,10 +33,11 @@ struct Field {
     };
   }
 
-  inline constexpr auto potential(grid_view grid) const noexcept -> decltype(auto) {
+  inline constexpr auto dijkstraMap(grid_view grid) const noexcept -> decltype(auto) {
     const auto g_sentinel = toSentinel(grid.extents());
-    const auto neigh_zone = Area3U{{3, 3, g_sentinel.z == 1 ? 1 : 3}};
-    const auto neigh_offset = (neigh_zone.upper - math::Vector3U{1, 1, 1}) / 2 ;
+    const auto neigh_size = math::Vector3U{3, 3, g_sentinel.z == 1 ? 1 : 3};
+    const auto neigh_offset = neigh_size / 2;
+    const auto neigh_margin = Area3U{neigh_offset, g_sentinel - neigh_offset};
 
     auto potential = Grid<std::optional<UInt>>{grid.extents(), std::nullopt};
 
@@ -54,10 +56,7 @@ struct Field {
       q.pop()
     ) {
       auto&& [u, value] = q.front();
-      const auto neighborhood = intersect(
-        neigh_zone + u,
-        Area3U{neigh_offset, g_sentinel}
-      ) - neigh_offset;
+      const auto neighborhood = neigh_margin.intersect({u, neigh_size}) - neigh_offset;
       q.push_range(
         mdiota(neighborhood)
         | std::views::filter([substrate{this->substrate}, &potential, &grid](auto&& n) noexcept {

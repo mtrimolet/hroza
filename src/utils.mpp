@@ -109,143 +109,34 @@ inline constexpr auto chunk(A&& a, RangeExtent extent) noexcept -> decltype(auto
     });
 }
 
-inline constexpr auto dot(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
-  return a.x * b.x
-       + a.y * b.y
-       + a.z * b.z;
-}
-
-inline constexpr auto mod(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
-  return math::Vector3U{
-    a.x % b.x,
-    a.y % b.y,
-    a.z % b.z,
-  };
-}
-
-inline constexpr auto operator%(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
-  return mod(a, b);
-}
-
-inline constexpr auto mod(const math::Vector3U& a, UInt b) noexcept -> decltype(auto) {
-  return mod(a, {b,b,b});
-}
-
-inline constexpr auto operator%(const math::Vector3U& a, UInt b) noexcept -> decltype(auto) {
-  return mod(a, b);
-}
-
-inline constexpr auto div(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
-  return math::Vector3U{
-    a.x / b.x,
-    a.y / b.y,
-    a.z / b.z,
-  };
-}
-
-inline constexpr auto operator/(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
-  return div(a, b);
-}
-
-inline constexpr auto div(const math::Vector3U& a, UInt b) noexcept -> decltype(auto) {
-  return div(a, {b,b,b});
-}
-
-inline constexpr auto operator/(const math::Vector3U& a, UInt b) noexcept -> decltype(auto) {
-  return div(a, b);
-}
-
-inline constexpr auto allLessThan(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
-  return math::all(math::lessThan(a, b));
-}
-
-inline constexpr auto operator<(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
-  return allLessThan(a, b);
-}
-
-inline constexpr auto allLessThanEqual(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
-  return math::all(math::lessThanEqual(a, b));
-}
-
-inline constexpr auto operator<=(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
-  return allLessThanEqual(a, b);
-}
-
-inline constexpr auto operator<=>(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
-  return a < b ? std::weak_ordering::less
-       : not (a <= b) ? std::weak_ordering::greater
-       : std::weak_ordering::equivalent;
-}
-
-inline constexpr auto allMin(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
-  return math::Vector3U{
-    std::min(a.x, b.x),
-    std::min(a.y, b.y),
-    std::min(a.z, b.z),
-  };
-}
-
-inline constexpr auto allMax(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
-  return math::Vector3U{
-    std::max(a.x, b.x),
-    std::max(a.y, b.y),
-    std::max(a.z, b.z),
-  };
-}
-
-struct Area3U {
-  math::Vector3U lower;
-  math::Vector3U upper;
-
-  Area3U(math::Vector3U _lower, math::Vector3U _upper) noexcept
-  : lower{}, upper{} {
-    ensures(_lower < _upper, "first value must be allLessThan than second !");
-    lower = _lower;
-    upper = _upper;
-  }
-
-  Area3U(math::Vector3U _upper) noexcept
-  : lower{0, 0, 0}, upper{_upper} {}
-  Area3U() noexcept
-  : lower{0, 0, 0}, upper{0, 0, 0} {}
-
-  inline constexpr auto operator+(const math::Vector3U& u) const noexcept -> decltype(auto) {
-    return Area3U{lower + u, upper + u};
-  }
-
-  inline constexpr auto operator-(const math::Vector3U& u) const noexcept -> decltype(auto) {
-    return Area3U{lower - u, upper - u};
-  }
-
-  inline constexpr auto operator*(UInt u) const noexcept -> decltype(auto) {
-    return Area3U{lower, upper * u};
-  }
-
-  inline constexpr auto operator/(UInt u) const noexcept -> decltype(auto) {
-    return Area3U{lower, upper / u};
-  }
+struct sort_fn
+{
+    template<std::random_access_iterator I, std::sentinel_for<I> S,
+             class Comp = std::ranges::less, class Proj = std::identity>
+    requires std::sortable<I, Comp, Proj>
+    constexpr I
+        operator()(I first, S last, Comp comp = {}, Proj proj = {}) const
+    {
+        if (first == last)
+            return first;
+ 
+        I last_iter = std::ranges::next(first, last);
+        std::ranges::make_heap(first, last_iter, std::ref(comp), std::ref(proj));
+        std::ranges::sort_heap(first, last_iter, std::ref(comp), std::ref(proj));
+ 
+        return last_iter;
+    }
+ 
+    template<std::ranges::random_access_range R, class Comp = std::ranges::less,
+             class Proj = std::identity>
+    requires std::sortable<std::ranges::iterator_t<R>, Comp, Proj>
+    constexpr std::ranges::borrowed_iterator_t<R>
+        operator()(R&& r, Comp comp = {}, Proj proj = {}) const
+    {
+        return (*this)(std::ranges::begin(r), std::ranges::end(r), std::move(comp), std::move(proj));
+    }
 };
 
-inline constexpr auto inBounds(const Area3U& zone, const math::Vector3U& value) noexcept -> decltype(auto) {
-  return zone.lower <= value
-     and value < zone.upper;
-}
+inline constexpr sort_fn sort {};
 
-inline constexpr auto overlaps(const Area3U& a, const Area3U& b) noexcept -> decltype(auto) {
-  return a.lower < b.upper
-     and b.lower < a.upper;
-}
-
-inline constexpr auto intersect(const Area3U& a, const Area3U& b) noexcept -> decltype(auto) {
-  if (not overlaps(a, b))
-    return Area3U{};
-  return Area3U{allMax(a.lower, b.lower), allMin(a.upper, b.upper)};
-}
-
-template <>
-struct std::equal_to<math::Vector3U> {
-  inline constexpr auto operator()(const math::Vector3U& a, const math::Vector3U& b) noexcept -> bool {
-    return math::all(math::equal(a, b));
-  }
-};
 }
