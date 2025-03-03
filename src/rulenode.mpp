@@ -194,19 +194,6 @@ struct InferenceEngine {
     );
   }
 
-  inline constexpr auto score(double norm_h, double h) noexcept -> decltype(auto) {
-    static auto rg = std::mt19937{std::random_device{}()};
-    static auto prob = std::uniform_real_distribution<>{};
-
-    const auto u = prob(rg);
-    
-    const auto value = (temperature > 0.0)
-      ? std::pow(u, std::exp((h - norm_h) / temperature))
-      : (-h + 0.001 * u);
-    ensures(value == 0.0 or std::isnormal(value));
-    return value;
-  }
-
   inline constexpr auto infer(grid_view grid, std::vector<Match>& matches) noexcept -> decltype(auto) {
     static auto rg = std::mt19937{std::random_device{}()};
 
@@ -216,7 +203,7 @@ struct InferenceEngine {
     }
 
     observe(grid);
-    auto heuristics = std::views::zip(matches, std::views::iota(0u))
+    const auto heuristics = std::views::zip(matches, std::views::iota(0u))
       | std::views::transform([sumdiff{bindFront(&InferenceEngine::sumdiff, this, grid)}](auto&& _match) noexcept {
           auto&& [match, i] = _match;
           return std::make_pair(i, sumdiff(match));
@@ -235,27 +222,29 @@ struct InferenceEngine {
       matches.clear();
       return;
     }
-    auto&& first_h = static_cast<double>(std::get<1>(heuristics[0]));
+    auto&& first_h = std::get<1>(heuristics[0]);
+    auto scores = heuristics
+      | std::views::transform(
+        [&temperature{temperature}, &first_h](auto&& _h) noexcept {
+          auto&& [i, h] = _h;
 
-    sort(heuristics, {},
-      [&temperature{temperature}, &first_h]
-      (auto&& _h) noexcept {
-        const auto h = static_cast<double>(std::get<1>(_h));
+          static auto prob = std::uniform_real_distribution<>{};
+          const auto u = prob(rg);
 
-        static auto prob = std::uniform_real_distribution<>{};
-        const auto u = prob(rg);
+          const auto value = temperature > 0.0 
+            ? std::pow(u, std::exp((h - first_h) / temperature))
+            : -h + 0.001 * u;
+          ensures(value == 0.0 or std::isnormal(value));
+          return std::make_pair(i, value);
+        }
+      )
+      | std::ranges::to<std::vector>();
 
-        const auto value = (temperature > 0.0)
-          ? std::pow(u, std::exp((h - first_h) / temperature))
-          : (-h + 0.001 * u);
-        ensures(value == 0.0 or std::isnormal(value));
-        return value;
-      }
-    );
+    sort(scores, {}, monadic::get<1>());
 
-    matches = heuristics
+    matches = scores
       | std::views::transform([&matches](auto&& _i) noexcept {
-          auto&& [i, h] = _i;
+          auto&& [i, s] = _i;
           return std::move(matches[i]);
       })
       | std::ranges::to<std::vector>();
