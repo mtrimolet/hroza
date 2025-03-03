@@ -130,45 +130,34 @@ struct Grid {
       | std::views::join
       | std::ranges::to<Grid<T>>(extents);
   }
+
+  inline constexpr auto xreflected() const noexcept -> decltype(auto) {
+    auto extents = fromSentinel(Area3U{toSentinel(this->extents)}.xreflected().size);
+    return mdiota(extents)
+      | std::views::transform([sent{toSentinel(extents)}, this](auto u) noexcept {
+          return at({ sent.x - u.x - 1u, u.y, u.z });
+      })
+      | std::ranges::to<Grid<T>>(extents);
+  }
+
+  inline constexpr auto xyrotated() const noexcept -> decltype(auto) {
+    auto extents = fromSentinel(Area3U{toSentinel(this->extents)}.xyrotated().size);
+    return mdiota(extents)
+      | std::views::transform([sent{toSentinel(extents)}, this](auto u) noexcept {
+          return at({ u.y, sent.x - u.x - 1, u.z });
+      })
+      | std::ranges::to<Grid<T>>(extents);
+  }
+
+  inline constexpr auto zyrotated() const noexcept -> decltype(auto) {
+    auto extents = fromSentinel(Area3U{toSentinel(this->extents)}.zyrotated().size);
+    return mdiota(extents)
+      | std::views::transform([sent{toSentinel(extents)}, this](auto u) noexcept {
+          return at({ u.x, sent.z - u.z - 1, u.y });
+      })
+      | std::ranges::to<Grid<T>>(extents);
+  }
 };
-
-template <class T>
-inline constexpr auto xreflected(const Grid<T>& grid) noexcept -> decltype(auto) {
-  auto extents = auto{grid.extents};
-  return mdiota(extents)
-    | std::views::transform([sent{toSentinel(extents)}, &grid](auto u) noexcept {
-        return grid.at({ sent.x - u.x - 1u, u.y, u.z });
-    })
-    | std::ranges::to<Grid<T>>(extents);
-}
-
-template <class T>
-inline constexpr auto xyrotated(const Grid<T>& grid) noexcept -> decltype(auto) {
-  auto extents = std::dims<3>{
-    grid.extents.extent(0),
-    grid.extents.extent(2),
-    grid.extents.extent(1),
-  };
-  return mdiota(extents)
-    | std::views::transform([sent{toSentinel(extents)}, &grid](auto u) noexcept {
-        return grid.at({ u.y, sent.x - u.x - 1, u.z });
-    })
-    | std::ranges::to<Grid<T>>(extents);
-}
-
-template <class T>
-inline constexpr auto zyrotated(const Grid<T>& grid) noexcept -> decltype(auto) {
-  auto extents = std::dims<3>{
-    grid.extents.extent(1),
-    grid.extents.extent(0),
-    grid.extents.extent(2),
-  };
-  return mdiota(extents)
-    | std::views::transform([sent{toSentinel(extents)}, &grid](auto u) noexcept {
-        return grid.at({ u.x, sent.z - u.z - 1, u.y });
-    })
-    | std::ranges::to<Grid<T>>(extents);
-}
 
 template <class T>
 struct Change {

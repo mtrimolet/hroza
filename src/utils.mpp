@@ -57,7 +57,7 @@ struct std::hash<std::vector<T>> {
 //   }
 // };
 template <meta::IsArithmetic T>
-inline constexpr auto fromBase(std::string_view x, Int8 base) noexcept -> T {
+inline constexpr auto fromBase(std::string_view x, UInt8 base) noexcept -> T {
   auto out = T{};
   const auto result =
       std::from_chars(std::ranges::cbegin(x), std::ranges::cend(x), out, base);

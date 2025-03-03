@@ -5,6 +5,7 @@ import glm;
 import frozen;
 import stormkit.Core;
 import utils;
+import geometry;
 
 import grid;
 
@@ -51,43 +52,50 @@ struct Rule {
   ) noexcept -> decltype(auto) {
     return parse({}, input, output, p);
   }
+
+  inline constexpr auto xreflected() const noexcept -> decltype(auto) {
+    return Rule{
+      input.xreflected(),
+      output.xreflected(),
+      p,
+    };
+  }
+
+  inline constexpr auto xyrotated() const noexcept -> decltype(auto) {
+    return Rule{
+      input.xyrotated(),
+      output.xyrotated(),
+      p,
+    };
+  }
+
+  inline constexpr auto zyrotated() const noexcept -> decltype(auto) {
+    return Rule{
+      input.zyrotated(),
+      output.zyrotated(),
+      p,
+    };
+  }
+
+  /** Provides the area of locations at which this rule would update u */
+  inline constexpr auto neighborhood(const math::Vector3U& g_sentinel, const math::Vector3U& u) const noexcept -> decltype(auto) {
+    const auto neigh_size = toSentinel(output.extents);
+    const auto neigh_offset = neigh_size - math::Vector3U{1u, 1u, 1u};
+    const auto neigh_margin = Area3U{neigh_offset, g_sentinel - neigh_offset};
+    return neigh_margin.intersect({u, neigh_size}) - neigh_offset;
+  }
 };
-
-inline constexpr auto xreflected(const Rule& rule) noexcept -> decltype(auto) {
-  return Rule{
-    xreflected(rule.input),
-    xreflected(rule.output),
-    rule.p,
-  };
 }
 
-inline constexpr auto xyrotated(const Rule& rule) noexcept -> decltype(auto) {
-  return Rule{
-    xyrotated(rule.input),
-    xyrotated(rule.output),
-    rule.p,
-  };
-}
-
-inline constexpr auto zyrotated(const Rule& rule) noexcept -> decltype(auto) {
-  return Rule{
-    zyrotated(rule.input),
-    zyrotated(rule.output),
-    rule.p,
-  };
-}
-}
-
-template <class T>
-const auto square_groups = makeStaticArray<std::function<T(const T&)>>(
-  [](const T& rule) static noexcept { return auto{rule}; },
-  [](const T& rule) static noexcept { return xreflected(rule); },
-  [](const T& rule) static noexcept { return xyrotated(rule); },
-  [](const T& rule) static noexcept { return xreflected(xyrotated(rule)); },
-  [](const T& rule) static noexcept { return xyrotated(xyrotated(rule)); },
-  [](const T& rule) static noexcept { return xreflected(xyrotated(xyrotated(rule))); },
-  [](const T& rule) static noexcept { return xyrotated(xyrotated(xyrotated(rule))); },
-  [](const T& rule) static noexcept { return xreflected(xyrotated(xyrotated(xyrotated(rule)))); }
+const auto square_groups = makeStaticArray<std::function<Rule(const Rule&)>>(
+  [](auto&& rule) static noexcept { return auto{rule}; },
+  [](auto&& rule) static noexcept { return rule.xreflected(); },
+  [](auto&& rule) static noexcept { return rule.xyrotated(); },
+  [](auto&& rule) static noexcept { return rule.xyrotated().xreflected(); },
+  [](auto&& rule) static noexcept { return rule.xyrotated().xyrotated(); },
+  [](auto&& rule) static noexcept { return rule.xyrotated().xyrotated().xreflected(); },
+  [](auto&& rule) static noexcept { return rule.xyrotated().xyrotated().xyrotated(); },
+  [](auto&& rule) static noexcept { return rule.xyrotated().xyrotated().xyrotated().xreflected(); }
 );
 
 constexpr auto square_subgroups =
@@ -116,7 +124,7 @@ struct std::hash<Rule> {
 };
 
 inline constexpr auto symmetries(const Rule& rule, std::string_view subgroup = "") noexcept -> decltype(auto) {
-  return std::views::zip(square_groups<Rule>, square_subgroups.at(std::empty(subgroup) ? "(xy)" : subgroup))
+  return std::views::zip(square_groups, square_subgroups.at(std::empty(subgroup) ? "(xy)" : subgroup))
     | std::views::filter(monadic::get<1>())
     | std::views::transform([&rule](auto&& action) noexcept { return std::get<0>(action)(rule); })
     | std::ranges::to<std::unordered_set>();

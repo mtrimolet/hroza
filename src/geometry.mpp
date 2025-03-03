@@ -150,6 +150,46 @@ struct Area3U {
       allMin(outerbound(), other.outerbound()) - v
     };
   }
+
+  inline constexpr auto smallestCommon(const Area3U& other) const noexcept -> decltype(auto) {
+    const auto v = allMin(u, other.u);
+    return Area3U{
+      v,
+      allMax(outerbound(), other.outerbound()) - v
+    };
+  }
+
+  inline constexpr auto xreflected() const noexcept -> decltype(auto) {
+    auto size = auto{this->size};
+    return Area3U{
+      /* u -> { size.x - u.x - 1u, u.y, u.z } */
+      u, std::move(size)
+    };
+  }
+  
+  inline constexpr auto xyrotated() const noexcept -> decltype(auto) {
+    auto size = math::Vector3U{
+      this->size.y,
+      this->size.x,
+      this->size.z
+    };
+    return Area3U{
+      /* u -> { u.y, size.x - u.x - 1, u.z } */
+      u, std::move(size)
+    };
+  }
+  
+  inline constexpr auto zyrotated() const noexcept -> decltype(auto) {
+    auto size = math::Vector3U{
+      this->size.x,
+      this->size.z,
+      this->size.y
+    };
+    return Area3U{
+      /* u -> { u.x, size.z - u.z - 1, u.y } */
+      u, std::move(size)
+    };
+  }
 };
 
 template <>

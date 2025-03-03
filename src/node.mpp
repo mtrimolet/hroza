@@ -8,9 +8,10 @@ import grid;
 
 using namespace stormkit;
 using symbol = char;
+using grid_mask = std::mdspan<bool, std::dims<3>>;
 
 export {
-  
+
 using Action = std::function<std::vector<Change<symbol>>(TracedGrid<symbol>&)>;
 
 }
@@ -19,6 +20,7 @@ struct ActionNode {
   Action action;
   inline constexpr auto operator()(TracedGrid<symbol>& grid) noexcept -> std::vector<Change<symbol>> {
     const auto changes = action(grid);
+    // std::mdspan<, grid.extents>
     std::ranges::for_each(changes, bindFront(&TracedGrid<symbol>::apply, &grid));
     return changes;
   }
