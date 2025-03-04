@@ -14,46 +14,6 @@ inline constexpr auto dot(const math::Vector3U& a, const math::Vector3U& b) noex
        + a.z * b.z;
 }
 
-inline constexpr auto mod(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
-  return math::Vector3U{
-    a.x % b.x,
-    a.y % b.y,
-    a.z % b.z,
-  };
-}
-
-inline constexpr auto operator%(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
-  return mod(a, b);
-}
-
-inline constexpr auto mod(const math::Vector3U& a, UInt b) noexcept -> decltype(auto) {
-  return mod(a, {b,b,b});
-}
-
-inline constexpr auto operator%(const math::Vector3U& a, UInt b) noexcept -> decltype(auto) {
-  return mod(a, b);
-}
-
-inline constexpr auto div(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
-  return math::Vector3U{
-    a.x / b.x,
-    a.y / b.y,
-    a.z / b.z,
-  };
-}
-
-inline constexpr auto operator/(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
-  return div(a, b);
-}
-
-inline constexpr auto div(const math::Vector3U& a, UInt b) noexcept -> decltype(auto) {
-  return div(a, {b,b,b});
-}
-
-inline constexpr auto operator/(const math::Vector3U& a, UInt b) noexcept -> decltype(auto) {
-  return div(a, b);
-}
-
 inline constexpr auto allLessThan(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
   return math::all(math::lessThan(a, b));
 }
