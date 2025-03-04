@@ -175,7 +175,7 @@ struct InferenceEngine {
 
           const int
             new_potential = potentials.contains(new_value) ? potentials.at(new_value)[u].value() : 0,
-            old_potential = potentials.contains(old_value) ? potentials.at(old_value)[u].value_or(new_potential) : 0;
+            old_potential = potentials.contains(old_value) ? potentials.at(old_value)[u].value_or(-1) : 0;
 
           const int 
             new_polarity = inversed.contains(new_value) 
