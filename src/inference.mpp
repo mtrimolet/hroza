@@ -14,6 +14,14 @@ using symbol = char;
 using grid_view = std::mdspan<const symbol, std::dims<3>>;
 using potential_view = std::mdspan<std::optional<UInt>, std::dims<3>>;
 
+inline constexpr auto propagate(auto&& initial, auto&& unfold) noexcept -> decltype(auto) {
+  for (
+    auto q = initial | std::ranges::to<std::queue>();
+    not std::ranges::empty(q);
+    q.pop()
+  ) q.push_range(unfold(q.front()));
+}
+
 export
 struct DijkstraField {
   bool recompute, essential, inversed;
@@ -45,9 +53,8 @@ struct DijkstraField {
     };
 
     auto potential = Grid<std::optional<UInt>>{grid.extents(), std::nullopt};
-
-    for (
-      auto q = mdiota({g_sentinel})
+    propagate(
+      mdiota({g_sentinel})
         | std::views::filter([&zero{zero}, &grid](auto&& u) noexcept {
             return zero == std::nullopt
                 or zero->contains(grid[u.z, u.y, u.x]);
@@ -55,25 +62,23 @@ struct DijkstraField {
         | std::views::transform([&potential](auto&& u) noexcept {
             potential[u] = 0u;
             return std::make_pair(u, 0u);
-        })
-        | std::ranges::to<std::queue>();
-      not std::ranges::empty(q);
-      q.pop()
-    ) {
-      auto&& [u, value] = q.front();
-      q.push_range(mdiota(neighborhood(u))
-        | std::views::filter([&substrate{substrate}, &potential, &grid](auto&& n) noexcept {
-            return potential[n] == std::nullopt
-               and (substrate == std::nullopt
-                 or substrate->contains(grid[n.z, n.y, n.x])
-               );
-        })
-        | std::views::transform([&potential, &value](auto&& n) noexcept {
-            potential[n] = value + 1;
-            return std::make_pair(n, value + 1);
-        })
-      );
-    }
+        }),
+      [&substrate{substrate}, &potential, &grid, &neighborhood]
+      (auto&& front) noexcept {
+        auto&& [u, value] = front;
+        return mdiota(neighborhood(u))
+          | std::views::filter([&substrate, &potential, &grid](auto&& n) noexcept {
+              return potential[n] == std::nullopt
+                 and (substrate == std::nullopt
+                   or substrate->contains(grid[n.z, n.y, n.x])
+                 );
+          })
+          | std::views::transform([&potential, &value](auto&& n) noexcept {
+              potential[n] = value + 1;
+              return std::make_pair(n, value + 1);
+          });
+      }
+    );
 
     return potential;
   }
@@ -84,77 +89,83 @@ export struct Observation {
   std::unordered_set<symbol> to;
 };
 
-inline constexpr auto future(std::span<const Observation> obs, grid_view grid) noexcept -> decltype(auto) {
+// inline constexpr auto future(std::unordered_map<symbol, const Observation> obs, grid_view grid) noexcept -> decltype(auto) {
+//   auto changes = std::vector<Change<symbol>>{};
+//   auto f = mdiota(grid.extents())
+//     | std::views::transform([&obs, &changes, &grid](auto&& u) noexcept {
+//         auto&& c = grid[u.z, u.y, u.x];
+//         if (not obs.contains(c)) return std::optional<std::unordered_set<symbol>>();
+//         changes.emplace_back(c, obs.at(c).from);
+//         return std::optional{obs.at(c).to};
+//     })
+//     | std::ranges::to<Grid<bool>>(grid.extents());
 
-}
+//   return std::make_pair(std::move(changes), std::move(f));
+// }
 
 inline constexpr auto forward(
   grid_view grid,
   std::span<const Rule> rules
 ) noexcept -> decltype(auto) {
-  const auto g_sentinel = toSentinel(grid.extents());
   auto potentials = std::unordered_map<symbol, Grid<std::optional<UInt>>>{};
 
-  for (
-    auto q = mdiota(g_sentinel)
-      | std::views::transform([&g_sentinel, &grid, &potentials](auto&& u) noexcept {
+  propagate(
+    mdiota(toSentinel(grid.extents()))
+      | std::views::transform([&grid, &potentials](auto&& u) noexcept {
           auto&& c = grid[u.z, u.y, u.x];
-          potentials.try_emplace(c, fromSentinel(g_sentinel), std::nullopt);
+          potentials.try_emplace(c, grid.extents(), std::nullopt);
           potentials.at(c)[u] = 0u;
           return std::make_pair(c, u);
-      })
-      | std::ranges::to<std::queue>();
-    not std::ranges::empty(q);
-    q.pop()
-  ) {
-    auto&& [c, u] = q.front();
-    auto&& potential = potentials.at(c);
-    const auto p_sentinel = toSentinel(potential.extents);
-    auto&& p = *potential[u];
-
-    q.push_range(rules |
-      std::views::transform(
-        [updateZone{bindBack(&Rule::neighborhood, u, p_sentinel)}, &potentials, &p]
-        (auto&& rule) noexcept {
-          return mdiota(updateZone(rule))
-            | std::views::transform([&rule](auto&& u) noexcept {
-                return std::views::zip(
-                  mdiota({u, toSentinel(rule.input.extents)}),
-                  rule.input,
-                  rule.output
-                );
-            })
-            | std::views::filter([&potentials, &rule, &p](auto&& _uios) noexcept {
-                return std::ranges::none_of(
-                  _uios | std::views::filter([](auto&& _uio) static noexcept {
-                    auto&& [u, i, o] = _uio;
-                    return i != std::nullopt;
-                  }),
-                  [&p](auto&& v) noexcept {
-                    return v == std::nullopt
-                        or *v > p;
-                  },
-                  [&potentials](auto&& _uio) noexcept {
-                    auto&& [u, i, o] = _uio;
-
-                    // In original MarkovJunior code, we use int-coded bitset for rule input,
-                    // and the following type-mismatch is solved using a mysterious "least index of active bit"
-                    // which is very dependant to the specific fact that we use an _ordered_ repr. of a bitset...
-                    // That's magic !
-                    //
-                    // Original code (our 'i' is the 'w'): `System.Numerics.BitOperations.TrailingZeroCount(w)`
-                    // Or is the provided order of the symbols so important that we need to move rule.input to an ordered set ?
-                    // return potentials.contains(i)
-                    //   ? potentials.at(i)[u]
-                    //   : std::optional{0u};
-
-                    return std::optional{0u};
-                  }
-                );
-            })
-            | std::views::join;
-        }
-      )
+      }),
+    [&potentials, &rules](auto&& front) noexcept {
+      auto&& [c, u] = front;
+      auto&& potential = potentials.at(c);
+      const auto p_sentinel = toSentinel(potential.extents);
+      auto&& p = *potential[u];
+  
+      return rules 
+        | std::views::transform(
+          [updateZone{bindBack(&Rule::neighborhood, u, p_sentinel)}, &potentials, &p]
+          (auto&& rule) noexcept {
+            return mdiota(updateZone(rule))
+              | std::views::transform([&rule](auto&& u) noexcept {
+                  return std::views::zip(
+                    mdiota({u, toSentinel(rule.input.extents)}),
+                    rule.input,
+                    rule.output
+                  );
+              })
+              | std::views::filter([&potentials, &rule, &p](auto&& _uios) noexcept {
+                  return std::ranges::none_of(
+                    _uios | std::views::filter([](auto&& _uio) static noexcept {
+                      auto&& [u, i, o] = _uio;
+                      return i != std::nullopt;
+                    }),
+                    [&p](auto&& v) noexcept {
+                      return v == std::nullopt
+                          or *v > p;
+                    },
+                    [&potentials](auto&& _uio) noexcept {
+                      auto&& [u, i, o] = _uio;
+  
+                      // In original MarkovJunior code, we use int-coded bitset for rule input,
+                      // and the following type-mismatch is solved using a mysterious "least index of active bit"
+                      // which is very dependant to the specific fact that we use an _ordered_ repr. of a bitset...
+                      // That's magic !
+                      //
+                      // Original code (our 'i' is the 'w'): `System.Numerics.BitOperations.TrailingZeroCount(w)`
+                      // Or is the provided order of the symbols so important that we need to move rule.input to an ordered set ?
+                      // return potentials.contains(i)
+                      //   ? potentials.at(i)[u]
+                      //   : std::optional{0u};
+  
+                      return std::optional{0u};
+                    }
+                  );
+              })
+              | std::views::join;
+          }
+        )
         | std::views::join
         | std::views::filter([&potentials](auto&& _uio) noexcept {
             auto&& [u, i, o] = _uio;
@@ -166,9 +177,9 @@ inline constexpr auto forward(
             auto&& [u, i, o] = _uio;
             potentials.at(*o)[u] = p + 1;
             return std::make_pair(*o, u);
-        })
-    );
-  }
+        });
+    }
+  );
 
   return potentials;
 }
