@@ -35,7 +35,7 @@ inline constexpr auto toIndex(math::Vector3U u, const std::dims<3>& extents) noe
   return dot(u, {x, y, z});
 }
 
-inline constexpr auto fromIndex(UInt i, const std::dims<3>& extents) noexcept -> decltype(auto) {
+inline constexpr auto fromIndex(UInt32 i, const std::dims<3>& extents) noexcept -> decltype(auto) {
   auto&& [z, y, x] = strides(extents);
   return (math::Vector3U{i, i, i} / math::Vector3U{x, y, z}) % toSentinel(extents);
 }

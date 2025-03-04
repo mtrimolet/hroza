@@ -191,7 +191,7 @@ inline constexpr auto parseXmlPalette(std::string_view filepath) noexcept -> dec
         ensures(!std::ranges::empty(value),
                 std::format("missing '{}' attribute in '{}' node [:{}]", "value", "color", xcolor.offset_debug()));
         
-        return std::make_pair(symbol_str[0], (255u << 24u) + fromBase<std::uint32_t>(value, 16));
+        return std::make_pair(symbol_str[0], (255u << 24u) + fromBase<UInt32>(value, 16));
     })
     | std::ranges::to<std::unordered_map>();
 }

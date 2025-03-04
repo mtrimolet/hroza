@@ -70,18 +70,18 @@ inline constexpr auto fromBase(std::string_view x, UInt8 base) noexcept -> T {
 template <>
 struct std::hash<math::Vector3U> {
   inline constexpr auto operator()(math::Vector3U u) const noexcept -> std::size_t {
-    return std::hash<UInt>{}(u.x)
-         ^ std::hash<UInt>{}(u.y)
-         ^ std::hash<UInt>{}(u.z);
+    return std::hash<UInt32>{}(u.x)
+         ^ std::hash<UInt32>{}(u.y)
+         ^ std::hash<UInt32>{}(u.z);
   }
 };
 
 template <>
 struct std::hash<std::dims<3>> {
   inline constexpr auto operator()(std::dims<3> u) const noexcept -> std::size_t {
-    return std::hash<UInt>{}(u.extent(0))
-         ^ std::hash<UInt>{}(u.extent(1))
-         ^ std::hash<UInt>{}(u.extent(2));
+    return std::hash<RangeExtent>{}(u.extent(0))
+         ^ std::hash<RangeExtent>{}(u.extent(1))
+         ^ std::hash<RangeExtent>{}(u.extent(2));
   }
 };
 

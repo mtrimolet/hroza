@@ -89,11 +89,11 @@ struct Area3U {
     return operator-(Area3U{d, {0, 0, 0}});
   }
 
-  inline constexpr auto operator*(UInt r) const noexcept -> decltype(auto) {
+  inline constexpr auto operator*(UInt32 r) const noexcept -> decltype(auto) {
     return Area3U{u * r, size * r};
   }
 
-  inline constexpr auto operator/(UInt r) const noexcept -> decltype(auto) {
+  inline constexpr auto operator/(UInt32 r) const noexcept -> decltype(auto) {
     return Area3U{u / r, size / r};
   }
 
