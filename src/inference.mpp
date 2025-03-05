@@ -46,10 +46,19 @@ struct DijkstraField {
   inline constexpr auto dijkstraMap(grid_view grid) const noexcept -> decltype(auto) {
     const auto g_sentinel = toSentinel(grid.extents());
     const auto neighborhood = [&g_sentinel](const math::Vector3U& u) noexcept {
-      const auto neigh_size = math::Vector3U{3, 3, g_sentinel.z == 1 ? 1 : 3};
-      const auto neigh_offset = neigh_size / 2u;
-      const auto neigh_margin = Area3U{neigh_offset, g_sentinel - neigh_offset};
-      return neigh_margin.intersect({u, neigh_size}) - neigh_offset;
+      constexpr auto neigh_size = math::Vector3U{3, 3, 3};
+      constexpr auto neigh_shift = -static_cast<math::Vector3I>(neigh_size / 2u);
+      const auto neigh = Area<3, Int>{neigh_shift, neigh_size} + static_cast<math::Vector3I>(u);
+      const auto n = static_cast<Area3U>(Area<3, Int>{g_sentinel}.meet(neigh));
+
+      ensures(
+        math::all(math::equal(n.size - math::Vector3U{0, 0, n.size.z}, {neigh_size.x, neigh_size.y, 0}))
+        or math::any(math::equal(n.u + math::Vector3U{0, 0, 1}, {0, 0, 0}))
+        or math::any(math::equal(n.sentinel() + math::Vector3U{0, 0, 1}, g_sentinel)),
+        "bad boundary !!"
+      );
+
+      return n;
     };
 
     auto potential = Grid<std::optional<UInt>>{grid.extents(), std::nullopt};
@@ -110,7 +119,7 @@ inline constexpr auto forward(
   auto potentials = std::unordered_map<symbol, Grid<std::optional<UInt>>>{};
 
   propagate(
-    mdiota(toSentinel(grid.extents()))
+    mdiota(grid.extents())
       | std::views::transform([&grid, &potentials](auto&& u) noexcept {
           auto&& c = grid[u.z, u.y, u.x];
           potentials.try_emplace(c, grid.extents(), std::nullopt);

@@ -80,9 +80,9 @@ struct Rule {
   /** Provides the area of locations at which this rule would update u */
   inline constexpr auto neighborhood(const math::Vector3U& g_sentinel, const math::Vector3U& u) const noexcept -> decltype(auto) {
     const auto neigh_size = toSentinel(output.extents);
-    const auto neigh_offset = neigh_size - math::Vector3U{1u, 1u, 1u};
-    const auto neigh_margin = Area3U{neigh_offset, g_sentinel - neigh_offset};
-    return neigh_margin.intersect({u, neigh_size}) - neigh_offset;
+    const auto neigh_shift = -static_cast<math::Vector3I>(neigh_size - math::Vector3U{1u, 1u, 1u});
+    const auto neigh = Area<3, Int>{neigh_shift, neigh_size} + static_cast<math::Vector3I>(u);
+    return static_cast<Area3U>(Area<3, Int>{g_sentinel}.meet(neigh));
   }
 };
 }

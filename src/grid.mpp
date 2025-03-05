@@ -132,7 +132,7 @@ struct Grid {
   }
 
   inline constexpr auto xreflected() const noexcept -> decltype(auto) {
-    auto extents = fromSentinel(Area3U{toSentinel(this->extents)}.xreflected().size);
+    auto extents = fromSentinel(::xreflected(Area3U{toSentinel(this->extents)}).size);
     return mdiota(extents)
       | std::views::transform([sent{toSentinel(extents)}, this](auto u) noexcept {
           return at({ sent.x - u.x - 1u, u.y, u.z });
@@ -141,7 +141,7 @@ struct Grid {
   }
 
   inline constexpr auto xyrotated() const noexcept -> decltype(auto) {
-    auto extents = fromSentinel(Area3U{toSentinel(this->extents)}.xyrotated().size);
+    auto extents = fromSentinel(::xyrotated(Area3U{toSentinel(this->extents)}).size);
     return mdiota(extents)
       | std::views::transform([sent{toSentinel(extents)}, this](auto u) noexcept {
           return at({ u.y, sent.x - u.x - 1, u.z });
@@ -150,7 +150,7 @@ struct Grid {
   }
 
   inline constexpr auto zyrotated() const noexcept -> decltype(auto) {
-    auto extents = fromSentinel(Area3U{toSentinel(this->extents)}.zyrotated().size);
+    auto extents = fromSentinel(::zyrotated(Area3U{toSentinel(this->extents)}).size);
     return mdiota(extents)
       | std::views::transform([sent{toSentinel(extents)}, this](auto u) noexcept {
           return at({ u.x, sent.z - u.z - 1, u.y });

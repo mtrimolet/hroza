@@ -19,12 +19,13 @@ struct Match {
   math::Vector3U u;
   Rule rule;
 
+  inline constexpr auto area() const noexcept -> decltype(auto) {
+    return Area3U{u, toSentinel(rule.input.extents)};
+  }
+
   inline constexpr auto match(grid_view grid) const noexcept -> decltype(auto) {
     return std::ranges::all_of(
-      std::views::zip(
-        mdiota({u, toSentinel(rule.input.extents)}),
-        rule.input
-      ),
+      std::views::zip(mdiota(area()), rule.input),
       [grid{std::move(grid)}](auto&& input) noexcept {
         auto&& [v, value] = input;
         return value == std::nullopt
@@ -34,10 +35,7 @@ struct Match {
   }
   
   inline constexpr auto changes(grid_view grid) const noexcept -> decltype(auto) {
-    return std::views::zip(
-      mdiota({u, toSentinel(rule.output.extents)}),
-      rule.output
-    )
+    return std::views::zip(mdiota(area()), rule.output)
       | std::views::filter([grid{std::move(grid)}](auto&& output) noexcept {
           auto&& [v, value] = output;
           return  value != std::nullopt
@@ -74,12 +72,14 @@ struct RulesMatcher : EventTracker {
     : EventTracker{}, rules{std::move(_rules)}, matches{} {}
 
     inline constexpr auto newMatches(
-      grid_view grid, 
+      grid_view grid,
       std::span<const Change<symbol>> changes = {}
     ) const noexcept -> decltype(auto) {
+      auto g_sentinel = toSentinel(grid.extents());
+
       if (std::ranges::empty(changes)) {
         return rules
-          | std::views::transform([g_sentinel{toSentinel(grid.extents())}](const Rule& rule) noexcept {
+          | std::views::transform([&g_sentinel](const Rule& rule) noexcept {
               const auto ri_sentinel = toSentinel(rule.input.extents);
               const auto sentinel = g_sentinel - (ri_sentinel - math::Vector3U{1u, 1u, 1u});
               return mdiota({sentinel})
@@ -92,10 +92,10 @@ struct RulesMatcher : EventTracker {
       }
     
       return rules
-        | std::views::transform([&changes, &g_extents{grid.extents()}](const Rule& rule) noexcept {
+        | std::views::transform([&changes, &g_sentinel](const Rule& rule) noexcept {
             auto rchanges = changes
               | std::views::transform([
-                  updateZone{bindFront(&Rule::neighborhood, rule, toSentinel(g_extents))}
+                  updateZone{bindFront(&Rule::neighborhood, rule, g_sentinel)}
               ](const Change<symbol>& change) noexcept {
                 return mdiota(updateZone(change.u));
               })
@@ -154,7 +154,7 @@ struct InferenceEngine {
   inline constexpr auto sumdiff(grid_view grid, const Match& match) noexcept -> decltype(auto) {
     return std::ranges::fold_left(
       std::views::zip(
-        mdiota({match.u, toSentinel(match.rule.output.extents)}),
+        mdiota(match.area()),
         match.rule.input,
         match.rule.output
       )
@@ -169,7 +169,7 @@ struct InferenceEngine {
           auto&& new_value = *o;
           auto&& old_value = grid[u.z, u.y, u.x];
 
-          // this should exclude the match from selection
+          // exclude the match from selection
           if (potentials.contains(new_value) and not potentials.at(new_value)[u])
             return std::optional<int>{};
 
@@ -234,7 +234,7 @@ struct InferenceEngine {
           const auto value = temperature > 0.0 
             ? std::pow(u, std::exp((h - first_h) / temperature))
             : -h + 0.001 * u;
-          ensures(value == 0.0 or std::isnormal(value));
+          ensures(value == 0.0 or std::isnormal(value), "anormal double value in dijkstra inference");
           return std::make_pair(i, value);
         }
       )
@@ -325,8 +325,7 @@ struct All : RulesMatcher, InferenceEngine {
         if (std::ranges::none_of(
           result,
           [&match](auto&& visited) noexcept {
-            const auto overlap = Area3U{visited.u, toSentinel(visited.rule.output.extents)}
-                      .intersect(Area3U{match.u, toSentinel(match.rule.output.extents)});
+            const auto overlap = visited.area().meet(match.area());
             return std::ranges::any_of(
               mdiota(overlap),
               [](auto&& p) static noexcept {
