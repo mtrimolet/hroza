@@ -19,7 +19,7 @@ struct Rule {
   Grid<std::optional<symbol>> output;
   double p;
 
-  Rule(Grid<std::optional<std::unordered_set<symbol>>>&& _input, Grid<std::optional<symbol>>&& _output, double _p = 1.0)
+  inline constexpr Rule(Grid<std::optional<std::unordered_set<symbol>>>&& _input, Grid<std::optional<symbol>>&& _output, double _p = 1.0)
     : input{std::move(_input)}, output{std::move(_output)}, p{_p} {}
 
   inline constexpr auto operator==(const Rule& other) const noexcept -> bool = default;
@@ -87,7 +87,7 @@ struct Rule {
 };
 }
 
-const auto square_groups = makeStaticArray<std::function<Rule(const Rule&)>>(
+auto&& square_groups = makeStaticArray<std::function<Rule(const Rule&)>>(
   [](auto&& rule) static noexcept { return auto{rule}; },
   [](auto&& rule) static noexcept { return rule.xreflected(); },
   [](auto&& rule) static noexcept { return rule.xyrotated(); },
@@ -112,7 +112,7 @@ export {
 template <>
 struct std::hash<Rule> {
   inline constexpr auto operator()(const Rule& rule) const noexcept -> std::size_t {
-    auto seed = std::hash<std::dims<3>>{}(rule.input.extents);
+    auto&& seed = std::hash<std::dims<3>>{}(rule.input.extents);
     for (auto&& v : rule.input) {
       seed ^= std::hash<std::remove_cvref_t<decltype(v)>>{}(v);
     }

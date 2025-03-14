@@ -29,7 +29,7 @@ std::function<ReturnType (Args...)> memoize(std::function<ReturnType (Args...)> 
 template <class T>
 struct std::hash<std::unordered_set<T>> {
   inline constexpr auto operator()(const std::unordered_set<T>& set) const noexcept -> std::size_t {
-    auto seed = std::hash<std::size_t>{}(set.size());
+    auto&& seed = std::hash<std::size_t>{}(set.size());
     for (auto&& i : set) {
       seed ^= std::hash<T>{}(i);
     }
@@ -40,7 +40,7 @@ struct std::hash<std::unordered_set<T>> {
 template <class T>
 struct std::hash<std::vector<T>> {
   inline constexpr auto operator()(const std::vector<T>& vec) const noexcept -> std::size_t {
-    auto seed = std::hash<std::size_t>{}(vec.size());
+    auto&& seed = std::hash<std::size_t>{}(vec.size());
     for (auto&& i : vec) {
       seed ^= std::hash<T>{}(i);
     }
@@ -58,8 +58,8 @@ struct std::hash<std::vector<T>> {
 // };
 template <meta::IsArithmetic T>
 inline constexpr auto fromBase(std::string_view x, UInt8 base) noexcept -> T {
-  auto out = T{};
-  const auto result =
+  auto&& out = T{};
+  auto&& result =
       std::from_chars(std::ranges::cbegin(x), std::ranges::cend(x), out, base);
   ensures(result.ec == std::errc{},
           std::format("cannot parse integer base {} from '{}': {}", base, x,

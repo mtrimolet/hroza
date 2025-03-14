@@ -19,7 +19,7 @@ using Action = std::function<std::vector<Change<symbol>>(TracedGrid<symbol>&)>;
 struct ActionNode {
   Action action;
   inline constexpr auto operator()(TracedGrid<symbol>& grid) noexcept -> std::vector<Change<symbol>> {
-    const auto changes = action(grid);
+    auto&& changes = action(grid);
     // std::mdspan<, grid.extents>
     std::ranges::for_each(changes, bindFront(&TracedGrid<symbol>::apply, &grid));
     return changes;
@@ -30,24 +30,24 @@ export {
 
 struct NoLimit : ActionNode {
   inline auto operator()(TracedGrid<symbol>& grid) noexcept -> std::generator<std::vector<Change<symbol>>> {
-    const auto changes = ActionNode::operator()(grid);
+    auto&& changes = ActionNode::operator()(grid);
     if (std::ranges::empty(changes)) co_return;
-    co_yield changes;
+    co_yield std::move(changes);
   }
 };
 
 struct Limit : ActionNode {
   UInt count;
-  Limit(UInt _count, Action&& _action) noexcept : ActionNode{std::move(_action)}, count{_count} {}
+  inline constexpr Limit(UInt _count, Action&& _action) noexcept : ActionNode{std::move(_action)}, count{_count} {}
 
   inline auto operator()(TracedGrid<symbol>& grid) noexcept -> std::generator<std::vector<Change<symbol>>> {
     if (count == 0) co_return;
     
-    const auto changes = ActionNode::operator()(grid);
+    auto&& changes = ActionNode::operator()(grid);
     if (std::ranges::empty(changes)) co_return;
 
     count--;
-    co_yield changes;
+    co_yield std::move(changes);
   }
 };
 
@@ -56,10 +56,10 @@ using Node = std::function<std::generator<std::vector<Change<symbol>>>(TracedGri
 struct Sequence {
   std::vector<Node> nodes;
   inline auto operator()(TracedGrid<symbol>& grid) noexcept -> std::generator<std::vector<Change<symbol>>> {
-    auto current_node = std::ranges::begin(nodes);
+    auto&& current_node = std::ranges::begin(nodes);
     while (current_node != std::ranges::end(nodes)) {
-      auto found = false;
-      for (auto changes : (*current_node)(grid)) {
+      auto&& found = false;
+      for (auto&& changes : (*current_node)(grid)) {
         if (not found) found = true;
         co_yield changes;
       }
@@ -72,10 +72,10 @@ struct Sequence {
 struct Markov {
   std::vector<Node> nodes;
   inline auto operator()(TracedGrid<symbol>& grid) noexcept -> std::generator<std::vector<Change<symbol>>> {
-    auto current_node = std::ranges::begin(nodes);
+    auto&& current_node = std::ranges::begin(nodes);
     while (current_node != std::ranges::end(nodes)) {
-      auto found = false;
-      for (auto changes : (*current_node)(grid)) {
+      auto&& found = false;
+      for (auto&& changes : (*current_node)(grid)) {
         if (not found) found = true;
         co_yield changes;
       }

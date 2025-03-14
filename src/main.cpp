@@ -15,12 +15,12 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   // [tmpfix] remove when stormkit userMain allows for non-packaged build
   chdir("/Users/mtrimolet/Desktop/mtrimolet/markovjunior/hroza");
 
-  const auto palette = examples::parseXmlPalette("./resources/palette.xml");
-  const auto model = std::ranges::size(args) >= 2 ? args[1] : "Grow To";
-  const auto filename = model 
+  auto&& palette = examples::parseXmlPalette("./resources/palette.xml");
+  auto&& model = std::ranges::size(args) >= 2 ? args[1] : "Grow To";
+  auto&& filename = model 
     | std::views::filter(std::not_fn([](auto&& c) static noexcept { return std::isspace(c); }))
     | std::ranges::to<std::string>();
-  const auto example = examples::parseXmlExample(model, std::format("./models/{}.xml", filename));
+  auto&& example = examples::parseXmlExample(model, std::format("./models/{}.xml", filename));
 
   const auto square_size = 60u;
   auto grid = TracedGrid{std::dims<3>{1u, square_size, 3 * square_size}, example.symbols[0]};
@@ -39,28 +39,24 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
     | std::ranges::to<std::vector>()
   );
 
-  const auto offsets = std::views::zip(example.symbols, std::views::iota(0u))
+  auto&& offsets = std::views::zip(example.symbols, std::views::iota(0u))
     | std::ranges::to<std::unordered_map<char, unsigned int>>();
 
-  for (auto&& [u, value] : std::views::zip(mdiota(grid.extents), grid)) {
+  auto&& addch = [&window, &offsets](auto&& _value) noexcept {
+    auto&& [u, value] = _value;
     if (window.hascolors()) {
-      const auto offset = offsets.contains(value) ? offsets.at(value) : 0;
+      auto&& offset = offsets.contains(value) ? offsets.at(value) : 0;
       window.addch(u.y, u.x, value, offset);
     } else {
       window.addch(u.y, u.x, value);
     }
-  }
+  };
+
+  std::ranges::for_each(std::views::zip(mdiota(grid.area()), grid), addch);
   window.refresh();
 
-  for (auto changes : example.program(grid)) {
-    for (auto&& [u, value] : changes) {
-      if (window.hascolors()) {
-        const auto offset = offsets.contains(value) ? offsets.at(value) : 0;
-        window.addch(u.y, u.x, value, offset);
-      } else {
-        window.addch(u.y, u.x, value);
-      }
-    }
+  for (auto&& changes : example.program(grid)) {
+    std::ranges::for_each(changes, addch);
     window.refresh();
   }
 

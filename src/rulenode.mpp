@@ -54,8 +54,8 @@ struct EventTracker {
 
   template <std::ranges::input_range History>
   inline constexpr auto newEvents(History&& history) noexcept -> decltype(auto) {
-    const auto now = std::ranges::cend(history);
-    const auto since = prev
+    auto&& now = std::ranges::cend(history);
+    auto&& since = prev
       .transform(bindFront(std::plus{}, std::ranges::cbegin(history)))
       .value_or(now);
     prev = std::ranges::size(history);
@@ -68,7 +68,7 @@ struct RulesMatcher : EventTracker {
   std::vector<Rule> rules;
   std::vector<Match> matches;
 
-  RulesMatcher(std::vector<Rule>&& _rules) noexcept
+  inline constexpr RulesMatcher(std::vector<Rule>&& _rules) noexcept
     : EventTracker{}, rules{std::move(_rules)}, matches{} {}
 
     inline constexpr auto newMatches(
@@ -194,7 +194,7 @@ struct InferenceEngine {
     );
   }
 
-  inline constexpr auto infer(grid_view grid, std::vector<Match>& matches) noexcept -> decltype(auto) {
+  inline constexpr auto sort(grid_view grid, std::vector<Match>& matches) noexcept -> decltype(auto) {
     static auto rg = std::mt19937{std::random_device{}()};
 
     if (std::ranges::empty(fields)) {
@@ -202,8 +202,7 @@ struct InferenceEngine {
       return;
     }
 
-    observe(grid);
-    const auto heuristics = std::views::zip(matches, std::views::iota(0u))
+    auto&& heuristics = std::views::zip(matches, std::views::iota(0u))
       | std::views::transform([sumdiff{bindFront(&InferenceEngine::sumdiff, this, grid)}](auto&& _match) noexcept {
           auto&& [match, i] = _match;
           return std::make_pair(i, sumdiff(match));
@@ -223,26 +222,30 @@ struct InferenceEngine {
       return;
     }
     auto&& first_h = std::get<1>(heuristics[0]);
-    auto scores = heuristics
+    auto&& scores = std::move(heuristics)
       | std::views::transform(
-        [&temperature{temperature}, &first_h](auto&& _h) noexcept {
+        [&](auto&& _h) noexcept {
           auto&& [i, h] = _h;
 
           static auto prob = std::uniform_real_distribution<>{};
-          const auto u = prob(rg);
+          auto&& u = prob(rg);
 
-          const auto value = temperature > 0.0 
+          ensures(temperature == 0.0 or std::isnormal(temperature), "anormal temperature value in dijkstra inference");
+          auto&& value = temperature > 0.0 
+            /** Is this the metropolis rule ??? that's `e^(dE/T)`,
+              * definitely a thermodynamic sampling, definitely hill climbing on distance potential
+            **/
             ? std::pow(u, std::exp((h - first_h) / temperature))
             : -h + 0.001 * u;
-          ensures(value == 0.0 or std::isnormal(value), "anormal double value in dijkstra inference");
-          return std::make_pair(i, value);
+          ensures(value == 0.0 or std::isnormal(value), "anormal score value in dijkstra inference");
+          return std::make_pair(std::move(i), std::move(value));
         }
       )
       | std::ranges::to<std::vector>();
 
-    sort(scores, {}, monadic::get<1>());
+    ::sort(scores, {}, monadic::get<1>());
 
-    matches = scores
+    matches = std::move(scores)
       | std::views::transform([&matches](auto&& _i) noexcept {
           auto&& [i, s] = _i;
           return std::move(matches[i]);
@@ -255,17 +258,18 @@ struct InferenceEngine {
 
 export
 struct One : RulesMatcher, InferenceEngine {
-  One(double temperature, std::unordered_map<symbol, DijkstraField>&& fields, std::vector<Rule>&& rules) noexcept
+  inline constexpr One(double temperature, std::unordered_map<symbol, DijkstraField>&& fields, std::vector<Rule>&& rules) noexcept
     : RulesMatcher{std::move(rules)},
     InferenceEngine{temperature, std::move(fields)} {}
 
   inline constexpr auto operator()(const TracedGrid<symbol>& grid) noexcept -> decltype(auto) {
-    auto mdgrid = std::mdspan{std::ranges::cdata(grid), grid.extents};
-    RulesMatcher::refreshMatches(mdgrid, grid.history);
+    auto&& mdgrid = std::mdspan{std::ranges::cdata(grid), grid.extents};
+    this->refreshMatches(mdgrid, grid.history);
 
-    InferenceEngine::infer(mdgrid, this->matches);
+    this->observe(mdgrid);
+    this->sort(mdgrid, this->matches);
 
-    const auto triggered = std::ranges::find_last_if(this->matches, bindBack(&Match::match, mdgrid));
+    auto&& triggered = std::ranges::find_last_if(this->matches, bindBack(&Match::match, mdgrid));
     auto r = triggered
       | std::views::take(1)
       | std::views::transform(bindBack(&Match::changes, mdgrid))
@@ -281,15 +285,15 @@ struct One : RulesMatcher, InferenceEngine {
 
 export
 struct Prl : RulesMatcher {
-  Prl(std::vector<Rule>&& rules) noexcept
+  inline constexpr Prl(std::vector<Rule>&& rules) noexcept
     : RulesMatcher{std::move(rules)} {}
 
   inline constexpr auto operator()(const TracedGrid<symbol>& grid) noexcept -> decltype(auto) {
-    auto mdgrid = std::mdspan{std::ranges::cdata(grid), grid.extents};
-    RulesMatcher::refreshMatches(mdgrid, grid.history);
+    auto&& mdgrid = std::mdspan{std::ranges::cdata(grid), grid.extents};
+    this->refreshMatches(mdgrid, grid.history);
 
     static auto rg = std::mt19937{std::random_device{}()};
-    const auto triggered = std::ranges::partition(this->matches, std::not_fn([](auto&& match) static noexcept {
+    auto&& triggered = std::ranges::partition(this->matches, std::not_fn([](auto&& match) static noexcept {
       static auto prob = std::uniform_real_distribution<>{};
       return match.rule.p == 1.0 or prob(rg) <= match.rule.p;
     }));
@@ -309,23 +313,24 @@ struct Prl : RulesMatcher {
 
 export
 struct All : RulesMatcher, InferenceEngine {
-  All(double temperature, std::unordered_map<symbol, DijkstraField>&& fields, std::vector<Rule>&& rules) noexcept
+  inline constexpr All(double temperature, std::unordered_map<symbol, DijkstraField>&& fields, std::vector<Rule>&& rules) noexcept
     : RulesMatcher{std::move(rules)},
     InferenceEngine{temperature, std::move(fields)} {}
 
   inline constexpr auto operator()(const TracedGrid<symbol>& grid) noexcept -> decltype(auto) {
-    const auto mdgrid = std::mdspan{std::ranges::cdata(grid), grid.extents};
-    RulesMatcher::refreshMatches(mdgrid, grid.history);
+    auto&& mdgrid = std::mdspan{std::ranges::cdata(grid), grid.extents};
+    this->refreshMatches(mdgrid, grid.history);
 
-    InferenceEngine::infer(mdgrid, this->matches);
+    this->observe(mdgrid);
+    this->sort(mdgrid, this->matches);
 
-    auto filtered = std::ranges::fold_left(
+    auto&& triggered = std::ranges::fold_left(
       std::views::reverse(this->matches), std::vector<Match>{},
-      [](auto&& result, auto&& match) static noexcept {
+      [](auto&& triggered, auto&& match) static noexcept {
         if (std::ranges::none_of(
-          result,
+          triggered,
           [&match](auto&& visited) noexcept {
-            const auto overlap = visited.area().meet(match.area());
+            auto&& overlap = visited.area().meet(match.area());
             return std::ranges::any_of(
               mdiota(overlap),
               [](auto&& p) static noexcept {
@@ -341,14 +346,14 @@ struct All : RulesMatcher, InferenceEngine {
             );
           }
         ))
-          result.push_back(std::move(match));
-        return result;
+          triggered.push_back(std::move(match));
+        return triggered;
       }
     );
 
     this->matches.clear();
 
-    return std::move(filtered)
+    return std::move(triggered)
       | std::views::transform(bindBack(&Match::changes, mdgrid)) 
       | std::views::join 
       | std::ranges::to<std::vector>();

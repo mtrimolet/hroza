@@ -62,8 +62,8 @@ struct Grid {
   std::vector<T> values;
 
   template<container_compatible_range<T> R>
-  Grid(std::from_range_t, R&& _values, Extents _extents) noexcept : extents{_extents}, values{std::from_range, _values} {}
-  Grid(Extents _extents, T v) noexcept : Grid{std::from_range, std::views::repeat(v, _extents.extent(0) * _extents.extent(1) * _extents.extent(2)), _extents} {}
+  inline constexpr Grid(std::from_range_t, R&& _values, Extents _extents) noexcept : extents{_extents}, values{std::from_range, _values} {}
+  inline constexpr Grid(Extents _extents, T v) noexcept : Grid{std::from_range, std::views::repeat(v, _extents.extent(0) * _extents.extent(1) * _extents.extent(2)), _extents} {}
 
   inline constexpr auto operator==(const Grid<T>& other) const noexcept -> bool = default;
 
@@ -103,7 +103,7 @@ struct Grid {
   static inline constexpr auto parse(std::string_view str, std::function<T(char)> project = std::identity{}) noexcept -> decltype(auto) {
     static constexpr char ZSEP = ' ', YSEP = '/';
 
-    auto values = str
+    auto&& values = str
       | std::views::split(ZSEP)
       | std::views::transform([&project](auto&& square){ 
           return square
@@ -117,7 +117,7 @@ struct Grid {
         })
       | std::ranges::to<std::vector>();
 
-    auto extents = std::dims<3>{
+    auto&& extents = std::dims<3>{
       std::ranges::size(values),
       std::ranges::empty(values) ? 0u
         : std::ranges::size(values[0]),
@@ -125,10 +125,10 @@ struct Grid {
         : std::ranges::size(values[0][0]),
     };
 
-    return values
+    return std::move(values)
       | std::views::join
       | std::views::join
-      | std::ranges::to<Grid<T>>(extents);
+      | std::ranges::to<Grid<T>>(std::move(extents));
   }
 
   inline constexpr auto xreflected() const noexcept -> decltype(auto) {
@@ -169,7 +169,7 @@ template <class T>
 struct TracedGrid : Grid<T> {
   std::vector<Change<T>> history;
 
-  TracedGrid(Grid<T>::Extents _extents, T v) noexcept
+  inline constexpr TracedGrid(Grid<T>::Extents _extents, T v) noexcept
     : Grid<T>{_extents, v}, history{} {}
 
   inline constexpr auto apply(const Change<T>& change) noexcept -> decltype(auto) {

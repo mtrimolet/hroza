@@ -16,7 +16,7 @@ using potential_view = std::mdspan<std::optional<UInt>, std::dims<3>>;
 
 inline constexpr auto propagate(auto&& initial, auto&& unfold) noexcept -> decltype(auto) {
   for (
-    auto q = initial | std::ranges::to<std::queue>();
+    auto&& q = initial | std::ranges::to<std::queue>();
     not std::ranges::empty(q);
     q.pop()
   ) q.push_range(unfold(q.front()));
