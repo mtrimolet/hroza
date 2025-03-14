@@ -121,10 +121,14 @@ struct RulesMatcher : EventTracker {
 
 /********* */
 
+/** Is this Metropolis-Hastings ? Monte-Carlo ?
+  * It's definitely not Simulated Annealing since we're not changing the temperature.
+  * What's my energy, "potential" ?? -- yes, obviously
+**/
 struct InferenceEngine {
   double temperature;
   std::unordered_map<symbol, DijkstraField> fields;
-  std::unordered_map<symbol, Grid<std::optional<UInt>>> potentials;
+  std::unordered_map<symbol, Grid<std::optional<Int>>> potentials;
 
   inline constexpr auto observe(grid_view grid) noexcept -> decltype(auto) {
     std::ranges::for_each(
@@ -141,15 +145,7 @@ struct InferenceEngine {
       }
     );
   }
-  
-  inline constexpr auto inversed() const noexcept -> decltype(auto) {
-    return fields
-      | std::views::filter([](auto&& x) static noexcept {
-          return std::get<1>(x).inversed;
-      })
-      | std::views::transform(monadic::get<0>())
-      | std::ranges::to<std::unordered_set>();
-  }
+
 
   inline constexpr auto sumdiff(grid_view grid, const Match& match) noexcept -> decltype(auto) {
     return std::ranges::fold_left(
@@ -158,13 +154,13 @@ struct InferenceEngine {
         match.rule.input,
         match.rule.output
       )
-      | std::views::filter([&potentials{potentials}] (auto&& _tuple) noexcept {
+      | std::views::filter([](auto&& _tuple) static noexcept {
           auto&& [u, i, o] = _tuple;
           return o != std::nullopt
              and i != std::nullopt
              and not i->contains(*o);
       })
-      | std::views::transform([&grid, &potentials{potentials}, inversed{inversed()}] (auto&& _tuple) noexcept {
+      | std::views::transform([&grid, &potentials{potentials}] (auto&& _tuple) noexcept {
           auto&& [u, i, o] = _tuple;
           auto&& new_value = *o;
           auto&& old_value = grid[u.z, u.y, u.x];
@@ -173,18 +169,11 @@ struct InferenceEngine {
           if (potentials.contains(new_value) and not potentials.at(new_value)[u])
             return std::optional<int>{};
 
-          const int
+          auto&&
             new_potential = potentials.contains(new_value) ? potentials.at(new_value)[u].value() : 0,
-            old_potential = potentials.contains(old_value) ? potentials.at(old_value)[u].value_or(-1) : 0;
+            old_potential = potentials.contains(old_value) ? potentials.at(old_value)[u].value_or(-1) : 0; /** are we ok with -1 here ??? */
 
-          const int 
-            new_polarity = inversed.contains(new_value) 
-                        ? -1 : 1,
-            old_polarity = inversed.contains(old_value)
-                        ? -1 : 1;
-
-          return std::optional{(new_polarity * new_potential)
-              - (old_polarity * old_potential)};
+          return std::optional{new_potential - old_potential};
       }),
       std::optional<int>{0}, [](auto&& a, auto&& b) static noexcept {
         return a.and_then([&b](auto&& a) noexcept {

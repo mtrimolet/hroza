@@ -61,7 +61,7 @@ struct DijkstraField {
       return n;
     };
 
-    auto potential = Grid<std::optional<UInt>>{grid.extents(), std::nullopt};
+    auto potential = Grid<std::optional<Int>>{grid.extents(), std::nullopt};
     propagate(
       mdiota({g_sentinel})
         | std::views::filter([&zero{zero}, &grid](auto&& u) noexcept {
@@ -82,8 +82,8 @@ struct DijkstraField {
                    or substrate->contains(grid[n.z, n.y, n.x])
                  );
           })
-          | std::views::transform([&potential, &value](auto&& n) noexcept {
-              potential[n] = value + 1;
+          | std::views::transform([&inversed{inversed}, &potential, &value](auto&& n) noexcept {
+              potential[n] = (inversed ? -1 : 1) * (value + 1);
               return std::make_pair(n, value + 1);
           });
       }
@@ -116,7 +116,7 @@ inline constexpr auto forward(
   grid_view grid,
   std::span<const Rule> rules
 ) noexcept -> decltype(auto) {
-  auto potentials = std::unordered_map<symbol, Grid<std::optional<UInt>>>{};
+  auto potentials = std::unordered_map<symbol, Grid<std::optional<Int>>>{};
 
   propagate(
     mdiota(grid.extents())
@@ -160,7 +160,8 @@ inline constexpr auto forward(
                       // In original MarkovJunior code, we use int-coded bitset for rule input,
                       // and the following type-mismatch is solved using a mysterious "least index of active bit"
                       // which is very dependant to the specific fact that we use an _ordered_ repr. of a bitset...
-                      // That's magic !
+                      // That's magic ! 
+                      // .. unless that bit is expected to be the only one active
                       //
                       // Original code (our 'i' is the 'w'): `System.Numerics.BitOperations.TrailingZeroCount(w)`
                       // Or is the provided order of the symbols so important that we need to move rule.input to an ordered set ?
