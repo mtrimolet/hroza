@@ -22,11 +22,11 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
     | std::ranges::to<std::string>();
   auto&& example = examples::parseXmlExample(model, std::format("./models/{}.xml", filename));
 
-  const auto square_size = 60u;
-  auto grid = TracedGrid{std::dims<3>{1u, square_size, 3 * square_size}, example.symbols[0]};
-  if (example.origin) grid[toSentinel(grid.extents) / 2u] = example.symbols[1];
+  auto&& square_size = 59u;
+  auto&& grid = TracedGrid{std::dims<3>{1u, square_size, 3 * square_size}, example.symbols[0]};
+  if (example.origin) grid[(grid.area() / 2u).outerbound()] = example.symbols[1];
 
-  auto window = ncurses::window{grid.extents.extent(1), grid.extents.extent(2)};
+  auto&& window = ncurses::window{grid.area().size.y, grid.area().size.x};
   window.say(example.title);
   window.waitchar();
 

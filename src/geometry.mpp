@@ -11,40 +11,49 @@ export {
 //////////////////////////////////
 // Enrichment of math::Vector3U //
 //////////////////////////////////
+namespace geometry {
 
-// glm only provides `dot` for vectors of floating-point number types
+// glm only provides geometry functions for vectors of floating-point number types
 
-inline constexpr auto dot(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
+template <meta::IsArithmetic T>
+inline constexpr auto dot(const math::Vector<3, T>& a, const math::Vector<3, T>& b) noexcept -> decltype(auto) {
+  // this will silently overflow
   return a.x * b.x
        + a.y * b.y
        + a.z * b.z;
 }
 
+// template <RangeExtent E>
+inline constexpr auto reflect(const math::Vector3I& i, const math::Vector3I& n) noexcept -> decltype(auto) {
+  // this will silently overflow
+  return i - 2 * dot(n, i) * n;
+}
+
+// // template <RangeExtent E>
+// inline constexpr auto modreflect(const math::Vector3U& i, const math::Vector3U& n, const math::Vector3U& size) noexcept -> decltype(auto) {
+//   // this will silently overflow
+//   return static_cast<math::Vector3U>(static_cast<math::Vector3I>(ob) + reflect(static_cast<math::Vector3I>(i), n)) % size;
+// }
+
 // We're using the same component-wise behavior as standard glm functions (see comparators below)
 
-inline constexpr auto min(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
+template <meta::IsArithmetic T>
+inline constexpr auto min(const math::Vector<3, T>& a, const math::Vector<3, T>& b) noexcept -> decltype(auto) {
   return math::Vector3U{
     std::min(a.x, b.x),
     std::min(a.y, b.y),
     std::min(a.z, b.z),
   };
 }
-
-inline constexpr auto max(const math::Vector3U& a, const math::Vector3U& b) noexcept -> decltype(auto) {
-  return math::Vector3U{
-    std::max(a.x, b.x),
-    std::max(a.y, b.y),
-    std::max(a.z, b.z),
-  };
 }
 
 ///////////////////////////////////
 // Comparators of math::Vector3U //
 ///////////////////////////////////
 
-template <>
-struct std::equal_to<math::Vector3U> {
-  inline constexpr auto operator()(const math::Vector3U& a, const math::Vector3U& b) const noexcept -> bool {
+template <RangeExtent E, meta::IsArithmetic T>
+struct std::equal_to<math::Vector<E, T>> {
+  inline constexpr auto operator()(const math::Vector<E, T>& a, const math::Vector<E, T>& b) const noexcept -> bool {
     return math::all(math::equal(a, b));
   }
 };
@@ -86,114 +95,114 @@ assert(
 */
 
 template <RangeExtent E, meta::IsArithmetic T>
-struct Area {
+struct HyperRectangle {
   using Position = math::Vector<E, T>;
-  using Extents = math::Vector<E, std::make_unsigned_t<UInt>>;
+  using Size = math::Vector<E, std::make_unsigned_t<T>>;
 
   Position u;
-  Extents size;
+  Size size;
 
-  Area(Position _u, Extents _size) noexcept
+  inline constexpr HyperRectangle() noexcept = default;
+
+  inline constexpr HyperRectangle(Position _u, Size _size) noexcept
     : u{_u}, size{_size} {}
 
-  Area(Extents _size) noexcept
-    : Area{{}, _size} {}
-
-  Area() noexcept = default;
-
   template <meta::IsArithmetic T2>
-  Area(const Area<E, T2>& other) noexcept
-    : Area{other.u, other.size} {}
+  inline constexpr HyperRectangle(const HyperRectangle<E, T2>& other) noexcept
+    : HyperRectangle{other.u, other.size} {}
 
-  inline constexpr auto sentinel() const noexcept -> decltype(auto) {
+  inline constexpr auto outerbound() const noexcept -> decltype(auto) {
     return u + static_cast<Position>(size);
   }
 
   inline constexpr auto contains(const Position& v) const noexcept -> decltype(auto) {
     return math::all(math::lessThanEqual(u, v))
-       and math::all(math::lessThan(v, sentinel()));
+       and math::all(math::lessThan(v, outerbound()));
   }
 
-  inline constexpr auto operator+(const Area& d) const noexcept -> decltype(auto) {
-    return Area{u + d.u, size + d.size};
+  inline constexpr auto operator+(const HyperRectangle& other) const noexcept -> decltype(auto) {
+    return HyperRectangle{u + other.u, size + other.size};
   }
 
-  inline constexpr auto operator-(const Area& d) const noexcept -> decltype(auto) {
-    return Area{u - d.u, size - d.size};
+  inline constexpr auto operator-(const HyperRectangle& other) const noexcept -> decltype(auto) {
+    return HyperRectangle{u - other.u, size - other.size};
   }
 
-  inline constexpr auto operator+(const Position& d) const noexcept -> decltype(auto) {
-    return operator+(Area{d, {}});
+  inline constexpr auto operator+(const Position& shift) const noexcept -> decltype(auto) {
+    return HyperRectangle{u + shift, size};
   }
 
-  inline constexpr auto operator-(const Position& d) const noexcept -> decltype(auto) {
-    return operator-(Area{d, {}});
+  inline constexpr auto operator-(const Position& shift) const noexcept -> decltype(auto) {
+    return HyperRectangle{u - shift, size};
   }
 
   inline constexpr auto operator*(T r) const noexcept -> decltype(auto) {
-    return Area{u * r, size * abs(r)};
+    if constexpr (std::is_same_v<Position, Size>)
+      return HyperRectangle{u * r, size * r};
+    else
+      return HyperRectangle{u * r, size * std::abs(r)};
   }
 
   inline constexpr auto operator/(T r) const noexcept -> decltype(auto) {
-    return Area{u / r, size / abs(r)};
+    if constexpr (std::is_same_v<Position, Size>)
+      return HyperRectangle{u * r, size / r};
+    else
+      return HyperRectangle{u / r, size / std::abs(r)};
   }
 
-  inline constexpr auto overlaps(const Area& other) const noexcept -> decltype(auto) {
-    return math::all(math::lessThan(      u, other.sentinel()))
-       and math::all(math::lessThan(other.u,       sentinel()));
+  inline constexpr auto overlaps(const HyperRectangle& other) const noexcept -> decltype(auto) {
+    return math::all(math::lessThan(      u, other.outerbound()))
+       and math::all(math::lessThan(other.u,       outerbound()));
   }
 
-  inline constexpr auto meet(const Area& other) const noexcept -> decltype(auto) {
-    if (not overlaps(other)) return Area{};
-    const auto v = max(u, other.u);
-    return Area{
-      v,
-      min(sentinel(), other.sentinel()) - v
-    };
+  inline constexpr auto meet(const HyperRectangle& other) const noexcept -> decltype(auto) {
+    if (not overlaps(other)) return HyperRectangle{};
+    auto&& u    = max(this->u, other.u);
+    auto&& size = min(outerbound(), other.outerbound()) - u;
+    return HyperRectangle{std::move(u), std::move(size)};
   }
 
-  inline constexpr auto join(const Area& other) const noexcept -> decltype(auto) {
-    const auto v = min(u, other.u);
-    return Area{
-      v,
-      max(sentinel(), other.sentinel()) - v
-    };
+  inline constexpr auto umeet(const HyperRectangle<E, std::make_unsigned_t<T>>& other) const noexcept -> decltype(auto) 
+  requires (not std::is_same_v<Position, Size>) {
+    return static_cast<HyperRectangle<E, std::make_unsigned_t<T>>>(
+      meet(static_cast<HyperRectangle<E, T>>(other))
+    );
+  }
+
+  inline constexpr auto join(const HyperRectangle& other) const noexcept -> decltype(auto) {
+    auto&& u    = min(this->u, other.u);
+    auto&& size = max(outerbound(), other.outerbound()) - u;
+    return HyperRectangle{std::move(u), std::move(size)};
   }
 };
 
-using Area3U = Area<3, UInt>;
-using Area3I = Area<3, Int>;
+using Area3U = HyperRectangle<3, UInt>;
+using Area3I = HyperRectangle<3, Int>;
 
 inline constexpr auto xreflected(const Area3U& a) noexcept -> decltype(auto) {
-  auto size = auto{a.size};
-  return Area3U{
-    /* u -> { size.x - u.x - 1u, u.y, u.z } */
-    a.u, std::move(size)
-  };
+  auto&& size = auto{a.size};
+  /* u -> { size.x - u.x - 1u, u.y, u.z } */
+  return Area3U{a.u, std::move(size)};
 }
 
 inline constexpr auto xyrotated(const Area3U& a) noexcept -> decltype(auto) {
-  auto size = math::Vector3U{
+  auto&& size = math::Vector3U{
     a.size.y,
     a.size.x,
     a.size.z
   };
-  return Area3U{
-    /* u -> { u.y, size.x - u.x - 1, u.z } */
-    a.u, std::move(size)
-  };
+  /* u -> { u.y, size.x - u.x - 1, u.z } */
+  return Area3U{a.u, std::move(size)};
 }
 
 inline constexpr auto zyrotated(const Area3U& a) noexcept -> decltype(auto) {
-  auto size = math::Vector3U{
+  auto&& size = math::Vector3U{
     a.size.x,
     a.size.z,
     a.size.y
   };
-  return Area3U{
-    /* u -> { u.x, size.z - u.z - 1, u.y } */
-    a.u, std::move(size)
-  };
+  /* u -> { u.x, size.z - u.z - 1, u.y } */
+  return Area3U{a.u, std::move(size)};
 }
 
 }

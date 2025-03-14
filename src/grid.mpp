@@ -10,7 +10,7 @@ using namespace stormkit;
 
 export {
 
-inline constexpr auto toSentinel(const std::dims<3>& extents) noexcept -> decltype(auto) {
+inline constexpr auto fromExtents(const std::dims<3>& extents) noexcept -> decltype(auto) {
   return math::Vector3U{
     extents.extent(2),
     extents.extent(1),
@@ -18,12 +18,8 @@ inline constexpr auto toSentinel(const std::dims<3>& extents) noexcept -> declty
   };
 }
 
-inline constexpr auto fromSentinel(const math::Vector3U& sentinel) noexcept -> decltype(auto) {
-  return std::dims<3>{
-    sentinel.z,
-    sentinel.y,
-    sentinel.x,
-  };
+inline constexpr auto toExtents(const math::Vector3U& size) noexcept -> decltype(auto) {
+  return std::dims<3>{size.z, size.y, size.x};
 }
 
 inline constexpr auto strides(const std::dims<3>& extents) noexcept -> decltype(auto) {
@@ -32,26 +28,28 @@ inline constexpr auto strides(const std::dims<3>& extents) noexcept -> decltype(
 
 inline constexpr auto toIndex(math::Vector3U u, const std::dims<3>& extents) noexcept -> decltype(auto) {
   auto&& [z, y, x] = strides(extents);
-  return dot(u, {x, y, z});
+  return geometry::dot(u, {x, y, z});
 }
 
 inline constexpr auto fromIndex(UInt32 i, const std::dims<3>& extents) noexcept -> decltype(auto) {
   auto&& [z, y, x] = strides(extents);
-  return (math::Vector3U{i, i, i} / math::Vector3U{x, y, z}) % toSentinel(extents);
+  return math::Vector3U{i / x, i / y, i / z} % fromExtents(extents);
 }
 
-inline constexpr auto mdiota(const Area3U& zone) noexcept -> decltype(auto) {
-  return std::views::iota(0u, zone.size.z * zone.size.y * zone.size.x)
-    | std::views::transform(bindBack(fromIndex, fromSentinel(zone.size)))
-    | std::views::transform(bindFront(std::plus{}, zone.u));
+template <meta::IsArithmetic T>
+inline constexpr auto mdiota(const HyperRectangle<3, T>& zone) noexcept -> decltype(auto) {
+  return std::views::iota(static_cast<T>(0), static_cast<T>(zone.size.z * zone.size.y * zone.size.x))
+    | std::views::transform(bindBack(fromIndex, toExtents(zone.size)))
+    | std::views::transform(bindBack(std::plus{}, zone.u));
 }
 
-inline constexpr auto mdiota(const math::Vector3U& initial, const math::Vector3U& sentinel) noexcept -> decltype(auto) {
-  return mdiota({initial, sentinel - initial});
+template <meta::IsArithmetic T>
+inline constexpr auto mdiota(const math::Vector<3, T>& origin, const math::Vector<3, T>& outerbound) noexcept -> decltype(auto) {
+  return mdiota<T>({origin, outerbound - origin});
 }
 
 inline constexpr auto mdiota(const std::dims<3>& extents) noexcept -> decltype(auto) {
-  return mdiota({toSentinel(extents)});
+  return mdiota({}, fromExtents(extents));
 }
 
 template <class T>
@@ -131,31 +129,38 @@ struct Grid {
       | std::ranges::to<Grid<T>>(std::move(extents));
   }
 
+  inline constexpr auto area() const noexcept -> decltype(auto) {
+    return Area3U{{}, fromExtents(extents)};
+  }
+
   inline constexpr auto xreflected() const noexcept -> decltype(auto) {
-    auto extents = fromSentinel(::xreflected(Area3U{toSentinel(this->extents)}).size);
-    return mdiota(extents)
-      | std::views::transform([sent{toSentinel(extents)}, this](auto u) noexcept {
-          return at({ sent.x - u.x - 1u, u.y, u.z });
+    auto&& area = ::xreflected(this->area());
+    return mdiota(area)
+      | std::views::transform([&size{area.size}](auto&& u) noexcept {
+          return math::Vector3U{ size.x - u.x - 1u, u.y, u.z };
       })
-      | std::ranges::to<Grid<T>>(extents);
+      | std::views::transform(bindFront(&Grid::at, this))
+      | std::ranges::to<Grid<T>>(toExtents(area.size));
   }
 
   inline constexpr auto xyrotated() const noexcept -> decltype(auto) {
-    auto extents = fromSentinel(::xyrotated(Area3U{toSentinel(this->extents)}).size);
-    return mdiota(extents)
-      | std::views::transform([sent{toSentinel(extents)}, this](auto u) noexcept {
-          return at({ u.y, sent.x - u.x - 1, u.z });
+    auto&& area = ::xyrotated(this->area());
+    return mdiota(area)
+      | std::views::transform([&size{area.size}](auto&& u) noexcept {
+          return math::Vector3U{ u.y, size.x - u.x - 1u, u.z };
       })
-      | std::ranges::to<Grid<T>>(extents);
+      | std::views::transform(bindFront(&Grid::at, this))
+      | std::ranges::to<Grid<T>>(toExtents(area.size));
   }
 
   inline constexpr auto zyrotated() const noexcept -> decltype(auto) {
-    auto extents = fromSentinel(::zyrotated(Area3U{toSentinel(this->extents)}).size);
-    return mdiota(extents)
-      | std::views::transform([sent{toSentinel(extents)}, this](auto u) noexcept {
-          return at({ u.x, sent.z - u.z - 1, u.y });
+    auto&& area = ::zyrotated(this->area());
+    return mdiota(area)
+      | std::views::transform([&size{area.size}](auto&& u) noexcept {
+          return math::Vector3U{ u.x, size.z - u.z - 1u, u.y };
       })
-      | std::ranges::to<Grid<T>>(extents);
+      | std::views::transform(bindFront(&Grid::at, this))
+      | std::ranges::to<Grid<T>>(toExtents(area.size));
   }
 };
 

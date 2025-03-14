@@ -77,12 +77,20 @@ struct Rule {
     };
   }
 
-  /** Provides the area of locations at which this rule would update u */
-  inline constexpr auto neighborhood(const math::Vector3U& g_sentinel, const math::Vector3U& u) const noexcept -> decltype(auto) {
-    const auto neigh_size = toSentinel(output.extents);
-    const auto neigh_shift = -static_cast<math::Vector3I>(neigh_size - math::Vector3U{1u, 1u, 1u});
-    const auto neigh = Area<3, Int>{neigh_shift, neigh_size} + static_cast<math::Vector3I>(u);
-    return static_cast<Area3U>(Area<3, Int>{g_sentinel}.meet(neigh));
+  inline constexpr auto area() const noexcept -> decltype(auto) {
+    return output.area();
+  }
+
+  /** Provides the relative area that this rule would update */
+  inline constexpr auto forward_neighborhood() const noexcept -> decltype(auto) {
+    return static_cast<Area3I>(area());
+  }
+
+  /** Provides the relative area from inside which this rule would update the origin */
+  inline constexpr auto backward_neighborhood() const noexcept -> decltype(auto) {
+    auto&& a = forward_neighborhood();
+    auto&& shift = math::Vector3I{1, 1, 1} - static_cast<math::Vector3I>(a.size);
+    return a + shift;
   }
 };
 }

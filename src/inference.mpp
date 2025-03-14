@@ -44,26 +44,10 @@ struct DijkstraField {
   }
 
   inline constexpr auto dijkstraMap(grid_view grid) const noexcept -> decltype(auto) {
-    const auto g_sentinel = toSentinel(grid.extents());
-    const auto neighborhood = [&g_sentinel](const math::Vector3U& u) noexcept {
-      constexpr auto neigh_size = math::Vector3U{3, 3, 3};
-      constexpr auto neigh_shift = -static_cast<math::Vector3I>(neigh_size / 2u);
-      const auto neigh = Area<3, Int>{neigh_shift, neigh_size} + static_cast<math::Vector3I>(u);
-      const auto n = static_cast<Area3U>(Area<3, Int>{g_sentinel}.meet(neigh));
-
-      ensures(
-        math::all(math::equal(n.size - math::Vector3U{0, 0, n.size.z}, {neigh_size.x, neigh_size.y, 0}))
-        or math::any(math::equal(n.u + math::Vector3U{0, 0, 1}, {0, 0, 0}))
-        or math::any(math::equal(n.sentinel() + math::Vector3U{0, 0, 1}, g_sentinel)),
-        "bad boundary !!"
-      );
-
-      return n;
-    };
-
     auto potential = Grid<std::optional<Int>>{grid.extents(), std::nullopt};
+    auto&& p_area = potential.area();
     propagate(
-      mdiota({g_sentinel})
+      mdiota(p_area)
         | std::views::filter([&zero{zero}, &grid](auto&& u) noexcept {
             return zero == std::nullopt
                 or zero->contains(grid[u.z, u.y, u.x]);
@@ -72,11 +56,16 @@ struct DijkstraField {
             potential[u] = 0u;
             return std::make_pair(u, 0u);
         }),
-      [&substrate{substrate}, &potential, &grid, &neighborhood]
+      [this, &potential, &grid, &p_area]
       (auto&& front) noexcept {
+        static constexpr auto neigh_size = 3u * math::Vector3U{1, 1, 1};
+        static constexpr auto neigh_shift = -static_cast<math::Vector3I>(neigh_size) / 2;
+        static constexpr auto neigh = Area3I{neigh_shift, neigh_size};
+
         auto&& [u, value] = front;
-        return mdiota(neighborhood(u))
-          | std::views::filter([&substrate, &potential, &grid](auto&& n) noexcept {
+        auto&& zone = (neigh + u).umeet(p_area);
+        return mdiota(zone)
+          | std::views::filter([&substrate{substrate}, &potential, &grid](auto&& n) noexcept {
               return potential[n] == std::nullopt
                  and (substrate == std::nullopt
                    or substrate->contains(grid[n.z, n.y, n.x])
@@ -99,8 +88,8 @@ export struct Observation {
 };
 
 // inline constexpr auto future(std::unordered_map<symbol, const Observation> obs, grid_view grid) noexcept -> decltype(auto) {
-//   auto changes = std::vector<Change<symbol>>{};
-//   auto f = mdiota(grid.extents())
+//   auto&& changes = std::vector<Change<symbol>>{};
+//   auto&& f = mdiota(grid.area())
 //     | std::views::transform([&obs, &changes, &grid](auto&& u) noexcept {
 //         auto&& c = grid[u.z, u.y, u.x];
 //         if (not obs.contains(c)) return std::optional<std::unordered_set<symbol>>();
@@ -129,17 +118,19 @@ inline constexpr auto forward(
     [&potentials, &rules](auto&& front) noexcept {
       auto&& [c, u] = front;
       auto&& potential = potentials.at(c);
-      const auto p_sentinel = toSentinel(potential.extents);
+      auto&& p_area = potential.area();
       auto&& p = *potential[u];
   
       return rules 
         | std::views::transform(
-          [updateZone{bindBack(&Rule::neighborhood, u, p_sentinel)}, &potentials, &p]
+          [&potentials, &u, &p_area, &p]
           (auto&& rule) noexcept {
-            return mdiota(updateZone(rule))
+            auto&& neigh = rule.backward_neighborhood();
+            auto&& zone = (neigh + u).umeet(p_area);
+            return mdiota(zone)
               | std::views::transform([&rule](auto&& u) noexcept {
                   return std::views::zip(
-                    mdiota({u, toSentinel(rule.input.extents)}),
+                    mdiota(rule.area() + u),
                     rule.input,
                     rule.output
                   );
