@@ -16,7 +16,7 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   chdir("/Users/mtrimolet/Desktop/mtrimolet/markovjunior/hroza");
 
   auto&& palette = examples::parseXmlPalette("./resources/palette.xml");
-  auto&& model = std::ranges::size(args) >= 2 ? args[1] : "Grow To";
+  auto&& model = std::ranges::size(args) >= 2 ? args[1] : "Crawlers Chase";
   auto&& filename = model 
     | std::views::filter(std::not_fn([](auto&& c) static noexcept { return std::isspace(c); }))
     | std::ranges::to<std::string>();

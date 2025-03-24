@@ -72,12 +72,20 @@ struct Grid {
     return std::ranges::cdata(values);
   }
 
-  inline constexpr auto at(const math::Vector3U& u) const noexcept -> decltype(auto) {
+  inline constexpr T& operator[](math::Vector3U u) noexcept {
+    return values[toIndex(u, extents)];
+  }
+
+  inline constexpr const T& operator[](math::Vector3U u) const noexcept {
+    return values[toIndex(u, extents)];
+  }
+
+  inline constexpr T& at(math::Vector3U u) {
     return values.at(toIndex(u, extents));
   }
 
-  inline constexpr auto operator[](const math::Vector3U& u) noexcept -> decltype(auto) {
-    return values[toIndex(u, extents)];
+  inline constexpr const T& at(math::Vector3U u) const {
+    return values.at(toIndex(u, extents));
   }
 
   inline constexpr auto begin() const noexcept -> decltype(auto) {
@@ -136,30 +144,30 @@ struct Grid {
   inline constexpr auto xreflected() const noexcept -> decltype(auto) {
     auto&& area = ::xreflected(this->area());
     return mdiota(area)
-      | std::views::transform([&size{area.size}](auto&& u) noexcept {
-          return math::Vector3U{ size.x - u.x - 1u, u.y, u.z };
+      | std::views::transform([this, &size{area.size}](auto&& u) noexcept {
+          return at({ size.x - u.x - 1u, u.y, u.z });
       })
-      | std::views::transform(bindFront(&Grid::at, this))
+      // | std::views::transform(bindFront(&Grid<T>::at, this))
       | std::ranges::to<Grid<T>>(toExtents(area.size));
   }
 
   inline constexpr auto xyrotated() const noexcept -> decltype(auto) {
     auto&& area = ::xyrotated(this->area());
     return mdiota(area)
-      | std::views::transform([&size{area.size}](auto&& u) noexcept {
-          return math::Vector3U{ u.y, size.x - u.x - 1u, u.z };
+      | std::views::transform([this, &size{area.size}](auto&& u) noexcept {
+          return at({ u.y, size.x - u.x - 1u, u.z });
       })
-      | std::views::transform(bindFront(&Grid::at, this))
+      // | std::views::transform(bindFront(&Grid<T>::at, this))
       | std::ranges::to<Grid<T>>(toExtents(area.size));
   }
 
   inline constexpr auto zyrotated() const noexcept -> decltype(auto) {
     auto&& area = ::zyrotated(this->area());
     return mdiota(area)
-      | std::views::transform([&size{area.size}](auto&& u) noexcept {
-          return math::Vector3U{ u.x, size.z - u.z - 1u, u.y };
+      | std::views::transform([this, &size{area.size}](auto&& u) noexcept {
+          return at({ u.x, size.z - u.z - 1u, u.y });
       })
-      | std::views::transform(bindFront(&Grid::at, this))
+      // | std::views::transform(bindFront(&Grid<T>::at, this))
       | std::ranges::to<Grid<T>>(toExtents(area.size));
   }
 };

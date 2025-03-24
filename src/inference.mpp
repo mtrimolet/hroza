@@ -12,17 +12,20 @@ import rule;
 using namespace stormkit;
 using symbol = char;
 using grid_view = std::mdspan<const symbol, std::dims<3>>;
-using potential_view = std::mdspan<std::optional<UInt>, std::dims<3>>;
 
 inline constexpr auto propagate(auto&& initial, auto&& unfold) noexcept -> decltype(auto) {
   for (
-    auto&& q = initial | std::ranges::to<std::queue>();
+    auto&& q = std::forward<decltype(initial)>(initial) | std::ranges::to<std::queue>();
     not std::ranges::empty(q);
     q.pop()
   ) q.push_range(unfold(q.front()));
 }
 
 export
+using Potential = Grid<double>;
+
+export
+/** Produce distance potential through substrate */
 struct DijkstraField {
   bool recompute, essential, inversed;
   std::optional<std::unordered_set<symbol>> substrate, zero;
@@ -44,7 +47,7 @@ struct DijkstraField {
   }
 
   inline constexpr auto dijkstraMap(grid_view grid) const noexcept -> decltype(auto) {
-    auto potential = Grid<std::optional<Int>>{grid.extents(), std::nullopt};
+    auto potential = Potential{grid.extents(), inversed ? -std::numeric_limits<double>::infinity() : std::numeric_limits<double>::infinity()};
     auto&& p_area = potential.area();
     propagate(
       mdiota(p_area)
@@ -53,27 +56,27 @@ struct DijkstraField {
                 or zero->contains(grid[u.z, u.y, u.x]);
         })
         | std::views::transform([&potential](auto&& u) noexcept {
-            potential[u] = 0u;
-            return std::make_pair(u, 0u);
+            potential[u] = 0.0;
+            return std::make_pair(u, 0.0);
         }),
-      [this, &potential, &grid, &p_area]
-      (auto&& front) noexcept {
+      [&](auto&& front) noexcept {
         static constexpr auto neigh_size = 3u * math::Vector3U{1, 1, 1};
         static constexpr auto neigh_shift = -static_cast<math::Vector3I>(neigh_size) / 2;
         static constexpr auto neigh = Area3I{neigh_shift, neigh_size};
 
-        auto&& [u, value] = front;
-        auto&& zone = (neigh + u).umeet(p_area);
-        return mdiota(zone)
-          | std::views::filter([&substrate{substrate}, &potential, &grid](auto&& n) noexcept {
-              return potential[n] == std::nullopt
+        auto&& [u, p] = front;
+        auto&& new_us = (neigh + u).umeet(p_area);
+        auto&& new_p = inversed ? p - 1.0 : p + 1.0;
+        return mdiota(new_us)
+          | std::views::filter([&, new_p](auto&& n) noexcept {
+              return (inversed ? potential[n] < new_p : potential[n] > new_p)
                  and (substrate == std::nullopt
                    or substrate->contains(grid[n.z, n.y, n.x])
                  );
           })
-          | std::views::transform([&inversed{inversed}, &potential, &value](auto&& n) noexcept {
-              potential[n] = (inversed ? -1 : 1) * (value + 1);
-              return std::make_pair(n, value + 1);
+          | std::views::transform([&, new_p](auto&& n) noexcept {
+              potential[n] = new_p;
+              return std::make_pair(n, new_p);
           });
       }
     );
@@ -96,7 +99,7 @@ export struct Observation {
 //         changes.emplace_back(c, obs.at(c).from);
 //         return std::optional{obs.at(c).to};
 //     })
-//     | std::ranges::to<Grid<bool>>(grid.extents());
+//     | std::ranges::to<Grid<std::unordered_set<symbol>>>(grid.extents());
 
 //   return std::make_pair(std::move(changes), std::move(f));
 // }
@@ -105,26 +108,26 @@ inline constexpr auto forward(
   grid_view grid,
   std::span<const Rule> rules
 ) noexcept -> decltype(auto) {
-  auto potentials = std::unordered_map<symbol, Grid<std::optional<Int>>>{};
+  auto potentials = std::unordered_map<symbol, Potential>{};
 
   propagate(
     mdiota(grid.extents())
       | std::views::transform([&grid, &potentials](auto&& u) noexcept {
           auto&& c = grid[u.z, u.y, u.x];
-          potentials.try_emplace(c, grid.extents(), std::nullopt);
-          potentials.at(c)[u] = 0u;
+          potentials.try_emplace(c, grid.extents(), std::numeric_limits<double>::infinity());
+          potentials.at(c)[u] = 0.0;
           return std::make_pair(c, u);
       }),
     [&potentials, &rules](auto&& front) noexcept {
       auto&& [c, u] = front;
       auto&& potential = potentials.at(c);
       auto&& p_area = potential.area();
-      auto&& p = *potential[u];
+
+      auto&& p = potential[u];
+      auto&& new_p = p + 1.0;
   
       return rules 
-        | std::views::transform(
-          [&potentials, &u, &p_area, &p]
-          (auto&& rule) noexcept {
+        | std::views::transform([&, p_area](auto&& rule) noexcept {
             auto&& neigh = rule.backward_neighborhood();
             auto&& zone = (neigh + u).umeet(p_area);
             return mdiota(zone)
@@ -135,18 +138,16 @@ inline constexpr auto forward(
                     rule.output
                   );
               })
-              | std::views::filter([&potentials, &rule, &p](auto&& _uios) noexcept {
+              | std::views::filter([&potentials, p](auto&& _uios) noexcept {
                   return std::ranges::none_of(
                     _uios | std::views::filter([](auto&& _uio) static noexcept {
                       auto&& [u, i, o] = _uio;
                       return i != std::nullopt;
                     }),
-                    [&p](auto&& v) noexcept {
-                      return v == std::nullopt
-                          or *v > p;
-                    },
+                    bindBack(std::greater{}, p),
                     [&potentials](auto&& _uio) noexcept {
                       auto&& [u, i, o] = _uio;
+                      // return std::optional{0.0};
   
                       // In original MarkovJunior code, we use int-coded bitset for rule input,
                       // and the following type-mismatch is solved using a mysterious "least index of active bit"
@@ -159,8 +160,19 @@ inline constexpr auto forward(
                       // return potentials.contains(i)
                       //   ? potentials.at(i)[u]
                       //   : std::optional{0u};
+
+                      auto&& e = *i
+                        | std::views::filter([&potentials, &u](auto&& i) noexcept {
+                            return potentials.contains(i)
+                               and potentials.at(i)[u] != std::numeric_limits<double>::infinity();
+                        })
+                        | std::views::transform([&potentials, &u](auto&& i) noexcept {
+                            return potentials.at(i)[u];
+                        })
+                        | std::ranges::to<std::set>();
+                      if (std::ranges::empty(e)) return std::numeric_limits<double>::infinity();
   
-                      return std::optional{0u};
+                      return *std::ranges::max_element(e);
                     }
                   );
               })
@@ -172,11 +184,11 @@ inline constexpr auto forward(
             auto&& [u, i, o] = _uio;
             return o != std::nullopt
                and potentials.contains(*o)
-               and potentials.at(*o)[u] == std::nullopt;
+               and potentials.at(*o)[u] == std::numeric_limits<double>::infinity();
         })
-        | std::views::transform([&potentials, &p](auto&& _uio) noexcept {
+        | std::views::transform([&potentials, new_p](auto&& _uio) noexcept {
             auto&& [u, i, o] = _uio;
-            potentials.at(*o)[u] = p + 1;
+            potentials.at(*o)[u] = new_p;
             return std::make_pair(*o, u);
         });
     }
