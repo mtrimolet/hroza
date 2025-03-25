@@ -4,6 +4,10 @@ set_languages("c++latest")
 
 add_repositories("tapzcrew-repo https://github.com/tapzcrew/xmake-repo main")
 
+-- stormkit deps, remove when handled by xmake
+add_frameworks(is_plat("macosx") and { "Foundation" } or {})
+add_requires("glm", "frozen", "unordered_dense", "magic_enum", "tl_function_ref", "cpptrace")
+
 add_requires("stormkit develop", {
     configs = {
         image = false,
@@ -15,15 +19,16 @@ add_requires("stormkit develop", {
     },
 })
 
--- stormkit deps, remove when handled by xmake
-add_requires("frozen", "unordered_dense", "magic_enum", "tl_function_ref", "cpptrace")
-add_frameworks(is_plat("macosx") and { "Foundation" } or {})
-
 add_defines("PUGIXML_USE_STD_MODULE")
 add_requires(
     "pugixml",
-    "ncurses",
+    "ncurses"
+)
+
+add_requireconfs(
     "glm",
+    "pugixml",
+    "ncurses",
     {system=false}
 )
 
@@ -40,10 +45,10 @@ target("hroza")
     set_kind("binary")
 
     add_packages(
-        "stormkit",
-
         -- stormkit deps, remove when handled by xmake
         "glm", "frozen", "unordered_dense", "magic_enum", "tl_function_ref", "cpptrace",
+
+        "stormkit",
 
         "pugixml",
         "ncurses"
