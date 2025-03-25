@@ -16,13 +16,14 @@ add_requires("stormkit develop", {
 })
 
 -- stormkit deps, remove when handled by xmake
-add_requires("glm", "frozen", "unordered_dense", "magic_enum", "tl_function_ref", "cpptrace")
+add_requires("frozen", "unordered_dense", "magic_enum", "tl_function_ref", "cpptrace")
 add_frameworks(is_plat("macosx") and { "Foundation" } or {})
 
 add_defines("PUGIXML_USE_STD_MODULE")
 add_requires(
     "pugixml",
     "ncurses",
+    "glm",
     {system=false}
 )
 
