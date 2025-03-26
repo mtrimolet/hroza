@@ -176,8 +176,8 @@ struct HyperRectangle {
   }
 };
 
-using Area3U = HyperRectangle<3, UInt>;
-using Area3I = HyperRectangle<3, Int>;
+using Area3U = HyperRectangle<3, UInt32>;
+using Area3I = HyperRectangle<3, Int32>;
 
 inline constexpr auto xreflected(const Area3U& a) noexcept -> decltype(auto) {
   auto&& size = auto{a.size};

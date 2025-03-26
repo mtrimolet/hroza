@@ -62,11 +62,10 @@ struct std::hash<Match> {
 struct EventTracker {
   std::optional<RangeOffset> prev;
 
-  template <std::ranges::input_range History>
-  inline constexpr auto newEvents(History&& history) noexcept -> decltype(auto) {
+  inline constexpr auto newEvents(std::ranges::input_range auto&& history) noexcept -> decltype(auto) {
     auto&& now = std::ranges::cend(history);
     auto&& since = prev
-      .transform(bindFront(std::plus{}, std::ranges::cbegin(history)))
+      .transform(bindFront(std::ranges::next, std::ranges::cbegin(history)))
       .value_or(now);
     prev = std::ranges::size(history);
 
@@ -241,17 +240,16 @@ struct One : RulesMatcher, InferenceEngine {
     InferenceEngine{temperature, std::move(fields)} {}
 
   inline constexpr auto operator()(const TracedGrid<symbol>& grid) noexcept -> decltype(auto) {
-    auto&& mdgrid = std::mdspan{std::ranges::cdata(grid), grid.extents};
-    this->updateMatches(mdgrid, grid.history);
+    this->updateMatches(grid, grid.history);
 
-    this->updatePotentials(mdgrid);
+    this->updatePotentials(grid);
     if (this->essential_missing()) return std::vector<Change<symbol>>{};
-    this->applyPotentials(mdgrid, this->matches);
+    this->applyPotentials(grid, this->matches);
 
-    auto&& triggered = std::ranges::find_last_if(this->matches, bindBack(&Match::match, mdgrid));
+    auto&& triggered = std::ranges::find_last_if(this->matches, bindBack(&Match::match, grid));
     auto changes = triggered
       | std::views::take(1)
-      | std::views::transform(bindBack(&Match::changes, mdgrid))
+      | std::views::transform(bindBack(&Match::changes, grid))
       | std::views::join
       | std::ranges::to<std::vector>();
 
@@ -271,8 +269,7 @@ struct Prl : RulesMatcher {
     : RulesMatcher{std::move(rules)} {}
 
   inline constexpr auto operator()(const TracedGrid<symbol>& grid) noexcept -> decltype(auto) {
-    auto&& mdgrid = std::mdspan{std::ranges::cdata(grid), grid.extents};
-    this->updateMatches(mdgrid, grid.history);
+    this->updateMatches(grid, grid.history);
 
     static auto rg = std::mt19937{std::random_device{}()};
     auto&& triggered = std::ranges::partition(this->matches, std::not_fn([](auto&& match) static noexcept {
@@ -281,8 +278,8 @@ struct Prl : RulesMatcher {
     }));
 
     auto changes = triggered
-      | std::views::filter(bindBack(&Match::match, mdgrid))
-      | std::views::transform(bindBack(&Match::changes, mdgrid))
+      | std::views::filter(bindBack(&Match::match, grid))
+      | std::views::transform(bindBack(&Match::changes, grid))
       | std::views::join
       | std::ranges::to<std::vector>();
 
@@ -329,19 +326,18 @@ struct All : RulesMatcher, InferenceEngine {
   }
   
   inline constexpr auto operator()(const TracedGrid<symbol>& grid) noexcept -> decltype(auto) {
-    auto&& mdgrid = std::mdspan{std::ranges::cdata(grid), grid.extents};
-    this->updateMatches(mdgrid, grid.history);
+    this->updateMatches(grid, grid.history);
 
-    this->updatePotentials(mdgrid);
+    this->updatePotentials(grid);
     if (this->essential_missing()) return std::vector<Change<symbol>>{};
-    this->applyPotentials(mdgrid, this->matches);
+    this->applyPotentials(grid, this->matches);
 
     auto&& triggered = removeOverlaps(
       std::views::reverse(this->matches)
-        | std::views::filter(bindBack(&Match::match, mdgrid))
+        | std::views::filter(bindBack(&Match::match, grid))
     );
     auto changes = std::move(triggered)
-      | std::views::transform(bindBack(&Match::changes, mdgrid))
+      | std::views::transform(bindBack(&Match::changes, grid))
       | std::views::join
       | std::ranges::to<std::vector>();
 

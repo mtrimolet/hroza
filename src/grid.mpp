@@ -40,7 +40,7 @@ template <meta::IsArithmetic T>
 inline constexpr auto mdiota(const HyperRectangle<3, T>& zone) noexcept -> decltype(auto) {
   return std::views::iota(static_cast<T>(0), static_cast<T>(zone.size.z * zone.size.y * zone.size.x))
     | std::views::transform(bindBack(fromIndex, toExtents(zone.size)))
-    | std::views::transform(bindBack(std::plus{}, zone.u));
+    | std::views::transform(bindBack(std::plus<math::Vector<3, T>>{}, zone.u));
 }
 
 template <meta::IsArithmetic T>
@@ -60,8 +60,17 @@ struct Grid {
   std::vector<T> values;
 
   template<container_compatible_range<T> R>
-  inline constexpr Grid(std::from_range_t, R&& _values, Extents _extents) noexcept : extents{_extents}, values{std::from_range, _values} {}
-  inline constexpr Grid(Extents _extents, T v) noexcept : Grid{std::from_range, std::views::repeat(v, _extents.extent(0) * _extents.extent(1) * _extents.extent(2)), _extents} {}
+  inline constexpr Grid(std::from_range_t, R&& _values, Extents _extents) noexcept 
+  : extents{_extents}, values{std::from_range, _values}
+  {}
+
+  inline constexpr Grid(Extents _extents, T v) noexcept
+  : Grid{std::from_range, std::views::repeat(v, _extents.extent(0) * _extents.extent(1) * _extents.extent(2)), _extents}
+  {}
+
+  inline constexpr Grid() noexcept
+  : extents{}, values{}
+  {}
 
   inline constexpr auto operator==(const Grid<T>& other) const noexcept -> bool = default;
 
@@ -70,6 +79,13 @@ struct Grid {
   }
   inline constexpr auto cdata() const noexcept -> decltype(auto) {
     return std::ranges::cdata(values);
+  }
+
+  inline constexpr operator std::mdspan<T, decltype(extents)>() const noexcept {
+    return {data(), extents};
+  }
+  inline constexpr operator std::mdspan<const T, decltype(extents)>() const noexcept {
+    return {cdata(), extents};
   }
 
   inline constexpr T& operator[](math::Vector3U u) noexcept {
