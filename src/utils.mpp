@@ -2,7 +2,6 @@ export module utils;
 
 import std;
 import ranges;
-import glm;
 import stormkit.Core;
 
 using namespace stormkit;

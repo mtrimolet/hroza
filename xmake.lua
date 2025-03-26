@@ -1,12 +1,15 @@
 add_rules("mode.debug", "mode.release")
 
 set_languages("c++latest")
+add_frameworks(is_plat("macosx") and { "Foundation" } or {})
 
 add_repositories("tapzcrew-repo https://github.com/tapzcrew/xmake-repo main")
 
+-- will become stormkit deps when their module is porperly re-exported
+add_requires("glm", "frozen")
+
 -- stormkit deps, remove when handled by xmake
-add_frameworks(is_plat("macosx") and { "Foundation" } or {})
-add_requires("glm", "frozen", "unordered_dense", "magic_enum", "tl_function_ref", "cpptrace")
+add_requires("unordered_dense", "magic_enum", "tl_function_ref", "cpptrace")
 
 add_requires("stormkit develop", {
     configs = {
@@ -29,6 +32,7 @@ add_requireconfs(
     "glm",
     "pugixml",
     "ncurses",
+    "cpptrace",
     {system=false}
 )
 
@@ -45,8 +49,11 @@ target("hroza")
     set_kind("binary")
 
     add_packages(
+        -- will become stormkit deps when their module is porperly re-exported
+        "glm", "frozen",
+
         -- stormkit deps, remove when handled by xmake
-        "glm", "frozen", "unordered_dense", "magic_enum", "tl_function_ref", "cpptrace",
+        "unordered_dense", "magic_enum", "tl_function_ref", "cpptrace",
 
         "stormkit",
 

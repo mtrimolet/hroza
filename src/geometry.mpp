@@ -23,28 +23,6 @@ inline constexpr auto dot(const math::Vector<3, T>& a, const math::Vector<3, T>&
        + a.z * b.z;
 }
 
-// template <RangeExtent E>
-inline constexpr auto reflect(const math::Vector3I& i, const math::Vector3I& n) noexcept -> decltype(auto) {
-  // this will silently overflow
-  return i - 2 * dot(n, i) * n;
-}
-
-// // template <RangeExtent E>
-// inline constexpr auto modreflect(const math::Vector3U& i, const math::Vector3U& n, const math::Vector3U& size) noexcept -> decltype(auto) {
-//   // this will silently overflow
-//   return static_cast<math::Vector3U>(static_cast<math::Vector3I>(ob) + reflect(static_cast<math::Vector3I>(i), n)) % size;
-// }
-
-// We're using the same component-wise behavior as standard glm functions (see comparators below)
-
-template <meta::IsArithmetic T>
-inline constexpr auto min(const math::Vector<3, T>& a, const math::Vector<3, T>& b) noexcept -> decltype(auto) {
-  return math::Vector3U{
-    std::min(a.x, b.x),
-    std::min(a.y, b.y),
-    std::min(a.z, b.z),
-  };
-}
 }
 
 ///////////////////////////////////
@@ -60,39 +38,6 @@ struct std::equal_to<math::Vector<E, T>> {
 
 // maybe implement partial/weak/string ordering(s)
 
-/* Memo
-
-namespace math {
-  std::function<math::Vector<E, bool>(math::Vector<E, T>, math::Vector<E, T>)>
-    lessThan, lessThanEqual, greaterThan, greaterThanEqual;
-}
-
-extern math::Vector<E, T> a,b;
-
-assert(
-      math::lessThan(a, b)
-  ==  math::greaterThan(b, a)
-  and
-      math::lessThanEqual(a, b)
-  ==  math::greaterThanEqual(b, a)
-);
-
-assert(
-      not math::lessThan(a, b)
-  ==  math::greaterThanEqual(a, b)
-  and
-      not math::lessThanEqual(a, b)
-  ==  math::greaterThan(a, b)
-);
-
-extern math::Vector<E, bool> c;
-
-assert(
-      not math::all(c)
-  ==  math::any(not c)
-);
-
-*/
 
 template <RangeExtent E, meta::IsArithmetic T>
 struct HyperRectangle {
