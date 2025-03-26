@@ -49,13 +49,13 @@ target("hroza")
     set_kind("binary")
 
     add_packages(
+        "stormkit",
+
         -- will become stormkit deps when their module is porperly re-exported
         "glm", "frozen",
 
         -- stormkit deps, remove when handled by xmake
         "unordered_dense", "magic_enum", "tl_function_ref", "cpptrace",
-
-        "stormkit",
 
         "pugixml",
         "ncurses"
