@@ -86,24 +86,27 @@ struct DijkstraField {
 };
 
 export struct Observation {
-  symbol from;
+  std::optional<symbol> from;
   std::unordered_set<symbol> to;
 };
 
-// inline constexpr auto future(std::unordered_map<symbol, const Observation> obs, grid_view grid) noexcept -> decltype(auto) {
-//   auto&& changes = std::vector<Change<symbol>>{};
-//   auto&& f = mdiota(grid.area())
-//     | std::views::transform([&obs, &changes, &grid](auto&& u) noexcept {
-//         auto&& c = grid[u.z, u.y, u.x];
-//         if (not obs.contains(c)) return std::optional<std::unordered_set<symbol>>();
-//         changes.emplace_back(c, obs.at(c).from);
-//         return std::optional{obs.at(c).to};
-//     })
-//     | std::ranges::to<Grid<std::unordered_set<symbol>>>(grid.extents());
+export
+inline constexpr auto future(std::unordered_map<symbol, Observation> obs, grid_view grid) noexcept -> decltype(auto) {
+  auto changes = std::vector<Change<symbol>>{};
+  auto f = mdiota(grid.extents())
+    | std::views::transform([&obs, &changes, &grid](auto&& u) noexcept {
+        auto&& c = grid[u.z, u.y, u.x];
+        if (not obs.contains(c)) return std::optional<std::unordered_set<symbol>>{};
+        auto&& o = obs.at(c);
+        if (o.from) changes.emplace_back(u, *o.from);
+        return std::optional{o.to};
+    })
+    | std::ranges::to<Grid<std::optional<std::unordered_set<symbol>>>>(grid.extents());
 
-//   return std::make_pair(std::move(changes), std::move(f));
-// }
+  return std::make_pair(std::move(changes), std::move(f));
+}
 
+export
 inline constexpr auto forward(
   grid_view grid,
   std::span<const Rule> rules

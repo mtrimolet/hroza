@@ -17,6 +17,27 @@ using symbol = char;
 
 export {
 namespace examples {
+inline constexpr auto parseXmlObservation(
+  const pugi::xml_node& xnode
+) noexcept -> decltype(auto) {
+  auto from = std::string{xnode.attribute("from").as_string()};
+  return std::make_pair(
+    xnode.attribute("value").as_string()[0],
+    Observation{
+      std::ranges::empty(from) ? std::nullopt : std::optional{from[0]},
+      std::string{xnode.attribute("to").as_string()} | std::ranges::to<std::unordered_set>()
+    }
+  );
+}
+
+inline constexpr auto parseXmlObservations(
+  const pugi::xml_node& xnode
+) noexcept -> decltype(auto) {
+  return xnode.children("observe")
+    | std::views::transform(parseXmlObservation)
+    | std::ranges::to<std::unordered_map>();
+}
+
 inline constexpr auto parseXmlField(
   const pugi::xml_node& xnode
 ) noexcept -> decltype(auto) {
@@ -73,9 +94,16 @@ inline constexpr auto parseXmlRuleNode(
 ) noexcept -> Action {
   auto&& tag = xnode.name();
   if (tag == "one"s) {
+    auto&& search = xnode.attribute("search").as_bool(false);
     return One{
       xnode.attribute("temperature").as_double(0.0),
       parseXmlFields(xnode),
+      xnode.attribute("search").as_bool(false),
+      xnode.attribute("limit")
+        ? std::optional{xnode.attribute("limit").as_uint()}
+        : std::nullopt,
+      xnode.attribute("depthCoefficient").as_double(0.5),
+      parseXmlObservations(xnode),
       parseXmlRules(xnode, unions, symmetry)
     };
   }
@@ -88,6 +116,12 @@ inline constexpr auto parseXmlRuleNode(
     return All{
       xnode.attribute("temperature").as_double(0.0),
       parseXmlFields(xnode),
+      xnode.attribute("search").as_bool(false),
+      xnode.attribute("limit")
+        ? std::optional{xnode.attribute("limit").as_uint()}
+        : std::nullopt,
+      xnode.attribute("depthCoefficient").as_double(0.5),
+      parseXmlObservations(xnode),
       parseXmlRules(xnode, unions, symmetry)
     };
   }

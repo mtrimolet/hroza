@@ -233,13 +233,61 @@ struct InferenceEngine {
 
 /********* */
 
+struct SearchEngine {
+  bool search;
+  std::optional<UInt> limit;
+  double depthCoefficient;
+  std::unordered_map<symbol, Observation> observations;
+  Grid<std::optional<std::unordered_set<symbol>>> future;
+  std::queue<std::vector<Change<symbol>>> trajectory;
+
+  inline constexpr auto updateFuture(grid_view grid, std::span<const Rule> rules) noexcept -> decltype(auto) {
+    if (not std::ranges::empty(future)) {
+      return std::vector<Change<symbol>>{};
+    }
+
+    auto&& [changes, _future] = ::future(observations, grid);
+    future = _future;
+
+    // if (not search) return backwardMap(future, rules);
+
+    return changes;
+  }
+
+  inline constexpr auto followTrajectory() noexcept -> decltype(auto) {
+    if (std::ranges::empty(trajectory)) {
+      return std::vector<Change<symbol>>{};
+    }
+    auto changes = trajectory.front();
+    trajectory.pop();
+    return changes;
+  }
+};
+
+/********* */
+
 export
-struct One : RulesMatcher, InferenceEngine {
-  inline constexpr One(double temperature, std::unordered_map<symbol, DijkstraField>&& fields, std::vector<Rule>&& rules) noexcept
+struct One : RulesMatcher, InferenceEngine, SearchEngine {
+  inline constexpr One(
+    double temperature,
+    std::unordered_map<symbol, DijkstraField>&& fields, 
+
+    bool search, std::optional<UInt> limit, double depthCoefficient,
+    std::unordered_map<symbol, Observation>&& observations,
+
+    std::vector<Rule>&& rules
+  ) noexcept
     : RulesMatcher{std::move(rules)},
-    InferenceEngine{temperature, std::move(fields)} {}
+    InferenceEngine{temperature, std::move(fields)},
+    SearchEngine{search, limit, depthCoefficient, std::move(observations)}
+  {}
 
   inline constexpr auto operator()(const TracedGrid<symbol>& grid) noexcept -> decltype(auto) {
+    auto changes = this->updateFuture(grid, this->rules);
+    // if (not std::ranges::empty(this->future)) {
+    //   return this->followTrajectory();
+    // }
+
     this->updateMatches(grid, grid.history);
 
     this->updatePotentials(grid);
@@ -247,11 +295,10 @@ struct One : RulesMatcher, InferenceEngine {
     this->applyPotentials(grid, this->matches);
 
     auto&& triggered = std::ranges::find_last_if(this->matches, bindBack(&Match::match, grid));
-    auto changes = triggered
+    changes.append_range(triggered
       | std::views::take(1)
       | std::views::transform(bindBack(&Match::changes, grid))
-      | std::views::join
-      | std::ranges::to<std::vector>();
+      | std::views::join);
 
     if (std::ranges::empty(triggered)) this->matches.clear();
     else this->matches.erase(
@@ -294,10 +341,20 @@ struct Prl : RulesMatcher {
 };
 
 export
-struct All : RulesMatcher, InferenceEngine {
-  inline constexpr All(double temperature, std::unordered_map<symbol, DijkstraField>&& fields, std::vector<Rule>&& rules) noexcept
+struct All : RulesMatcher, InferenceEngine, SearchEngine {
+  inline constexpr All(
+    double temperature,
+    std::unordered_map<symbol, DijkstraField>&& fields, 
+
+    bool search, std::optional<UInt> limit, double depthCoefficient,
+    std::unordered_map<symbol, Observation>&& observations,
+
+    std::vector<Rule>&& rules
+  ) noexcept
     : RulesMatcher{std::move(rules)},
-    InferenceEngine{temperature, std::move(fields)} {}
+    InferenceEngine{temperature, std::move(fields)},
+    SearchEngine{search, limit, depthCoefficient, std::move(observations)}
+  {}
 
   static inline constexpr auto removeOverlaps(std::ranges::input_range auto&& matches) noexcept -> decltype(auto) {
     return std::ranges::fold_left(matches, std::vector<Match>{},
@@ -325,6 +382,11 @@ struct All : RulesMatcher, InferenceEngine {
   }
   
   inline constexpr auto operator()(const TracedGrid<symbol>& grid) noexcept -> decltype(auto) {
+    auto changes = this->updateFuture(grid, this->rules);
+    // if (not std::ranges::empty(this->future)) {
+    //   return this->followTrajectory();
+    // }
+  
     this->updateMatches(grid, grid.history);
 
     this->updatePotentials(grid);
@@ -332,13 +394,13 @@ struct All : RulesMatcher, InferenceEngine {
     this->applyPotentials(grid, this->matches);
 
     auto&& triggered = removeOverlaps(
-      std::views::reverse(this->matches)
+      std::views::reverse(std::move(this->matches))
         | std::views::filter(bindBack(&Match::match, grid))
     );
-    auto changes = std::move(triggered)
+    changes.append_range(std::move(triggered)
       | std::views::transform(bindBack(&Match::changes, grid))
       | std::views::join
-      | std::ranges::to<std::vector>();
+      | std::ranges::to<std::vector>());
 
     this->matches.clear();
 
