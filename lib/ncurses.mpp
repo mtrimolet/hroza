@@ -96,11 +96,11 @@ public:
   inline constexpr auto setpalette(std::span<const std::uint32_t> colors) -> void {
     if (canchangecolor()) 
       std::ranges::for_each(
-        std::views::zip(colors, std::views::iota(1u))
+        std::views::zip(colors, std::views::iota(static_cast<short>(1)))
           | std::views::take(COLORS),
         [](auto&& t) static noexcept {
           auto&& [i, r, g, b] = t;
-          init_color(i, r, g, b);
+          std::apply(init_color, t);
           init_pair(i, i, -1);
         },
         [](auto&& t) static noexcept {
@@ -116,7 +116,7 @@ public:
       );
     else 
       std::ranges::for_each(
-        std::views::iota(1u, std::ranges::size(colors) + 1)
+        std::views::iota(static_cast<short>(1), static_cast<short>(std::ranges::size(colors)) + 1)
           | std::views::take(COLORS),
         [](auto&& i) noexcept {
           init_pair(i, i, -1);

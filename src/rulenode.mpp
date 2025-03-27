@@ -307,8 +307,7 @@ struct All : RulesMatcher, InferenceEngine {
             return std::ranges::any_of(
               mdiota(overlap),
               [](auto&& p) static noexcept {
-                auto&& [v, m] = p;
-                return v and m;
+                return std::apply(std::logical_and<std::optional<symbol>>{}, p);
               },
               [&visited, &match](auto&& u) noexcept {
                 return std::make_tuple(
