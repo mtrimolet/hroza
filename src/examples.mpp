@@ -6,10 +6,11 @@ import utils;
 
 import pugixml;
 
-import rule;
-import inference;
+import rewriterule;
+import dijkstraengine;
+import searchengine;
 import rulenode;
-import node;
+import executionnode;
 
 using namespace stormkit;
 using namespace std::literals;
@@ -65,7 +66,7 @@ inline constexpr auto parseXmlRule(
   const pugi::xml_node& xnode,
   std::unordered_map<symbol, std::unordered_set<symbol>> unions = {}
 ) noexcept -> decltype(auto) {
-  return Rule::parse(
+  return RewriteRule::parse(
     unions,
     xnode.attribute("in").as_string(),
     xnode.attribute("out").as_string(),
@@ -134,7 +135,7 @@ inline constexpr auto parseXmlNode(
   const pugi::xml_node& xnode,
   std::unordered_map<symbol, std::unordered_set<symbol>> unions = {},
   std::string_view symmetry = ""
-) noexcept -> Node {
+) noexcept -> ExecutionNode {
   symmetry = xnode.attribute("symmetry").as_string(std::data(symmetry));
   unions.insert_range(xnode.children("union") | std::views::transform([](const pugi::xml_node& xnode) static noexcept {
     return std::make_pair(
@@ -178,7 +179,7 @@ struct Example {
   std::string_view title;
   std::string symbols;
   bool origin;
-  Node program;
+  ExecutionNode program;
 };
 
 inline constexpr auto parseXmlExample(std::string_view title, std::string_view filepath) noexcept -> decltype(auto) {

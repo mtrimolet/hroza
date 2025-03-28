@@ -1,0 +1,85 @@
+export module rewriteengine;
+
+import std;
+import glm;
+import stormkit.Core;
+import utils;
+import geometry;
+
+import grid;
+import rewriterule;
+import match;
+import forceengine;
+
+using namespace stormkit;
+using symbol = char;
+
+struct EventTracker {
+  std::optional<RangeOffset> prev;
+
+  inline constexpr auto newEvents(std::ranges::input_range auto&& history) noexcept -> decltype(auto) {
+    auto&& now = std::ranges::cend(history);
+    auto&& since = prev
+      .transform(bindFront(std::ranges::next, std::ranges::cbegin(history)))
+      .value_or(now);
+    prev = std::ranges::size(history);
+
+    return std::ranges::subrange(since, now);
+  }
+};
+
+export
+struct RewriteEngine : EventTracker {
+  std::vector<RewriteRule> rules;
+  std::vector<Match> matches;
+
+  inline constexpr RewriteEngine(std::vector<RewriteRule>&& _rules) noexcept
+    : EventTracker{}, rules{std::move(_rules)}, matches{} {}
+
+  inline constexpr auto newMatches(
+    Grid<symbol>::ConstView grid,
+    std::span<const Change<symbol>> changes = {}
+  ) const noexcept -> decltype(auto) {
+    auto&& g_area = Area3U{{}, fromExtents(grid.extents())};
+
+    if (std::ranges::empty(changes)) {
+      return rules
+        | std::views::transform([&g_area](const RewriteRule& rule) noexcept {
+            auto&& neigh = rule.backward_neighborhood();
+            auto&& zone = (static_cast<Area3I>(g_area) + neigh.u).umeet(g_area);
+            return mdiota(zone)
+              | std::views::transform([&rule](auto&& u) noexcept {
+                  return Match{u, rule};
+              });
+        })
+        | std::views::join
+        | std::ranges::to<std::vector>();
+    }
+  
+    return rules
+      | std::views::transform([&changes, &g_area](const RewriteRule& rule) noexcept {
+          auto&& neigh = rule.backward_neighborhood();
+          auto&& g_zone = (static_cast<Area3I>(g_area) + neigh.u).umeet(g_area);
+          return changes
+            | std::views::transform([&g_area, &g_zone, &neigh](const Change<symbol>& change) noexcept {
+                auto&& zone = (neigh + change.u).meet(static_cast<Area3I>(g_area) + neigh.u).umeet(g_area);
+                return mdiota(zone);
+            })
+            | std::views::join
+            | std::ranges::to<std::unordered_set>()
+            | std::views::transform([&rule](auto&& u) noexcept {
+                return Match{u, rule};
+            });
+      })
+      | std::views::join
+      | std::ranges::to<std::vector>();
+  }
+
+  inline constexpr auto updateMatches(
+    Grid<symbol>::ConstView grid,
+    std::span<const Change<symbol>> history = {}
+  ) noexcept -> decltype(auto) {
+    matches.append_range(newMatches(grid, EventTracker::newEvents(history))
+      | std::views::filter(bindBack(&Match::match, grid)));
+  }
+};

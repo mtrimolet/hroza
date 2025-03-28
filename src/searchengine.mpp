@@ -1,4 +1,4 @@
-export module inference;
+export module searchengine;
 
 import std;
 import glm;
@@ -7,83 +7,11 @@ import utils;
 import geometry;
 
 import grid;
-import rule;
+import rewriterule;
+import forceengine;
 
 using namespace stormkit;
 using symbol = char;
-using grid_view = std::mdspan<const symbol, std::dims<3>>;
-
-inline constexpr auto propagate(auto&& initial, auto&& unfold) noexcept -> decltype(auto) {
-  for (
-    auto&& q = std::forward<decltype(initial)>(initial) | std::ranges::to<std::queue>();
-    not std::ranges::empty(q);
-    q.pop()
-  ) q.push_range(unfold(q.front()));
-}
-
-export
-using Potential = Grid<double>;
-
-export
-/** Produce distance potential through substrate */
-struct DijkstraField {
-  bool recompute, essential, inversed;
-  std::optional<std::unordered_set<symbol>> substrate, zero;
-
-  static inline constexpr auto parse(
-    bool recompute, bool essential,
-    std::string_view on,
-    std::string_view from,
-    std::string_view to
-  ) noexcept -> decltype(auto) {
-    static constexpr auto IGNORED = '*';
-    auto&& zero = std::ranges::empty(from) ? to : from;
-    return DijkstraField{
-      recompute, essential,
-      not std::ranges::empty(from),
-      on == std::format("{}", IGNORED) ? std::nullopt : std::optional{on | std::ranges::to<std::unordered_set>()},
-      zero == std::format("{}", IGNORED) ? std::nullopt : std::optional{zero | std::ranges::to<std::unordered_set>()}
-    };
-  }
-
-  inline constexpr auto dijkstraMap(grid_view grid) const noexcept -> decltype(auto) {
-    auto potential = Potential{grid.extents(), inversed ? -std::numeric_limits<double>::infinity() : std::numeric_limits<double>::infinity()};
-    auto&& p_area = potential.area();
-    propagate(
-      mdiota(p_area)
-        | std::views::filter([&zero{zero}, &grid](auto&& u) noexcept {
-            return zero == std::nullopt
-                or zero->contains(grid[u.z, u.y, u.x]);
-        })
-        | std::views::transform([&potential](auto&& u) noexcept {
-            potential[u] = 0.0;
-            return std::make_pair(u, 0.0);
-        }),
-      [&](auto&& front) noexcept {
-        static constexpr auto neigh_size = 3u * math::Vector3U{1, 1, 1};
-        static constexpr auto neigh_shift = -static_cast<math::Vector3I>(neigh_size) / 2;
-        static constexpr auto neigh = Area3I{neigh_shift, neigh_size};
-
-        auto&& [u, p] = front;
-        auto&& new_us = (neigh + u).umeet(p_area);
-        auto&& new_p = inversed ? p - 1.0 : p + 1.0;
-        return mdiota(new_us)
-          | std::views::filter([&, new_p](auto&& n) noexcept {
-              return (inversed ? potential[n] < new_p : potential[n] > new_p)
-                 and (substrate == std::nullopt
-                   or substrate->contains(grid[n.z, n.y, n.x])
-                 );
-          })
-          | std::views::transform([&, new_p](auto&& n) noexcept {
-              potential[n] = new_p;
-              return std::make_pair(n, new_p);
-          });
-      }
-    );
-
-    return potential;
-  }
-};
 
 export struct Observation {
   std::optional<symbol> from;
@@ -91,7 +19,7 @@ export struct Observation {
 };
 
 export
-inline constexpr auto future(std::unordered_map<symbol, Observation> obs, grid_view grid) noexcept -> decltype(auto) {
+inline constexpr auto future(std::unordered_map<symbol, Observation> obs, Grid<symbol>::ConstView grid) noexcept -> decltype(auto) {
   auto changes = std::vector<Change<symbol>>{};
   auto f = mdiota(grid.extents())
     | std::views::transform([&obs, &changes, &grid](auto&& u) noexcept {
@@ -108,8 +36,8 @@ inline constexpr auto future(std::unordered_map<symbol, Observation> obs, grid_v
 
 export
 inline constexpr auto forward(
-  grid_view grid,
-  std::span<const Rule> rules
+  Grid<symbol>::ConstView grid,
+  std::span<const RewriteRule> rules
 ) noexcept -> decltype(auto) {
   auto potentials = std::unordered_map<symbol, Potential>{};
 
@@ -199,3 +127,35 @@ inline constexpr auto forward(
 
   return potentials;
 }
+
+export 
+struct SearchEngine {
+  bool search;
+  std::optional<UInt> limit;
+  double depthCoefficient;
+  std::unordered_map<symbol, Observation> observations;
+  Grid<std::optional<std::unordered_set<symbol>>> future;
+  std::queue<std::vector<Change<symbol>>> trajectory;
+
+  inline constexpr auto updateFuture(Grid<symbol>::ConstView grid, std::span<const RewriteRule> rules) noexcept -> decltype(auto) {
+    if (not std::ranges::empty(future)) {
+      return std::vector<Change<symbol>>{};
+    }
+
+    auto&& [changes, _future] = ::future(observations, grid);
+    future = _future;
+
+    // if (not search) return backwardMap(future, rules);
+
+    return changes;
+  }
+
+  inline constexpr auto followTrajectory() noexcept -> decltype(auto) {
+    if (std::ranges::empty(trajectory)) {
+      return std::vector<Change<symbol>>{};
+    }
+    auto changes = trajectory.front();
+    trajectory.pop();
+    return changes;
+  }
+};

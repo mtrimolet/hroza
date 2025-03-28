@@ -1,4 +1,4 @@
-export module node;
+export module executionnode;
 
 import std;
 import stormkit.Core;
@@ -48,10 +48,10 @@ struct Limit : ActionNode {
   }
 };
 
-using Node = std::function<std::generator<std::vector<Change<symbol>>>(TracedGrid<symbol>&)>;
+using ExecutionNode = std::function<std::generator<std::vector<Change<symbol>>>(TracedGrid<symbol>&)>;
 
 struct Sequence {
-  std::vector<Node> nodes;
+  std::vector<ExecutionNode> nodes;
   inline auto operator()(TracedGrid<symbol>& grid) noexcept -> std::generator<std::vector<Change<symbol>>> {
     auto&& current_node = std::ranges::begin(nodes);
     while (current_node != std::ranges::end(nodes)) {
@@ -67,7 +67,7 @@ struct Sequence {
 };
 
 struct Markov {
-  std::vector<Node> nodes;
+  std::vector<ExecutionNode> nodes;
   inline auto operator()(TracedGrid<symbol>& grid) noexcept -> std::generator<std::vector<Change<symbol>>> {
     auto&& current_node = std::ranges::begin(nodes);
     while (current_node != std::ranges::end(nodes)) {

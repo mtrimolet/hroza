@@ -81,10 +81,12 @@ struct Grid {
     return std::ranges::cdata(values);
   }
 
-  inline constexpr operator std::mdspan<T, decltype(extents)>() const noexcept {
+  using View = std::mdspan<T, Extents>;
+  inline constexpr operator View() const noexcept {
     return {data(), extents};
   }
-  inline constexpr operator std::mdspan<const T, decltype(extents)>() const noexcept {
+  using ConstView = std::mdspan<const T, Extents>;
+  inline constexpr operator ConstView() const noexcept {
     return {cdata(), extents};
   }
 

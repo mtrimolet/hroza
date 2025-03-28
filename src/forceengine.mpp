@@ -1,0 +1,22 @@
+export module forceengine;
+
+import std;
+import glm;
+import stormkit.Core;
+
+import grid;
+
+using namespace stormkit;
+using symbol = char;
+
+export
+inline constexpr auto propagate(auto&& initial, auto&& unfold) noexcept -> decltype(auto) {
+  for (
+    auto&& q = std::forward<decltype(initial)>(initial) | std::ranges::to<std::queue>();
+    not std::ranges::empty(q);
+    q.pop()
+  ) q.push_range(unfold(q.front()));
+}
+
+export
+using Potential = Grid<double>;

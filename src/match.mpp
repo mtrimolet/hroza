@@ -1,0 +1,56 @@
+export module match;
+
+import std;
+import glm;
+import stormkit.Core;
+import utils;
+import geometry;
+
+import grid;
+import rewriterule;
+
+using namespace stormkit;
+using symbol = char;
+
+export
+struct Match {
+  math::Vector3U u;
+  RewriteRule rule;
+
+  inline constexpr auto operator==(const Match& other) const noexcept -> bool = default;
+
+  inline constexpr auto area() const noexcept -> decltype(auto) {
+    return rule.area() + u;
+  }
+
+  inline constexpr auto match(Grid<symbol>::ConstView grid) const noexcept -> decltype(auto) {
+    return std::ranges::all_of(
+      std::views::zip(mdiota(area()), rule.input),
+      [grid{std::move(grid)}](auto&& input) noexcept {
+        auto&& [v, value] = input;
+        return value == std::nullopt
+            or value->contains(grid[v.z, v.y, v.x]);
+      }
+    );
+  }
+  
+  inline constexpr auto changes(Grid<symbol>::ConstView grid) const noexcept -> decltype(auto) {
+    return std::views::zip(mdiota(area()), rule.output)
+      | std::views::filter([grid{std::move(grid)}](auto&& output) noexcept {
+          auto&& [v, value] = output;
+          return  value != std::nullopt
+             and *value != grid[v.z, v.y, v.x];
+      })
+      | std::views::transform([](auto&& output) static noexcept {
+          return Change<symbol>{std::get<0>(output), *std::get<1>(output)};
+      });
+  }
+};
+
+export template <>
+struct std::hash<Match> {
+  inline constexpr auto operator()(const Match& match) const noexcept -> std::size_t {
+    return std::hash<math::Vector3U>{}(match.u)
+         ^ std::hash<RewriteRule>{}(match.rule);
+  }
+};

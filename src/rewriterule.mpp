@@ -1,4 +1,4 @@
-export module rule;
+export module rewriterule;
 
 import std;
 import glm;
@@ -14,15 +14,15 @@ using symbol = char;
 
 export {
 
-struct Rule {
+struct RewriteRule {
   Grid<std::optional<std::unordered_set<symbol>>> input;
   Grid<std::optional<symbol>> output;
   double p;
 
-  inline constexpr Rule(Grid<std::optional<std::unordered_set<symbol>>>&& _input, Grid<std::optional<symbol>>&& _output, double _p = 1.0)
+  inline constexpr RewriteRule(Grid<std::optional<std::unordered_set<symbol>>>&& _input, Grid<std::optional<symbol>>&& _output, double _p = 1.0)
     : input{std::move(_input)}, output{std::move(_output)}, p{_p} {}
 
-  inline constexpr auto operator==(const Rule& other) const noexcept -> bool = default;
+  inline constexpr auto operator==(const RewriteRule& other) const noexcept -> bool = default;
 
   static inline constexpr auto parse(
     std::unordered_map<symbol, std::unordered_set<symbol>> unions,
@@ -32,7 +32,7 @@ struct Rule {
   ) noexcept -> decltype(auto) {
     static constexpr auto IGNORED = '*';
 
-    return Rule{
+    return RewriteRule{
       Grid<std::optional<std::unordered_set<symbol>>>::parse(input, [&unions](auto&& t) noexcept {
         return t == IGNORED ? std::nullopt
           : unions.contains(t) ? std::optional{unions.at(t)}
@@ -54,7 +54,7 @@ struct Rule {
   }
 
   inline constexpr auto xreflected() const noexcept -> decltype(auto) {
-    return Rule{
+    return RewriteRule{
       input.xreflected(),
       output.xreflected(),
       p,
@@ -62,7 +62,7 @@ struct Rule {
   }
 
   inline constexpr auto xyrotated() const noexcept -> decltype(auto) {
-    return Rule{
+    return RewriteRule{
       input.xyrotated(),
       output.xyrotated(),
       p,
@@ -70,7 +70,7 @@ struct Rule {
   }
 
   inline constexpr auto zyrotated() const noexcept -> decltype(auto) {
-    return Rule{
+    return RewriteRule{
       input.zyrotated(),
       output.zyrotated(),
       p,
@@ -95,7 +95,7 @@ struct Rule {
 };
 }
 
-auto&& square_groups = makeStaticArray<std::function<Rule(const Rule&)>>(
+auto&& square_groups = makeStaticArray<std::function<RewriteRule(const RewriteRule&)>>(
   [](auto&& rule) static noexcept { return auto{rule}; },
   [](auto&& rule) static noexcept { return rule.xreflected(); },
   [](auto&& rule) static noexcept { return rule.xyrotated(); },
@@ -118,8 +118,8 @@ constexpr auto square_subgroups =
 
 export {
 template <>
-struct std::hash<Rule> {
-  inline constexpr auto operator()(const Rule& rule) const noexcept -> std::size_t {
+struct std::hash<RewriteRule> {
+  inline constexpr auto operator()(const RewriteRule& rule) const noexcept -> std::size_t {
     auto&& seed = std::hash<std::dims<3>>{}(rule.input.extents);
     for (auto&& v : rule.input) {
       seed ^= std::hash<std::remove_cvref_t<decltype(v)>>{}(v);
@@ -131,7 +131,7 @@ struct std::hash<Rule> {
   }
 };
 
-inline constexpr auto symmetries(const Rule& rule, std::string_view subgroup = "") noexcept -> decltype(auto) {
+inline constexpr auto symmetries(const RewriteRule& rule, std::string_view subgroup = "") noexcept -> decltype(auto) {
   return std::views::zip(square_groups, square_subgroups.at(std::empty(subgroup) ? "(xy)" : subgroup))
     | std::views::filter(monadic::get<1>())
     | std::views::transform([&rule](auto&& action) noexcept { return std::get<0>(action)(rule); })
