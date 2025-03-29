@@ -15,27 +15,11 @@ import forceengine;
 using namespace stormkit;
 using symbol = char;
 
-export
 /** Produce distance potential through substrate */
+export
 struct DijkstraField {
   bool recompute, essential, inversed;
-  std::optional<std::unordered_set<symbol>> substrate, zero;
-
-  static inline constexpr auto parse(
-    bool recompute, bool essential,
-    std::string_view on,
-    std::string_view from,
-    std::string_view to
-  ) noexcept -> decltype(auto) {
-    static constexpr auto IGNORED = '*';
-    auto&& zero = std::ranges::empty(from) ? to : from;
-    return DijkstraField{
-      recompute, essential,
-      not std::ranges::empty(from),
-      on == std::format("{}", IGNORED) ? std::nullopt : std::optional{on | std::ranges::to<std::unordered_set>()},
-      zero == std::format("{}", IGNORED) ? std::nullopt : std::optional{zero | std::ranges::to<std::unordered_set>()}
-    };
-  }
+  std::unordered_set<symbol> substrate, zero;
 
   inline constexpr auto potential(Grid<symbol>::ConstView grid) const noexcept -> decltype(auto) {
     auto potential = Potential{grid.extents(), inversed ? -std::numeric_limits<double>::infinity() : std::numeric_limits<double>::infinity()};
@@ -43,8 +27,7 @@ struct DijkstraField {
     propagate(
       mdiota(p_area)
         | std::views::filter([&zero{zero}, &grid](auto&& u) noexcept {
-            return zero == std::nullopt
-                or zero->contains(grid[u.z, u.y, u.x]);
+            return zero.contains(grid[u.z, u.y, u.x]);
         })
         | std::views::transform([&potential](auto&& u) noexcept {
             potential[u] = 0.0;
@@ -61,9 +44,7 @@ struct DijkstraField {
         return mdiota(new_us)
           | std::views::filter([&, new_p](auto&& n) noexcept {
               return (inversed ? potential[n] < new_p : potential[n] > new_p)
-                 and (substrate == std::nullopt
-                   or substrate->contains(grid[n.z, n.y, n.x])
-                 );
+                 and substrate.contains(grid[n.z, n.y, n.x]);
           })
           | std::views::transform([&, new_p](auto&& n) noexcept {
               potential[n] = new_p;

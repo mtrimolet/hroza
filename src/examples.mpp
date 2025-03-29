@@ -15,17 +15,31 @@ import executionnode;
 using namespace stormkit;
 using namespace std::literals;
 using symbol = char;
+using symbol_unions = std::unordered_map<symbol, std::unordered_set<symbol>>;
 
 export {
 namespace examples {
 inline constexpr auto parseXmlObservation(
   const pugi::xml_node& xnode
 ) noexcept -> decltype(auto) {
+  ensures(xnode.attribute("value"),
+          std::format("missing '{}' attribute in '{}' node [:{}]", "value", "observe", xnode.offset_debug()));
+  auto&& value = std::string{xnode.attribute("value").as_string()};
+  ensures(!std::ranges::empty(value),
+          std::format("empty '{}' attribute in '{}' node [:{}]", "value", "observe", xnode.offset_debug()));
+  ensures(std::ranges::size(value) == 1,
+          std::format("only one character allowed value '{}' attribute of '{}' node [:{}]", "value", "observe", xnode.offset_debug()));
+
   auto from = std::string{xnode.attribute("from").as_string()};
+  ensures(not xnode.attribute("from") or !std::ranges::empty(from),
+          std::format("empty '{}' attribute in '{}' node [:{}]", "from", "observe", xnode.offset_debug()));
+  ensures(not xnode.attribute("from") or std::ranges::size(from) == 1,
+          std::format("only one character allowed for '{}' attribute of '{}' node [:{}]", "from", "observe", xnode.offset_debug()));
+  
   return std::make_pair(
-    xnode.attribute("value").as_string()[0],
+    value[0],
     Observation{
-      std::ranges::empty(from) ? std::nullopt : std::optional{from[0]},
+      not xnode.attribute("from") ? std::nullopt : std::optional{from[0]},
       std::string{xnode.attribute("to").as_string()} | std::ranges::to<std::unordered_set>()
     }
   );
@@ -42,15 +56,38 @@ inline constexpr auto parseXmlObservations(
 inline constexpr auto parseXmlField(
   const pugi::xml_node& xnode
 ) noexcept -> decltype(auto) {
+  ensures(xnode.attribute("for"),
+          std::format("missing '{}' attribute in '{}' node [:{}]", "for", "field", xnode.offset_debug()));
+  auto&& _for = std::string{xnode.attribute("for").as_string()};
+  ensures(!std::ranges::empty(_for),
+          std::format("empty '{}' attribute in '{}' node [:{}]", "for", "field", xnode.offset_debug()));
+  ensures(std::ranges::size(_for) == 1,
+          std::format("only one character allowed for '{}' attribute of '{}' node [:{}]", "for", "field", xnode.offset_debug()));
+
+  ensures(xnode.attribute("on"),
+          std::format("missing '{}' attribute in '{}' node [:{}]", "on", "field", xnode.offset_debug()));
+  auto&& substrate = std::string{xnode.attribute("on").as_string()};
+  ensures(!std::ranges::empty(substrate),
+          std::format("empty '{}' attribute in '{}' node [:{}]", "on", "field", xnode.offset_debug()));
+
+  ensures(xnode.attribute("from") or xnode.attribute("to"),
+          std::format("missing one of '{}' or '{}' attributes in '{}' node [:{}]", "from", "to", "field", xnode.offset_debug()));
+  ensures(not (xnode.attribute("from") and xnode.attribute("to")),
+          std::format("only one of '{}' or '{}' attributes allowed in '{}' node [:{}]", "from", "to", "field", xnode.offset_debug()));
+
+  auto&& inversed = not xnode.attribute("to");
+  auto&& zero = std::string{xnode.attribute("from").as_string(xnode.attribute("to").as_string())};
+  ensures(!std::ranges::empty(zero),
+          std::format("empty '{}' attribute in '{}' node [:{}]", inversed ? "from" : "to", "field", xnode.offset_debug()));
   return std::make_pair(
-    xnode.attribute("for").as_string()[0],
-    DijkstraField::parse(
+    _for[0],
+    DijkstraField{
       xnode.attribute("recompute").as_bool(false),
       xnode.attribute("essential").as_bool(false),
-      xnode.attribute("on").as_string(),
-      xnode.attribute("from").as_string(),
-      xnode.attribute("to").as_string()
-    )
+      inversed,
+      zero | std::ranges::to<std::unordered_set>(),
+      substrate | std::ranges::to<std::unordered_set>()
+    }
   );
 }
 
@@ -64,19 +101,29 @@ inline constexpr auto parseXmlFields(
 
 inline constexpr auto parseXmlRule(
   const pugi::xml_node& xnode,
-  std::unordered_map<symbol, std::unordered_set<symbol>> unions = {}
+  symbol_unions unions = {}
 ) noexcept -> decltype(auto) {
+  ensures(xnode.attribute("in"),
+          std::format("missing '{}' attribute in '{}' node [:{}]", "in", "[rule]", xnode.offset_debug()));
+  auto&& input = std::string{xnode.attribute("in").as_string()};
+  ensures(!std::ranges::empty(input),
+          std::format("empty '{}' attribute in '{}' node [:{}]", "in", "[rule]", xnode.offset_debug()));
+
+  ensures(xnode.attribute("out"),
+          std::format("missing '{}' attribute in '{}' node [:{}]", "out", "[rule]", xnode.offset_debug()));
+  auto&& output = std::string{xnode.attribute("out").as_string()};
+  ensures(!std::ranges::empty(output),
+          std::format("empty '{}' attribute in '{}' node [:{}]", "out", "[rule]", xnode.offset_debug()));
+  
   return RewriteRule::parse(
-    unions,
-    xnode.attribute("in").as_string(),
-    xnode.attribute("out").as_string(),
+    unions, input, output,
     xnode.attribute("p").as_double(1.0)
   );
 }
 
 inline constexpr auto parseXmlRules(
   const pugi::xml_node& xnode,
-  std::unordered_map<symbol, std::unordered_set<symbol>> unions = {},
+  symbol_unions unions = {},
   std::string_view symmetry = ""
 ) noexcept -> decltype(auto) {
   auto&& xrules = xnode.children("rule") | std::ranges::to<std::vector>();
@@ -90,7 +137,7 @@ inline constexpr auto parseXmlRules(
 
 inline constexpr auto parseXmlRuleNode(
   const pugi::xml_node& xnode,
-  std::unordered_map<symbol, std::unordered_set<symbol>> unions = {},
+  symbol_unions unions = {},
   std::string_view symmetry = ""
 ) noexcept -> Action {
   auto&& tag = xnode.name();
@@ -133,16 +180,30 @@ inline constexpr auto parseXmlRuleNode(
 
 inline constexpr auto parseXmlNode(
   const pugi::xml_node& xnode,
-  std::unordered_map<symbol, std::unordered_set<symbol>> unions = {},
+  symbol_unions unions = {},
   std::string_view symmetry = ""
 ) noexcept -> ExecutionNode {
   symmetry = xnode.attribute("symmetry").as_string(std::data(symmetry));
-  unions.insert_range(xnode.children("union") | std::views::transform([](const pugi::xml_node& xnode) static noexcept {
-    return std::make_pair(
-      xnode.attribute("symbol").as_string()[0],
-      std::string{xnode.attribute("values").as_string()} | std::ranges::to<std::unordered_set>()
-    );
-  }));
+
+  unions.insert_range(xnode.children("union") 
+    | std::views::transform([](const pugi::xml_node& xunion) static noexcept {
+      ensures(xunion.attribute("symbol"),
+              std::format("missing '{}' attribute in '{}' node [:{}]", "symbol", "union", xunion.offset_debug()));
+      auto&& symbol_str = std::string{xunion.attribute("symbol").as_string()};
+      ensures(!std::ranges::empty(symbol_str),
+              std::format("empty '{}' attribute in '{}' node [:{}]", "symbol", "union", xunion.offset_debug()));
+      ensures(std::ranges::size(symbol_str) == 1,
+              std::format("only one character allowed for '{}' attribute of '{}' node [:{}]", "symbol", "union", xunion.offset_debug()));
+
+      ensures(xunion.attribute("values"),
+              std::format("missing '{}' attribute in '{}' node [:{}]", "values", "union", xunion.offset_debug()));
+      auto&& values = std::string{xunion.attribute("values").as_string()};
+      ensures(!std::ranges::empty(values),
+              std::format("empty '{}' attribute in '{}' node [:{}]", "values", "union", xunion.offset_debug()));
+
+      return std::make_pair(symbol_str[0], values | std::ranges::to<std::unordered_set>());
+    })
+  );
   
   auto&& tag = xnode.name();
   if (tag == "sequence"s) {
@@ -171,7 +232,7 @@ inline constexpr auto parseXmlNode(
       return Limit{std::move(steps), parseXmlRuleNode(xnode, unions, symmetry)};
   }
   
-  ensures(false, std::format("unknown tag {}", tag));
+  ensures(false, std::format("unknown tag '{}' [:{}]", tag, xnode.offset_debug()));
   std::unreachable();
 }
 
@@ -188,15 +249,19 @@ inline constexpr auto parseXmlExample(std::string_view title, std::string_view f
   ensures(result, std::format("Error while parsing xml ({}:{}) : {}", filepath, result.offset, result.description()));
   auto&& xnode = xexample.first_child();
 
-  auto&& symbols = xnode.attribute("values").as_string();
+  ensures(xnode.attribute("values"),
+          std::format("missing '{}' attribute in '{}' node [:{}]", "values", "[root]", xnode.offset_debug()));
+  auto&& symbols = std::string{xnode.attribute("values").as_string()};
+  ensures(!std::ranges::empty(symbols),
+          std::format("empty '{}' attribute in '{}' node [:{}]", "values", "[root]", xnode.offset_debug()));
   // ensure no duplicate
   auto&& origin = xnode.attribute("origin").as_bool(false);
 
-  auto&& unions = std::string_view{symbols}
+  auto&& unions = symbols
     | std::views::transform([](auto&& c) static noexcept { 
         return std::make_pair(c, std::unordered_set{c});
       })
-    | std::ranges::to<std::unordered_map>();
+    | std::ranges::to<symbol_unions>();
 
   auto&& program = parseXmlNode(xnode, unions);
   if (xnode.name() != "sequence"s and xnode.name() != "markov"s)
@@ -216,15 +281,19 @@ inline constexpr auto parseXmlPalette(std::string_view filepath) noexcept -> dec
 
   return xpalette.child("colors").children("color")
     | std::views::transform([](auto&& xcolor) static noexcept {
+      ensures(xcolor.attribute("symbol"),
+              std::format("missing '{}' attribute in '{}' node [:{}]", "symbol", "color", xcolor.offset_debug()));
         auto&& symbol_str = std::string{xcolor.attribute("symbol").as_string()};
         ensures(!std::ranges::empty(symbol_str),
-                std::format("missing '{}' attribute in '{}' node [:{}]", "symbol", "color", xcolor.offset_debug()));
+                std::format("empty '{}' attribute in '{}' node [:{}]", "symbol", "color", xcolor.offset_debug()));
         ensures(std::ranges::size(symbol_str) == 1,
-                std::format("only one character allowed for '{}' attribute of 'color' node [:{}]", "symbol", "color", xcolor.offset_debug()));
+                std::format("only one character allowed for '{}' attribute of '{}' node [:{}]", "symbol", "color", xcolor.offset_debug()));
         
+        ensures(xcolor.attribute("value"),
+                std::format("missing '{}' attribute in '{}' node [:{}]", "value", "color", xcolor.offset_debug()));
         auto&& value = std::string{xcolor.attribute("value").as_string()};
         ensures(!std::ranges::empty(value),
-                std::format("missing '{}' attribute in '{}' node [:{}]", "value", "color", xcolor.offset_debug()));
+                std::format("empty '{}' attribute in '{}' node [:{}]", "value", "color", xcolor.offset_debug()));
         
         return std::make_pair(symbol_str[0], (255u << 24u) + fromBase<UInt32>(value, 16));
     })
