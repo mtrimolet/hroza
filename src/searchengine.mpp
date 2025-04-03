@@ -117,7 +117,7 @@ struct SearchEngine {
   Grid<std::optional<symbolset>> future;
   std::queue<std::vector<Change<symbol>>> trajectory;
 
-  inline constexpr SearchEngine() noexcept =
+  inline constexpr SearchEngine() noexcept = default;
 
   inline constexpr SearchEngine(
     std::optional<UInt>&& _limit, double _depthCoefficient,
