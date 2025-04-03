@@ -6,11 +6,11 @@ import stormkit.Core;
 import utils;
 import geometry;
 
+import symbols;
 import grid;
 import rewriterule;
 
 using namespace stormkit;
-using symbol = char;
 
 export
 struct Match {

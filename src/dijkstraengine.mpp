@@ -6,6 +6,7 @@ import stormkit.Core;
 import utils;
 import geometry;
 
+import symbols;
 import grid;
 import rewriterule;
 import match;
@@ -13,13 +14,12 @@ import rewriteengine;
 import forceengine;
 
 using namespace stormkit;
-using symbol = char;
 
 /** Produce distance potential through substrate */
 export
 struct DijkstraField {
   bool recompute, essential, inversed;
-  std::unordered_set<symbol> substrate, zero;
+  symbolset substrate, zero;
 
   inline constexpr auto potential(Grid<symbol>::ConstView grid) const noexcept -> decltype(auto) {
     auto potential = Potential{grid.extents(), inversed ? -std::numeric_limits<double>::infinity() : std::numeric_limits<double>::infinity()};
@@ -57,13 +57,17 @@ struct DijkstraField {
   }
 };
 
+export using DijkstraFields = std::unordered_map<symbol, DijkstraField>;
+
 export
 struct DijkstraEngine : ForceEngine {
-  std::unordered_map<symbol, DijkstraField> fields;
+  DijkstraFields fields;
+
+  inline constexpr DijkstraEngine() noexcept = default;
 
   inline constexpr DijkstraEngine(
     double temperature,
-    std::unordered_map<symbol, DijkstraField>&& _fields
+    DijkstraFields&& _fields
   ) noexcept
   : ForceEngine{temperature},
   fields{std::move(_fields)}

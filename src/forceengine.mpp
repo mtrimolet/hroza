@@ -5,11 +5,11 @@ import glm;
 import stormkit.Core;
 import utils;
 
+import symbols;
 import grid;
 import match;
 
 using namespace stormkit;
-using symbol = char;
 
 export
 inline constexpr auto propagate(auto&& initial, auto&& unfold) noexcept -> decltype(auto) {

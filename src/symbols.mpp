@@ -1,0 +1,10 @@
+export module symbols;
+
+import std;
+
+export {
+  using symbol = char;
+  using symbolset = std::unordered_set<symbol>;
+  using symbol_union = symbolset;
+  using symbolmap = std::unordered_map<symbol, symbolset>;
+}

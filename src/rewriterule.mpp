@@ -7,25 +7,25 @@ import stormkit.Core;
 import utils;
 import geometry;
 
+import symbols;
 import grid;
 
 using namespace stormkit;
-using symbol = char;
 
 export {
 
 struct RewriteRule {
-  Grid<std::optional<std::unordered_set<symbol>>> input;
+  Grid<std::optional<symbolset>> input;
   Grid<std::optional<symbol>> output;
   double p;
 
-  inline constexpr RewriteRule(Grid<std::optional<std::unordered_set<symbol>>>&& _input, Grid<std::optional<symbol>>&& _output, double _p = 1.0)
+  inline constexpr RewriteRule(Grid<std::optional<symbolset>>&& _input, Grid<std::optional<symbol>>&& _output, double _p = 1.0)
     : input{std::move(_input)}, output{std::move(_output)}, p{_p} {}
 
   inline constexpr auto operator==(const RewriteRule& other) const noexcept -> bool = default;
 
   static inline constexpr auto parse(
-    std::unordered_map<symbol, std::unordered_set<symbol>> unions,
+    symbolmap unions,
     std::string_view input,
     std::string_view output,
     double p = 1.0
@@ -33,7 +33,7 @@ struct RewriteRule {
     static constexpr auto IGNORED = '*';
 
     return RewriteRule{
-      Grid<std::optional<std::unordered_set<symbol>>>::parse(input, [&unions](auto&& t) noexcept {
+      Grid<std::optional<symbolset>>::parse(input, [&unions](auto&& t) noexcept {
         return t == IGNORED ? std::nullopt
           : unions.contains(t) ? std::optional{unions.at(t)}
           : std::optional{std::unordered_set{t}};

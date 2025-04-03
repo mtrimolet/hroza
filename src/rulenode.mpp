@@ -6,6 +6,7 @@ import stormkit.Core;
 import utils;
 import geometry;
 
+import symbols;
 import grid;
 import rewriterule;
 import match;

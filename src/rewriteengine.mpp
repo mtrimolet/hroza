@@ -6,13 +6,13 @@ import stormkit.Core;
 import utils;
 import geometry;
 
+import symbols;
 import grid;
 import rewriterule;
 import match;
 import forceengine;
 
 using namespace stormkit;
-using symbol = char;
 
 struct EventTracker {
   std::optional<RangeOffset> prev;
