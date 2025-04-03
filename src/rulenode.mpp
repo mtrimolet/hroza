@@ -12,39 +12,101 @@ import rewriterule;
 import match;
 import rewriteengine;
 import dijkstraengine;
+import observationengine;
 import searchengine;
 
 using namespace stormkit;
-using symbol = char;
 
-export
-struct One : RewriteEngine, DijkstraEngine, SearchEngine {
+/*
+if node contains a "<observe>"
+-> if node has "search=True"
+----> bidirectional search inference {limit, depthCoefficient}       <-- produces trajectory
+-> else
+----> next-step backward inference {temperature}                     <-- produces potential
+else if node contains a "<field>"
+-> distance inference (aka dijkstra map) {temperature}               <-- produces potential
+else
+-> random
+*/
+
+export 
+struct One : RewriteEngine {
+  DijkstraEngine    dijkstra;
+  ObservationEngine observe;
+  SearchEngine      search;
+
   inline constexpr One(
-    double temperature,
-    std::unordered_map<symbol, DijkstraField>&& fields, 
-
-    bool search, std::optional<UInt> limit, double depthCoefficient,
-    std::unordered_map<symbol, Observation>&& observations,
-
     std::vector<RewriteRule>&& rules
   ) noexcept
     : RewriteEngine{std::move(rules)},
-    DijkstraEngine{temperature, std::move(fields)},
-    SearchEngine{search, limit, depthCoefficient, std::move(observations)}
+    dijkstra{},
+    observe{},
+    search{}
+  {}
+
+  inline constexpr One(
+    double temperature,
+    DijkstraFields&& fields,
+    std::vector<RewriteRule>&& rules
+  ) noexcept
+    : RewriteEngine{std::move(rules)},
+    dijkstra{temperature, std::move(fields)},
+    observe{},
+    search{}
+  {}
+
+  inline constexpr One(
+    double temperature,
+    Observations&& observations,
+    std::vector<RewriteRule>&& rules
+  ) noexcept
+    : RewriteEngine{std::move(rules)},
+    dijkstra{},
+    observe{temperature, std::move(observations)},
+    search{}
+  {}
+
+  inline constexpr One(
+    std::optional<UInt>&& limit, double depthCoefficient,
+    Observations&& observations,
+    std::vector<RewriteRule>&& rules
+  ) noexcept
+    : RewriteEngine{std::move(rules)},
+    dijkstra{},
+    observe{},
+    search{std::move(limit), depthCoefficient, std::move(observations)}
   {}
 
   inline constexpr auto operator()(const TracedGrid<symbol>& grid) noexcept -> decltype(auto) {
-    auto changes = this->updateFuture(grid, this->rules);
-    // if (not std::ranges::empty(this->future)) {
-    //   changes.append_range(this->followTrajectory());
-    //   return changes;
-    // }
+    auto changes = std::vector<Change<symbol>>{};
+
+    if (not std::ranges::empty(search.observations)
+    and not std::ranges::empty(search.future)) {
+      changes.append_range(search.updateFuture(grid, rules));
+    }
+
+    if (not std::ranges::empty(search.trajectory)) {
+      return search.followTrajectory();
+    }
+
+    if (not std::ranges::empty(observe.observations)
+    and std::ranges::empty(observe.future)) {
+      changes.append_range(observe.updateFuture(grid, rules));
+    }
 
     this->updateMatches(grid, grid.history);
 
-    this->updatePotentials(grid);
-    if (this->essential_missing()) return std::vector<Change<symbol>>{};
-    this->applyPotentials(grid, this->matches);
+    if (not std::ranges::empty(observe.observations)) {
+      observe.applyPotentials(grid, this->matches);
+    }
+    else if (not std::ranges::empty(dijkstra.fields)) {
+      dijkstra.updatePotentials(grid);
+      if (dijkstra.essential_missing()) return changes;
+      dijkstra.applyPotentials(grid, this->matches);
+    }
+    else {
+      std::ranges::shuffle(this->matches, std::mt19937{});
+    }
 
     auto&& triggered = std::ranges::find_last_if(this->matches, bindBack(&Match::match, grid));
     changes.append_range(triggered
@@ -92,20 +154,52 @@ struct Prl : RewriteEngine {
   }
 };
 
-export
-struct All : RewriteEngine, DijkstraEngine, SearchEngine {
+export 
+struct All : RewriteEngine {
+  DijkstraEngine    dijkstra;
+  ObservationEngine observe;
+  SearchEngine      search;
+
   inline constexpr All(
-    double temperature,
-    std::unordered_map<symbol, DijkstraField>&& fields, 
-
-    bool search, std::optional<UInt> limit, double depthCoefficient,
-    std::unordered_map<symbol, Observation>&& observations,
-
     std::vector<RewriteRule>&& rules
   ) noexcept
     : RewriteEngine{std::move(rules)},
-    DijkstraEngine{temperature, std::move(fields)},
-    SearchEngine{search, limit, depthCoefficient, std::move(observations)}
+    dijkstra{},
+    observe{},
+    search{}
+  {}
+
+  inline constexpr All(
+    double temperature,
+    DijkstraFields&& fields,
+    std::vector<RewriteRule>&& rules
+  ) noexcept
+    : RewriteEngine{std::move(rules)},
+    dijkstra{temperature, std::move(fields)},
+    observe{},
+    search{}
+  {}
+
+  inline constexpr All(
+    double temperature,
+    Observations&& observations,
+    std::vector<RewriteRule>&& rules
+  ) noexcept
+    : RewriteEngine{std::move(rules)},
+    dijkstra{},
+    observe{temperature, std::move(observations)},
+    search{}
+  {}
+
+  inline constexpr All(
+    std::optional<UInt>&& limit, double depthCoefficient,
+    Observations&& observations,
+    std::vector<RewriteRule>&& rules
+  ) noexcept
+    : RewriteEngine{std::move(rules)},
+    dijkstra{},
+    observe{},
+    search{std::move(limit), depthCoefficient, std::move(observations)}
   {}
 
   static inline constexpr auto removeOverlaps(std::ranges::input_range auto&& matches) noexcept -> decltype(auto) {
@@ -134,17 +228,35 @@ struct All : RewriteEngine, DijkstraEngine, SearchEngine {
   }
   
   inline constexpr auto operator()(const TracedGrid<symbol>& grid) noexcept -> decltype(auto) {
-    auto changes = this->updateFuture(grid, this->rules);
-    // if (not std::ranges::empty(this->future)) {
-    //   changes.append_range(this->followTrajectory());
-    //   return changes;
-    // }
-  
+    auto changes = std::vector<Change<symbol>>{};
+
+    if (not std::ranges::empty(search.observations)
+    and not std::ranges::empty(search.future)) {
+      changes.append_range(search.updateFuture(grid, rules));
+    }
+
+    if (not std::ranges::empty(search.trajectory)) {
+      return search.followTrajectory();
+    }
+
+    if (not std::ranges::empty(observe.observations)
+    and std::ranges::empty(observe.future)) {
+      changes.append_range(observe.updateFuture(grid, rules));
+    }
+
     this->updateMatches(grid, grid.history);
 
-    this->updatePotentials(grid);
-    if (this->essential_missing()) return std::vector<Change<symbol>>{};
-    this->applyPotentials(grid, this->matches);
+    if (not std::ranges::empty(observe.observations)) {
+      observe.applyPotentials(grid, this->matches);
+    }
+    else if (not std::ranges::empty(dijkstra.fields)) {
+      dijkstra.updatePotentials(grid);
+      if (dijkstra.essential_missing()) return changes;
+      dijkstra.applyPotentials(grid, this->matches);
+    }
+    else {
+      std::ranges::shuffle(this->matches, std::mt19937{});
+    }
 
     auto&& triggered = removeOverlaps(
       std::views::reverse(std::move(this->matches))

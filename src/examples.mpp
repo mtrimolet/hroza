@@ -9,7 +9,7 @@ import pugixml;
 import symbols;             // <union>
 import rewriterule;         // <rule>
 import dijkstraengine;      // <field>
-import searchengine;        // <observe>
+import observationengine;   // <observe>
 import rulenode;            // <one>, <prl>, <all>
 import executionnode;       // <sequence>, <markov>
 
@@ -141,39 +141,84 @@ inline constexpr auto parseXmlRuleNode(
 ) noexcept -> Action {
   auto&& tag = xnode.name();
   if (tag == "one"s) {
-    auto&& search = xnode.attribute("search").as_bool(false);
+    auto&& observes = xnode.children("observe");
+    if (not std::ranges::empty(observes)) {
+      auto&& search = xnode.attribute("search").as_bool(false);
+      if (search) {
+        return One{
+          xnode.attribute("limit")
+            ? std::optional{xnode.attribute("limit").as_uint()}
+            : std::nullopt,
+          xnode.attribute("depthCoefficient").as_double(0.5),
+          parseXmlObservations(xnode),
+          parseXmlRules(xnode, unions, symmetry)
+        };
+      }
+
+      return One{
+        xnode.attribute("temperature").as_double(0.0),
+        parseXmlObservations(xnode),
+        parseXmlRules(xnode, unions, symmetry)
+      };
+    }
+
+    auto&& fields = xnode.children("field");
+    if (not std::ranges::empty(fields)) {
+      return One{
+        xnode.attribute("temperature").as_double(0.0),
+        parseXmlFields(xnode),
+        parseXmlRules(xnode, unions, symmetry)
+      };
+    }
+
     return One{
-      xnode.attribute("temperature").as_double(0.0),
-      parseXmlFields(xnode),
-      xnode.attribute("search").as_bool(false),
-      xnode.attribute("limit")
-        ? std::optional{xnode.attribute("limit").as_uint()}
-        : std::nullopt,
-      xnode.attribute("depthCoefficient").as_double(0.5),
-      parseXmlObservations(xnode),
-      parseXmlRules(xnode, unions, symmetry)
-    };
-  }
-  else if (tag == "prl"s) {
-    return Prl{
-      parseXmlRules(xnode, unions, symmetry)
-    };
-  }
-  else if (tag == "all"s) {
-    return All{
-      xnode.attribute("temperature").as_double(0.0),
-      parseXmlFields(xnode),
-      xnode.attribute("search").as_bool(false),
-      xnode.attribute("limit")
-        ? std::optional{xnode.attribute("limit").as_uint()}
-        : std::nullopt,
-      xnode.attribute("depthCoefficient").as_double(0.5),
-      parseXmlObservations(xnode),
       parseXmlRules(xnode, unions, symmetry)
     };
   }
 
-  ensures(false, std::format("unknown tag {}", tag));
+  if (tag == "prl"s) {
+    return Prl{
+      parseXmlRules(xnode, unions, symmetry)
+    };
+  }
+
+  if (tag == "all"s) {
+    auto&& observes = xnode.children("observe");
+    if (not std::ranges::empty(observes)) {
+      auto&& search = xnode.attribute("search").as_bool(false);
+      if (search) {
+        return All{
+          xnode.attribute("limit")
+            ? std::optional{xnode.attribute("limit").as_uint()}
+            : std::nullopt,
+          xnode.attribute("depthCoefficient").as_double(0.5),
+          parseXmlObservations(xnode),
+          parseXmlRules(xnode, unions, symmetry)
+        };
+      }
+
+      return All{
+        xnode.attribute("temperature").as_double(0.0),
+        parseXmlObservations(xnode),
+        parseXmlRules(xnode, unions, symmetry)
+      };
+    }
+
+    auto&& fields = xnode.children("field");
+    if (not std::ranges::empty(fields)) {
+      return All{
+        xnode.attribute("temperature").as_double(0.0),
+        parseXmlFields(xnode),
+        parseXmlRules(xnode, unions, symmetry)
+      };
+    }
+
+    return All{
+      parseXmlRules(xnode, unions, symmetry)
+    };
+  }
+
+  ensures(false, std::format("unknown rulenode {}", tag));
   std::unreachable();
 }
 

@@ -10,29 +10,9 @@ import symbols;
 import grid;
 import rewriterule;
 import forceengine;
+import observationengine;
 
 using namespace stormkit;
-
-export struct Observation {
-  std::optional<symbol> from;
-  std::unordered_set<symbol> to;
-};
-
-export
-inline constexpr auto future(std::unordered_map<symbol, Observation> obs, Grid<symbol>::ConstView grid) noexcept -> decltype(auto) {
-  auto changes = std::vector<Change<symbol>>{};
-  auto f = mdiota(grid.extents())
-    | std::views::transform([&obs, &changes, &grid](auto&& u) noexcept {
-        auto&& c = grid[u.z, u.y, u.x];
-        if (not obs.contains(c)) return std::optional<std::unordered_set<symbol>>{};
-        auto&& o = obs.at(c);
-        if (o.from) changes.emplace_back(u, *o.from);
-        return std::optional{o.to};
-    })
-    | std::ranges::to<Grid<std::optional<std::unordered_set<symbol>>>>(grid.extents());
-
-  return std::make_pair(std::move(changes), std::move(f));
-}
 
 export
 inline constexpr auto forward(
@@ -80,7 +60,7 @@ inline constexpr auto forward(
                       auto&& [u, i, o] = _uio;
                       // return std::optional{0.0};
   
-                      // In original MarkovJunior code, we use int-coded bitset for rule input,
+                      // In original MarkovJunior code, we use int-coded bitset for rule input (binput),
                       // and the following type-mismatch is solved using a mysterious "least index of active bit"
                       // which is very dependant to the specific fact that we use an _ordered_ repr. of a bitset...
                       // That's magic ! 
@@ -130,22 +110,29 @@ inline constexpr auto forward(
 
 export 
 struct SearchEngine {
-  bool search;
   std::optional<UInt> limit;
   double depthCoefficient;
-  std::unordered_map<symbol, Observation> observations;
-  Grid<std::optional<std::unordered_set<symbol>>> future;
+  Observations observations;
+  
+  Grid<std::optional<symbolset>> future;
   std::queue<std::vector<Change<symbol>>> trajectory;
+
+  inline constexpr SearchEngine() noexcept =
+
+  inline constexpr SearchEngine(
+    std::optional<UInt>&& _limit, double _depthCoefficient,
+    Observations&& _observations
+  ) noexcept
+  : limit{std::move(_limit)}, depthCoefficient{_depthCoefficient}, observations{std::move(_observations)}
+  {}
 
   inline constexpr auto updateFuture(Grid<symbol>::ConstView grid, std::span<const RewriteRule> rules) noexcept -> decltype(auto) {
     if (not std::ranges::empty(future)) {
       return std::vector<Change<symbol>>{};
     }
 
-    auto&& [changes, _future] = ::future(observations, grid);
+    auto&& [changes, _future] = ::future(grid, observations);
     future = _future;
-
-    // if (not search) return backwardMap(future, rules);
 
     return changes;
   }
