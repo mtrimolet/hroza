@@ -1,3 +1,6 @@
+# Local dev environment
+.luarc.json
+
 # Xmake cache
 .xmake/
 build/
