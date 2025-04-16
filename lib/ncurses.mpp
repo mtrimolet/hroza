@@ -13,6 +13,7 @@ export using chtype = chtype;
 export namespace ncurses {
 struct window {
 public:
+  inline constexpr window() : window{0, 0, 0, 0} {}
   inline constexpr window(auto height, auto width) : window{0, 0, height, width} {}
   inline constexpr window(auto start_y, auto start_x, auto height, auto width) {
     if (!windows++) {

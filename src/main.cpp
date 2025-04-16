@@ -15,20 +15,22 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   // [tmpfix] remove when stormkit userMain allows for non-packaged build
   chdir("/Users/mtrimolet/Desktop/mtrimolet/markovjunior/hroza");
 
+  auto&& window = ncurses::window{};
+
   auto&& palette = examples::parseXmlPalette("./resources/palette.xml");
-  auto&& model = std::ranges::size(args) >= 2 ? args[1] : "Crawlers Chase";
+  auto&& model = std::ranges::size(args) >= 2 ? args[1] : "Dense SAW";
+
+  window.say(model);
+  window.waitchar();
+
+  window.say("Loading model...");
   auto&& filename = model 
     | std::views::filter(std::not_fn([](auto&& c) static noexcept { return std::isspace(c); }))
     | std::ranges::to<std::string>();
   auto&& example = examples::parseXmlExample(model, std::format("./models/{}.xml", filename));
 
-  auto&& square_size = 59u;
-  auto&& grid = TracedGrid{std::dims<3>{1u, square_size, 3 * square_size}, example.symbols[0]};
+  auto&& grid = TracedGrid{std::dims<3>{1u, std::get<0>(window.getmaxyx()), std::get<1>(window.getmaxyx())}, example.symbols[0]};
   if (example.origin) grid[(grid.area() / 2u).outerbound()] = example.symbols[1];
-
-  auto&& window = ncurses::window{grid.area().size.y, grid.area().size.x};
-  window.say(example.title);
-  window.waitchar();
 
   window.setpalette(example.symbols
     | std::views::transform([&palette](auto&& s) noexcept {
@@ -54,6 +56,7 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
 
   std::ranges::for_each(std::views::zip(mdiota(grid.area()), grid), addch);
   window.refresh();
+  window.waitchar();
 
   for (auto&& changes : example.program(grid)) {
     std::ranges::for_each(changes, addch);
