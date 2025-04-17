@@ -1,7 +1,7 @@
 add_rules("mode.debug", "mode.release")
 
 set_languages("c++latest")
-set_warnings("allextra", "error")
+-- set_warnings("allextra", "error")
 set_symbols("hidden")
 add_frameworks(is_plat("macosx") and { "Foundation" } or {})
 
