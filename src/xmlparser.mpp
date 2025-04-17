@@ -1,4 +1,4 @@
-export module examples;
+export module xmlparser;
 
 import std;
 import stormkit.Core;
@@ -17,7 +17,7 @@ using namespace stormkit;
 using namespace std::literals;
 
 export {
-namespace examples {
+namespace xmlparser {
 inline constexpr auto parseXmlObservation(
   const pugi::xml_node& xnode
 ) noexcept -> decltype(auto) {
@@ -280,18 +280,18 @@ inline constexpr auto parseXmlNode(
   std::unreachable();
 }
 
-struct Example {
+struct Model {
   std::string_view title;
   std::string symbols;
   bool origin;
   ExecutionNode program;
 };
 
-inline constexpr auto parseXmlExample(std::string_view title, std::filesystem::path filepath) noexcept -> decltype(auto) {
-  auto&& xexample = pugi::xml_document{};
-  auto&& result = xexample.load_file(filepath.c_str());
+inline constexpr auto parseXmlModel(std::string_view title, std::filesystem::path filepath) noexcept -> decltype(auto) {
+  auto&& xmodel = pugi::xml_document{};
+  auto&& result = xmodel.load_file(filepath.c_str());
   ensures(result, std::format("Error while parsing xml ({}:{}) : {}", filepath.generic_string(), result.offset, result.description()));
-  auto&& xnode = xexample.first_child();
+  auto&& xnode = xmodel.first_child();
 
   ensures(xnode.attribute("values"),
           std::format("missing '{}' attribute in '{}' node [:{}]", "values", "[root]", xnode.offset_debug()));
@@ -311,7 +311,7 @@ inline constexpr auto parseXmlExample(std::string_view title, std::filesystem::p
   if (xnode.name() != "sequence"s and xnode.name() != "markov"s)
     program = Markov{{program}};
 
-  return Example{
+  return Model{
     title,
     std::move(symbols), std::move(origin),
     std::move(program)
