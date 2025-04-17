@@ -287,10 +287,10 @@ struct Example {
   ExecutionNode program;
 };
 
-inline constexpr auto parseXmlExample(std::string_view title, std::string_view filepath) noexcept -> decltype(auto) {
+inline constexpr auto parseXmlExample(std::string_view title, std::filesystem::path filepath) noexcept -> decltype(auto) {
   auto&& xexample = pugi::xml_document{};
-  auto&& result = xexample.load_file(std::data(filepath));
-  ensures(result, std::format("Error while parsing xml ({}:{}) : {}", filepath, result.offset, result.description()));
+  auto&& result = xexample.load_file(filepath.c_str());
+  ensures(result, std::format("Error while parsing xml ({}:{}) : {}", filepath.generic_string(), result.offset, result.description()));
   auto&& xnode = xexample.first_child();
 
   ensures(xnode.attribute("values"),
@@ -318,10 +318,10 @@ inline constexpr auto parseXmlExample(std::string_view title, std::string_view f
   };
 }
 
-inline constexpr auto parseXmlPalette(std::string_view filepath) noexcept -> decltype(auto) {
+inline constexpr auto parseXmlPalette(std::filesystem::path filepath) noexcept -> decltype(auto) {
   auto&& xpalette = pugi::xml_document{};
-  auto&& result = xpalette.load_file(std::data(filepath));
-  ensures(result, std::format("Error while parsing xml ({}:{}) : {}", filepath, result.offset, result.description()));
+  auto&& result = xpalette.load_file(filepath.c_str());
+  ensures(result, std::format("Error while parsing xml ({}:{}) : {}", filepath.generic_string(), result.offset, result.description()));
 
   return xpalette.child("colors").children("color")
     | std::views::transform([](auto&& xcolor) static noexcept {
