@@ -13,6 +13,9 @@ concept container_compatible_range =
   std::ranges::input_range<R>
   and std::convertible_to<std::ranges::range_reference_t<R>, T>;
 
+template <class... T>
+struct Visitor : T... { using T::operator()...; };
+
 // from: https://stackoverflow.com/a/13370695
 template <typename ReturnType, typename... Args>
 std::function<ReturnType (Args...)> memoize(std::function<ReturnType (Args...)> func) {
