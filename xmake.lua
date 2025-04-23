@@ -45,7 +45,11 @@ end
 add_requireconfs("**", {configs = {modules = true}})
 add_cxxflags("-fexperimental-library")
 
-add_rules("plugin.compile_commands.autoupdate", {outputdir = ".vscode"})
+option("compile_commands", { default = true, category = "root menu/support" })
+
+if get_config("compile_commands") then
+    add_rules("plugin.compile_commands.autoupdate", { outputdir = ".vscode", lsp = "clangd" })
+end
 
 target("hroza")
     set_kind("binary")
