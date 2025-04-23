@@ -281,13 +281,14 @@ inline constexpr auto parseXmlNode(
 }
 
 struct Model {
-  std::string_view title;
+  // std::string_view title;
   std::string symbols;
   bool origin;
   ExecutionNode program;
 };
 
-inline constexpr auto parseXmlModel(std::string_view title, std::filesystem::path filepath) noexcept -> decltype(auto) {
+inline constexpr auto parseXmlModel(std::filesystem::path filepath) noexcept -> decltype(auto) {
+// inline constexpr auto parseXmlModel(std::string_view title, std::filesystem::path filepath) noexcept -> decltype(auto) {
   auto&& xmodel = pugi::xml_document{};
   auto&& result = xmodel.load_file(filepath.c_str());
   ensures(result, std::format("Error while parsing xml ({}:{}) : {}", filepath.generic_string(), result.offset, result.description()));
@@ -312,7 +313,7 @@ inline constexpr auto parseXmlModel(std::string_view title, std::filesystem::pat
     program = Markov{{program}};
 
   return Model{
-    title,
+    // title,
     std::move(symbols), std::move(origin),
     std::move(program)
   };

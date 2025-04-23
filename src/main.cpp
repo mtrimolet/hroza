@@ -18,18 +18,11 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   auto&& window = ncurses::window{};
 
   auto&& palette = xmlparser::parseXmlPalette("./resources/palette.xml");
-  auto&& modelname = std::ranges::size(args) >= 2 ? args[1] : "Dense SAW";
+  auto&& modelfile = std::ranges::size(args) >= 2 ? args[1] : "./models/DenseSAW.xml";
+  window.say(std::format("Loading model {}", modelfile));
+  auto&& model = xmlparser::parseXmlModel(modelfile);
 
-  window.say(modelname);
-  window.waitchar();
-
-  window.say("Loading modelname...");
-  auto&& filename = modelname 
-    | std::views::filter(std::not_fn([](auto&& c) static noexcept { return std::isspace(c); }))
-    | std::ranges::to<std::string>();
-  auto&& model = xmlparser::parseXmlModel(modelname, std::format("./models/{}.xml", filename));
-
-  auto&& grid = TracedGrid{std::dims<3>{1u, std::get<0>(window.getmaxyx()), std::get<1>(window.getmaxyx())}, model.symbols[0]};
+  auto&& grid = TracedGrid{std::dims<3>{1u, std::get<0>(window.getmaxyx()), std::get<1>(window.getmaxyx()) / 2}, model.symbols[0]};
   if (model.origin) grid[(grid.area() / 2u).outerbound()] = model.symbols[1];
 
   window.setpalette(model.symbols
