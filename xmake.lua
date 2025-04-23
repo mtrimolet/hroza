@@ -33,7 +33,7 @@ add_requires(
 add_requireconfs(
     "glm",
     "pugixml",
-    "ncurses",
+    -- "ncurses",
     "cpptrace",
     {system=false}
 )
