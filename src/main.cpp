@@ -3,7 +3,7 @@
 
 import std;
 import glm;
-import stormkit.Core;
+import stormkit.core;
 import ncurses;
 
 import geometry;

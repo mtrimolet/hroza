@@ -1,7 +1,7 @@
 export module executionnode;
 
 import std;
-import stormkit.Core;
+import stormkit.core;
 
 import symbols;
 import grid;

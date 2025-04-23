@@ -2,7 +2,7 @@ export module searchengine;
 
 import std;
 import glm;
-import stormkit.Core;
+import stormkit.core;
 import utils;
 import geometry;
 

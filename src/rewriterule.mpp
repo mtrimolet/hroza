@@ -3,7 +3,7 @@ export module rewriterule;
 import std;
 import glm;
 import frozen;
-import stormkit.Core;
+import stormkit.core;
 import utils;
 import geometry;
 
@@ -95,7 +95,7 @@ struct RewriteRule {
 };
 }
 
-auto&& square_groups = makeStaticArray<std::function<RewriteRule(const RewriteRule&)>>(
+auto&& square_groups = into_array<std::function<RewriteRule(const RewriteRule&)>>(
   [](auto&& rule) static noexcept { return auto{rule}; },
   [](auto&& rule) static noexcept { return rule.xreflected(); },
   [](auto&& rule) static noexcept { return rule.xyrotated(); },

@@ -2,7 +2,7 @@ export module forceengine;
 
 import std;
 import glm;
-import stormkit.Core;
+import stormkit.core;
 import utils;
 
 import symbols;

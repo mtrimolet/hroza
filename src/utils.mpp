@@ -2,7 +2,7 @@ export module utils;
 
 import std;
 import ranges;
-import stormkit.Core;
+import stormkit.core;
 
 using namespace stormkit;
 
@@ -106,7 +106,7 @@ inline constexpr auto chunk(A&& a, RangeExtent extent) noexcept -> decltype(auto
     | std::views::transform([&a, extent](auto i) noexcept {
         return std::ranges::subrange(
           std::ranges::begin(a) + i,
-          std::ranges::begin(a) + i + extent,
+          std::ranges::begin(a) + i + extent
         );
     });
 }

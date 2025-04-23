@@ -2,7 +2,7 @@ export module geometry;
 
 import std;
 import glm;
-import stormkit.Core;
+import stormkit.core;
 
 using namespace stormkit;
 

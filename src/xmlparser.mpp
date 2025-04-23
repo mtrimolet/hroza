@@ -1,7 +1,7 @@
 export module xmlparser;
 
 import std;
-import stormkit.Core;
+import stormkit.core;
 import utils;
 
 import pugixml;
