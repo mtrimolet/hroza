@@ -22,7 +22,7 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   window.say(std::format("Loading model {}", modelfile));
   auto&& model = xmlparser::parseXmlModel(modelfile);
 
-  auto&& grid = TracedGrid{std::dims<3>{1u, std::get<0>(window.getmaxyx()), std::get<1>(window.getmaxyx()) / 2}, model.symbols[0]};
+  auto&& grid = TracedGrid{std::dims<3>{1u, std::get<0>(window.getmaxyx()), std::get<1>(window.getmaxyx())}, model.symbols[0]};
   if (model.origin) grid[(grid.area() / 2u).outerbound()] = model.symbols[1];
 
   window.setpalette(model.symbols
