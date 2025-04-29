@@ -200,6 +200,9 @@ template <class T>
 struct TracedGrid : Grid<T> {
   std::vector<Change<T>> history;
 
+  inline constexpr TracedGrid() noexcept
+    : Grid<T>{}, history{} {}
+
   inline constexpr TracedGrid(Grid<T>::Extents _extents, T v) noexcept
     : Grid<T>{_extents, v}, history{} {}
 
