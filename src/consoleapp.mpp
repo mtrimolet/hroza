@@ -1,0 +1,98 @@
+export module consoleapp;
+
+import std;
+import stormkit.core;
+import ncurses;
+
+import geometry;
+import grid;
+
+import xmlparser;
+
+using namespace stormkit;
+
+export
+struct ConsoleApp {
+public:
+  // static constexpr auto WINDOW_TITLE = "Hroza";
+  // static constexpr auto WINDOW_SIZE  = math::ExtentU{800u, 600u};
+
+  static constexpr auto DEFAULT_PALETTE_FILE = "./resources/palette.xml";
+  static constexpr auto DEFAULT_MODEL_FILE   = "./models/DenseSAW.xml";
+
+  // static constexpr auto DEFAULT_GRID_EXTENT = math::ExtentU{1u, 33u, 33u};
+
+private:
+  ncurses::window window;
+  std::unordered_map<char, unsigned int> color_offsets;
+
+  TracedGrid<char> grid;
+  xmlparser::Palette    palette;
+  xmlparser::Model      model;
+
+  inline constexpr auto init_window() noexcept -> decltype(auto) {
+    // window = ncurses::window{};
+  }
+
+  inline constexpr auto load_palette(const std::filesystem::path& palettefile) noexcept -> decltype(auto) {
+    window.say(std::format("Loading palette {}", palettefile.string()));
+    palette = xmlparser::parseXmlPalette(palettefile);
+  }
+
+  inline constexpr auto load_model(const std::filesystem::path& modelfile) noexcept -> decltype(auto) {
+    window.say(std::format("Loading model {}", modelfile.string()));
+    model = xmlparser::parseXmlModel(modelfile);
+
+    window.setpalette(model.symbols
+      | std::views::transform([this](auto&& s) noexcept {
+          return palette.contains(s) 
+            ? palette.at(s) 
+            : 0xffffff;
+      })
+      | std::ranges::to<std::vector>()
+    );
+
+    color_offsets = std::views::zip(model.symbols, std::views::iota(0u))
+      | std::ranges::to<std::unordered_map<char, unsigned int>>();
+  }
+
+  inline constexpr auto init_grid(auto&& extents) noexcept -> decltype(auto) {
+    grid = TracedGrid{extents, model.symbols[0]};
+    if (model.origin) grid[grid.area().center()] = model.symbols[1];
+  }
+
+  inline constexpr auto update_cell(auto&& change_data) noexcept -> decltype(auto) {
+    auto&& [u, value] = change_data;
+    if (window.hascolors()) {
+      auto&& offset = color_offsets.contains(value) ? color_offsets.at(value) : 0;
+      window.addch(u.y, u.x, value, offset);
+    } else {
+      window.addch(u.y, u.x, value);
+    }
+  }
+
+public:
+  inline constexpr auto run(std::span<const std::string_view> args) noexcept -> decltype(auto) {
+    init_window();
+
+    load_palette(DEFAULT_PALETTE_FILE);
+    load_model(std::ranges::size(args) >= 2 ? args[1] : DEFAULT_MODEL_FILE);
+
+    auto&& [h, w] = window.getmaxyx();
+    init_grid(std::dims<3>{1, h, w});
+
+    window.say("Press any key to start");
+    window.waitchar();
+
+    auto&& update = [this](auto&& data) noexcept { update_cell(data); };
+    std::ranges::for_each(std::views::zip(mdiota(grid.area()), grid), update);
+    window.refresh();
+
+    for (auto&& changes : model.program(grid)) {
+      std::ranges::for_each(changes, update);
+      window.refresh();
+    }
+
+    return 0;
+  }
+};

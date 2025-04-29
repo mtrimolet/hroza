@@ -319,6 +319,8 @@ inline constexpr auto parseXmlModel(std::filesystem::path filepath) noexcept -> 
   };
 }
 
+using Palette = std::unordered_map<symbol, UInt32>;
+
 inline constexpr auto parseXmlPalette(std::filesystem::path filepath) noexcept -> decltype(auto) {
   auto&& xpalette = pugi::xml_document{};
   auto&& result = xpalette.load_file(filepath.c_str());
@@ -342,7 +344,7 @@ inline constexpr auto parseXmlPalette(std::filesystem::path filepath) noexcept -
         
         return std::make_pair(symbol_str[0], (255u << 24u) + fromBase<UInt32>(value, 16));
     })
-    | std::ranges::to<std::unordered_map>();
+    | std::ranges::to<Palette>();
 }
 
 }

@@ -95,6 +95,10 @@ struct HyperRectangle {
       return HyperRectangle{u / r, size / std::abs(r)};
   }
 
+  inline constexpr auto center() const noexcept -> decltype(auto) {
+    return operator/(2u).outerbound();
+  }
+
   inline constexpr auto overlaps(const HyperRectangle& other) const noexcept -> decltype(auto) {
     return math::all(math::lessThan(      u, other.outerbound()))
        and math::all(math::lessThan(other.u,       outerbound()));
