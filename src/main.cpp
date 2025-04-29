@@ -13,7 +13,7 @@ import xmlparser;
 
 auto main(std::span<const std::string_view> args) noexcept -> int {
   // [tmpfix] remove when stormkit userMain allows for non-packaged build
-  chdir("/Users/mtrimolet/Desktop/mtrimolet/markovjunior/hroza");
+  chdir("/Users/mtrimolet/Desktop/mtrimolet/hroza");
 
   auto&& window = ncurses::window{};
 
