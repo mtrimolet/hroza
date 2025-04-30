@@ -11,6 +11,8 @@ add_repositories("tapzcrew-repo https://github.com/tapzcrew/xmake-repo main")
 add_requires("glm", "frozen")
 
 -- stormkit deps, remove when handled by xmake
+add_defines("MAGIC_ENUM_USE_STD_MODULE")
+add_defines("MAGIC_ENUM_DEFAULT_ENABLE_ENUM_FORMAT=0")
 add_requires("unordered_dense", "magic_enum", "tl_function_ref", "cpptrace")
 
 add_requires("stormkit develop", {
