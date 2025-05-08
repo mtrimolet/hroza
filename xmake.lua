@@ -1,8 +1,22 @@
-add_rules("mode.debug", "mode.release")
+add_rules("mode.debug", "mode.release", "mode.releasedbg")
 
 set_languages("c++latest")
 -- set_warnings("allextra", "error")
+
 set_symbols("hidden")
+if is_mode("release") then
+    set_optimize("fastest")
+elseif is_mode("debug") then
+    set_symbols("debug", "hidden")
+    add_cxflags("-ggdb3", { tools = { "clang", "gcc" } })
+    add_mxflags("-ggdb3", { tools = { "clang", "gcc" } })
+elseif is_mode("releasedbg") then
+    set_optimize("fast")
+    set_symbols("debug", "hidden")
+    add_cxflags("-fno-omit-frame-pointer", { tools = { "clang", "gcc" } })
+    add_mxflags("-ggdb3", { tools = { "clang", "gcc" } })
+end
+
 add_frameworks(is_plat("macosx") and { "Foundation" } or {})
 
 add_repositories("tapzcrew-repo https://github.com/tapzcrew/xmake-repo main")
