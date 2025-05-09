@@ -6,7 +6,6 @@ import stormkit.core;
 import utils;
 import geometry;
 
-import symbols;
 import grid;
 import rewriterule;
 import match;
@@ -77,8 +76,8 @@ struct One : RewriteEngine {
     search{std::move(limit), depthCoefficient, std::move(observations)}
   {}
 
-  inline constexpr auto operator()(const TracedGrid<symbol>& grid) noexcept -> decltype(auto) {
-    auto changes = std::vector<Change<symbol>>{};
+  inline constexpr auto operator()(const TracedGrid<char>& grid) noexcept -> decltype(auto) {
+    auto changes = std::vector<Change<char>>{};
 
     if (not std::ranges::empty(search.observations)
     and not std::ranges::empty(search.future)) {
@@ -129,7 +128,7 @@ struct Prl : RewriteEngine {
   inline constexpr Prl(std::vector<RewriteRule>&& rules) noexcept
     : RewriteEngine{std::move(rules)} {}
 
-  inline constexpr auto operator()(const TracedGrid<symbol>& grid) noexcept -> decltype(auto) {
+  inline constexpr auto operator()(const TracedGrid<char>& grid) noexcept -> decltype(auto) {
     this->updateMatches(grid, grid.history);
 
     static auto rg = std::mt19937{std::random_device{}()};
@@ -210,7 +209,7 @@ struct All : RewriteEngine {
             return std::ranges::any_of(
               mdiota(overlap),
               [](auto&& p) static noexcept {
-                return std::apply(std::logical_and<std::optional<symbol>>{}, p);
+                return std::apply(std::logical_and<std::optional<char>>{}, p);
               },
               [&visited, &match](auto&& u) noexcept {
                 return std::make_tuple(
@@ -227,8 +226,8 @@ struct All : RewriteEngine {
     );
   }
   
-  inline constexpr auto operator()(const TracedGrid<symbol>& grid) noexcept -> decltype(auto) {
-    auto changes = std::vector<Change<symbol>>{};
+  inline constexpr auto operator()(const TracedGrid<char>& grid) noexcept -> decltype(auto) {
+    auto changes = std::vector<Change<char>>{};
 
     if (not std::ranges::empty(search.observations)
     and not std::ranges::empty(search.future)) {

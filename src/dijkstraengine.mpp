@@ -6,7 +6,6 @@ import stormkit.core;
 import utils;
 import geometry;
 
-import symbols;
 import grid;
 import rewriterule;
 import match;
@@ -19,9 +18,9 @@ using namespace stormkit;
 export
 struct DijkstraField {
   bool recompute, essential, inversed;
-  symbolset substrate, zero;
+  std::unordered_set<char> substrate, zero;
 
-  inline constexpr auto potential(Grid<symbol>::ConstView grid) const noexcept -> decltype(auto) {
+  inline constexpr auto potential(Grid<char>::ConstView grid) const noexcept -> decltype(auto) {
     auto potential = Potential{grid.extents(), inversed ? -std::numeric_limits<double>::infinity() : std::numeric_limits<double>::infinity()};
     auto&& p_area = potential.area();
     propagate(
@@ -57,7 +56,7 @@ struct DijkstraField {
   }
 };
 
-export using DijkstraFields = std::unordered_map<symbol, DijkstraField>;
+export using DijkstraFields = std::unordered_map<char, DijkstraField>;
 
 export
 struct DijkstraEngine : ForceEngine {
@@ -73,7 +72,7 @@ struct DijkstraEngine : ForceEngine {
   fields{std::move(_fields)}
   {}
 
-  inline constexpr auto updatePotentials(Grid<symbol>::ConstView grid) noexcept -> decltype(auto) {
+  inline constexpr auto updatePotentials(Grid<char>::ConstView grid) noexcept -> decltype(auto) {
 // #pragma clang diagnostic push
 // #pragma clang diagnostic ignored "-Wunused-result"
     std::ranges::for_each(

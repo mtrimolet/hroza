@@ -6,7 +6,6 @@ import stormkit.core;
 import utils;
 import geometry;
 
-import symbols;
 import grid;
 import rewriterule;
 import forceengine;
@@ -16,10 +15,10 @@ using namespace stormkit;
 
 export
 inline constexpr auto forward(
-  Grid<symbol>::ConstView grid,
+  Grid<char>::ConstView grid,
   std::span<const RewriteRule> rules
 ) noexcept -> decltype(auto) {
-  auto potentials = std::unordered_map<symbol, Potential>{};
+  auto potentials = std::unordered_map<char, Potential>{};
 
   propagate(
     mdiota(grid.extents())
@@ -67,7 +66,7 @@ inline constexpr auto forward(
                       // .. unless that bit is expected to be the only one active
                       //
                       // Original code (our 'i' is the 'w'): `System.Numerics.BitOperations.TrailingZeroCount(w)`
-                      // Or is the provided order of the symbols so important that we need to move rule.input to an ordered set ?
+                      // Or is the provided order of the chars so important that we need to move rule.input to an ordered set ?
                       // return potentials.contains(i)
                       //   ? potentials.at(i)[u]
                       //   : std::optional{0u};
@@ -80,7 +79,7 @@ inline constexpr auto forward(
                         | std::views::transform([&potentials, &u](auto&& i) noexcept {
                             return potentials.at(i)[u];
                         })
-                        | std::ranges::to<std::set>();
+                        | std::ranges::to<std::unordered_set>();
                       if (std::ranges::empty(e)) return std::numeric_limits<double>::infinity();
   
                       return *std::ranges::max_element(e);
@@ -111,24 +110,26 @@ inline constexpr auto forward(
 export 
 struct SearchEngine {
   std::optional<UInt> limit;
-  double depthCoefficient;
+  double              depthCoefficient;
+
   Observations observations;
-  
-  Grid<std::optional<symbolset>> future;
-  std::queue<std::vector<Change<symbol>>> trajectory;
+
+  Grid<std::optional<std::unordered_set<char>>> future;
+  std::queue<std::vector<Change<char>>> trajectory;
 
   inline constexpr SearchEngine() noexcept = default;
 
   inline constexpr SearchEngine(
-    std::optional<UInt>&& _limit, double _depthCoefficient,
-    Observations&& _observations
+    std::optional<UInt>&& _limit,
+    double                _depthCoefficient,
+    Observations&&        _observations
   ) noexcept
   : limit{std::move(_limit)}, depthCoefficient{_depthCoefficient}, observations{std::move(_observations)}
   {}
 
-  inline constexpr auto updateFuture(Grid<symbol>::ConstView grid, std::span<const RewriteRule> rules) noexcept -> decltype(auto) {
+  inline constexpr auto updateFuture(Grid<char>::ConstView grid, std::span<const RewriteRule> rules) noexcept -> decltype(auto) {
     if (not std::ranges::empty(future)) {
-      return std::vector<Change<symbol>>{};
+      return std::vector<Change<char>>{};
     }
 
     auto&& [changes, _future] = ::future(grid, observations);
@@ -139,7 +140,7 @@ struct SearchEngine {
 
   inline constexpr auto followTrajectory() noexcept -> decltype(auto) {
     if (std::ranges::empty(trajectory)) {
-      return std::vector<Change<symbol>>{};
+      return std::vector<Change<char>>{};
     }
     auto changes = trajectory.front();
     trajectory.pop();

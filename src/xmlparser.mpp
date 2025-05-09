@@ -6,7 +6,6 @@ import utils;
 
 import pugixml;
 
-import symbols;             // <union>
 import rewriterule;         // <rule>
 import dijkstraengine;      // <field>
 import observationengine;   // <observe>
@@ -39,7 +38,7 @@ inline constexpr auto parseXmlObservation(
     value[0],
     Observation{
       not xnode.attribute("from") ? std::nullopt : std::optional{from[0]},
-      std::string{xnode.attribute("to").as_string()} | std::ranges::to<symbolset>()
+      std::string{xnode.attribute("to").as_string()} | std::ranges::to<std::unordered_set>()
     }
   );
 }
@@ -84,8 +83,8 @@ inline constexpr auto parseXmlField(
       xnode.attribute("recompute").as_bool(false),
       xnode.attribute("essential").as_bool(false),
       inversed,
-      substrate | std::ranges::to<symbolset>(),
-      zero | std::ranges::to<symbolset>()
+      substrate | std::ranges::to<std::unordered_set>(),
+      zero | std::ranges::to<std::unordered_set>()
     }
   );
 }
@@ -100,7 +99,7 @@ inline constexpr auto parseXmlFields(
 
 inline constexpr auto parseXmlRule(
   const pugi::xml_node& xnode,
-  symbolmap unions = {}
+  std::unordered_map<char, RewriteRule::Union> unions = {}
 ) noexcept -> decltype(auto) {
   ensures(xnode.attribute("in"),
           std::format("missing '{}' attribute in '{}' node [:{}]", "in", "[rule]", xnode.offset_debug()));
@@ -122,7 +121,7 @@ inline constexpr auto parseXmlRule(
 
 inline constexpr auto parseXmlRules(
   const pugi::xml_node& xnode,
-  symbolmap unions = {},
+  std::unordered_map<char, RewriteRule::Union> unions = {},
   std::string_view symmetry = ""
 ) noexcept -> decltype(auto) {
   auto&& xrules = xnode.children("rule") | std::ranges::to<std::vector>();
@@ -136,7 +135,7 @@ inline constexpr auto parseXmlRules(
 
 inline constexpr auto parseXmlRuleNode(
   const pugi::xml_node& xnode,
-  symbolmap unions = {},
+  std::unordered_map<char, RewriteRule::Union> unions = {},
   std::string_view symmetry = ""
 ) noexcept -> Action {
   auto&& tag = xnode.name();
@@ -224,7 +223,7 @@ inline constexpr auto parseXmlRuleNode(
 
 inline constexpr auto parseXmlNode(
   const pugi::xml_node& xnode,
-  symbolmap unions = {},
+  std::unordered_map<char, RewriteRule::Union> unions = {},
   std::string_view symmetry = ""
 ) noexcept -> ExecutionNode {
   symmetry = xnode.attribute("symmetry").as_string(std::data(symmetry));
@@ -245,7 +244,7 @@ inline constexpr auto parseXmlNode(
       ensures(!std::ranges::empty(values),
               std::format("empty '{}' attribute in '{}' node [:{}]", "values", "union", xunion.offset_debug()));
 
-      return std::make_pair(symbol_str[0], values | std::ranges::to<symbolset>());
+      return std::make_pair(symbol_str[0], values | std::ranges::to<std::unordered_set>());
     })
   );
   
@@ -304,9 +303,9 @@ inline constexpr auto parseXmlModel(std::filesystem::path filepath) noexcept -> 
 
   auto&& unions = symbols
     | std::views::transform([](auto&& c) static noexcept { 
-        return std::make_pair(c, symbolset{c});
+        return std::make_pair(c, std::unordered_set{c});
       })
-    | std::ranges::to<symbolmap>();
+    | std::ranges::to<std::unordered_map>();
 
   auto&& program = parseXmlNode(xnode, unions);
   if (xnode.name() != "sequence"s and xnode.name() != "markov"s)
@@ -319,7 +318,8 @@ inline constexpr auto parseXmlModel(std::filesystem::path filepath) noexcept -> 
   };
 }
 
-using Palette = std::unordered_map<symbol, UInt32>;
+using Color32 = UInt32;
+using Palette = std::unordered_map<char, Color32>;
 
 inline constexpr auto parseXmlPalette(std::filesystem::path filepath) noexcept -> decltype(auto) {
   auto&& xpalette = pugi::xml_document{};

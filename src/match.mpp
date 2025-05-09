@@ -6,7 +6,6 @@ import stormkit.core;
 import utils;
 import geometry;
 
-import symbols;
 import grid;
 import rewriterule;
 
@@ -23,7 +22,7 @@ struct Match {
     return rule.area() + u;
   }
 
-  inline constexpr auto match(Grid<symbol>::ConstView grid) const noexcept -> decltype(auto) {
+  inline constexpr auto match(Grid<char>::ConstView grid) const noexcept -> decltype(auto) {
     return std::ranges::all_of(
       std::views::zip(mdiota(area()), rule.input),
       [grid{std::move(grid)}](auto&& input) noexcept {
@@ -33,8 +32,8 @@ struct Match {
       }
     );
   }
-  
-  inline constexpr auto changes(Grid<symbol>::ConstView grid) const noexcept -> decltype(auto) {
+
+  inline constexpr auto changes(Grid<char>::ConstView grid) const noexcept -> decltype(auto) {
     return std::views::zip(mdiota(area()), rule.output)
       | std::views::filter([grid{std::move(grid)}](auto&& output) noexcept {
           auto&& [v, value] = output;
@@ -42,7 +41,7 @@ struct Match {
              and *value != grid[v.z, v.y, v.x];
       })
       | std::views::transform([](auto&& output) static noexcept {
-          return Change<symbol>{std::get<0>(output), *std::get<1>(output)};
+          return Change<char>{std::get<0>(output), *std::get<1>(output)};
       });
   }
 };

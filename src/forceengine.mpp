@@ -5,7 +5,6 @@ import glm;
 import stormkit.core;
 import utils;
 
-import symbols;
 import grid;
 import match;
 
@@ -26,10 +25,10 @@ using Potential = Grid<double>;
 export
 struct ForceEngine {
   double temperature;
-  std::unordered_map<symbol, Potential> potentials;
+  std::unordered_map<char, Potential> potentials;
 
   /** Sum of differences of potential caused by applying match */
-  inline constexpr auto gain(Grid<symbol>::ConstView grid, const Match& match) noexcept -> decltype(auto) {
+  inline constexpr auto gain(Grid<char>::ConstView grid, const Match& match) noexcept -> decltype(auto) {
     return std::ranges::fold_left(
       std::views::zip(
         mdiota(match.area()),
@@ -59,7 +58,7 @@ struct ForceEngine {
   }
 
   /** Sort by (inverse) heated potential gain in non-descending order */
-  inline constexpr auto applyPotentials(Grid<symbol>::ConstView grid, std::span<Match> matches) noexcept -> decltype(auto) {
+  inline constexpr auto applyPotentials(Grid<char>::ConstView grid, std::span<Match> matches) noexcept -> decltype(auto) {
     static auto rg = std::mt19937{std::random_device{}()};
     if (std::ranges::empty(potentials)) {
       std::ranges::shuffle(matches, rg);

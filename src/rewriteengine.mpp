@@ -6,7 +6,6 @@ import stormkit.core;
 import utils;
 import geometry;
 
-import symbols;
 import grid;
 import rewriterule;
 import match;
@@ -37,8 +36,8 @@ struct RewriteEngine : EventTracker {
     : EventTracker{}, rules{std::move(_rules)}, matches{} {}
 
   inline constexpr auto newMatches(
-    Grid<symbol>::ConstView grid,
-    std::span<const Change<symbol>> changes = {}
+    Grid<char>::ConstView grid,
+    std::span<const Change<char>> changes = {}
   ) const noexcept -> decltype(auto) {
     auto&& g_area = Area3U{{}, fromExtents(grid.extents())};
 
@@ -61,7 +60,7 @@ struct RewriteEngine : EventTracker {
           auto&& neigh = rule.backward_neighborhood();
           auto&& g_zone = (static_cast<Area3I>(g_area) + neigh.u).umeet(g_area);
           return changes
-            | std::views::transform([&g_area, &g_zone, &neigh](const Change<symbol>& change) noexcept {
+            | std::views::transform([&g_area, &g_zone, &neigh](const Change<char>& change) noexcept {
                 auto&& zone = (neigh + change.u).meet(static_cast<Area3I>(g_area) + neigh.u).umeet(g_area);
                 return mdiota(zone);
             })
@@ -76,8 +75,8 @@ struct RewriteEngine : EventTracker {
   }
 
   inline constexpr auto updateMatches(
-    Grid<symbol>::ConstView grid,
-    std::span<const Change<symbol>> history = {}
+    Grid<char>::ConstView grid,
+    std::span<const Change<char>> history = {}
   ) noexcept -> decltype(auto) {
     matches.append_range(newMatches(grid, EventTracker::newEvents(history))
       | std::views::filter(bindBack(&Match::match, grid)));
