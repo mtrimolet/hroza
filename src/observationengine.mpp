@@ -6,7 +6,6 @@ import stormkit.core;
 import utils;
 import geometry;
 
-import symbols;
 import grid;
 import rewriterule;
 import forceengine;
@@ -14,37 +13,37 @@ import forceengine;
 using namespace stormkit;
 
 export struct Observation {
-  std::optional<symbol> from;
-  symbolset to;
+  std::optional<char> from;
+  std::unordered_set<char> to;
 };
 
-export using Observations = std::unordered_map<symbol, Observation>;
+export using Observations = std::unordered_map<char, Observation>;
 
 export
 inline constexpr auto future(
-  Grid<symbol>::ConstView grid,
+  Grid<char>::ConstView grid,
   Observations obs
 ) noexcept -> decltype(auto) {
-  auto changes = std::vector<Change<symbol>>{};
+  auto changes = std::vector<Change<char>>{};
   auto f = mdiota(grid.extents())
     | std::views::transform([&obs, &changes, &grid](auto&& u) noexcept {
         auto&& c = grid[u.z, u.y, u.x];
-        if (not obs.contains(c)) return std::optional<symbolset>{};
+        if (not obs.contains(c)) return std::optional<std::unordered_set<char>>{};
         auto&& o = obs.at(c);
         if (o.from) changes.emplace_back(u, *o.from);
         return std::optional{o.to};
     })
-    | std::ranges::to<Grid<std::optional<symbolset>>>(grid.extents());
+    | std::ranges::to<Grid<std::optional<std::unordered_set<char>>>>(grid.extents());
 
   return std::make_pair(std::move(changes), std::move(f));
 }
 
 // export
 // inline constexpr auto forward(
-//   Grid<symbol>::ConstView grid,
+//   Grid<char>::ConstView grid,
 //   std::span<const RewriteRule> rules
 // ) noexcept -> decltype(auto) {
-//   auto potentials = std::unordered_map<symbol, Potential>{};
+//   auto potentials = std::unordered_map<char, Potential>{};
 
 //   propagate(
 //     mdiota(grid.extents())
@@ -92,7 +91,7 @@ inline constexpr auto future(
 //                       // .. unless that bit is expected to be the only one active
 //                       //
 //                       // Original code (our 'i' is the 'w'): `System.Numerics.BitOperations.TrailingZeroCount(w)`
-//                       // Or is the provided order of the symbols so important that we need to move rule.input to an ordered set ?
+//                       // Or is the provided order of the chars so important that we need to move rule.input to an ordered set ?
 //                       // return potentials.contains(i)
 //                       //   ? potentials.at(i)[u]
 //                       //   : std::optional{0u};
@@ -105,7 +104,7 @@ inline constexpr auto future(
 //                         | std::views::transform([&potentials, &u](auto&& i) noexcept {
 //                             return potentials.at(i)[u];
 //                         })
-//                         | std::ranges::to<std::set>();
+//                         | std::ranges::to<std::unordered_set>();
 //                       if (std::ranges::empty(e)) return std::numeric_limits<double>::infinity();
   
 //                       return *std::ranges::max_element(e);
@@ -137,16 +136,16 @@ export
 struct ObservationEngine : ForceEngine {
   Observations observations;
   
-  Grid<std::optional<std::unordered_set<symbol>>> future;
+  Grid<std::optional<std::unordered_set<char>>> future;
 
   inline constexpr ObservationEngine() noexcept = default;
 
   inline constexpr ObservationEngine(double temperature, Observations&& _observations) noexcept
   : ForceEngine{temperature}, observations{std::move(_observations)}, future{} {}
 
-  inline constexpr auto updateFuture(Grid<symbol>::ConstView grid, std::span<const RewriteRule> rules) noexcept -> decltype(auto) {
+  inline constexpr auto updateFuture(Grid<char>::ConstView grid, std::span<const RewriteRule> rules) noexcept -> decltype(auto) {
     if (not std::ranges::empty(future)) {
-      return std::vector<Change<symbol>>{};
+      return std::vector<Change<char>>{};
     }
 
     auto&& [changes, _future] = ::future(grid, observations);

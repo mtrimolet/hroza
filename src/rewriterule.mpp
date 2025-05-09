@@ -7,7 +7,6 @@ import stormkit.core;
 import utils;
 import geometry;
 
-import symbols;
 import grid;
 
 using namespace stormkit;
@@ -15,17 +14,27 @@ using namespace stormkit;
 export {
 
 struct RewriteRule {
-  Grid<std::optional<symbolset>> input;
-  Grid<std::optional<symbol>> output;
+  using Union = std::unordered_set<char>;
+
+  Grid<std::optional<Union>> input;
+  Grid<std::optional<char>>  output;
+
   double p;
 
-  inline constexpr RewriteRule(Grid<std::optional<symbolset>>&& _input, Grid<std::optional<symbol>>&& _output, double _p = 1.0)
-    : input{std::move(_input)}, output{std::move(_output)}, p{_p} {}
+  inline constexpr RewriteRule(
+    Grid<std::optional<Union>>&& _input,
+    Grid<std::optional<char>>&&  _output,
+    double _p = 1.0
+  )
+    : input{std::move(_input)},
+    output{std::move(_output)},
+    p{_p}
+  {}
 
   inline constexpr auto operator==(const RewriteRule& other) const noexcept -> bool = default;
 
   static inline constexpr auto parse(
-    symbolmap unions,
+    std::unordered_map<char, Union> unions,
     std::string_view input,
     std::string_view output,
     double p = 1.0
@@ -33,13 +42,14 @@ struct RewriteRule {
     static constexpr auto IGNORED = '*';
 
     return RewriteRule{
-      Grid<std::optional<symbolset>>::parse(input, [&unions](auto&& t) noexcept {
-        return t == IGNORED ? std::nullopt
+      decltype(RewriteRule::input)::parse(input, [&unions](auto&& t) noexcept {
+        return t == IGNORED    ? std::nullopt
           : unions.contains(t) ? std::optional{unions.at(t)}
-          : std::optional{std::unordered_set{t}};
+                               : std::optional{Union{t}};
       }),
-      Grid<std::optional<symbol>>::parse(output, [](auto&& t) static noexcept {
-        return t == IGNORED ? std::nullopt : std::optional{t};
+      decltype(RewriteRule::output)::parse(output, [](auto&& t) static noexcept {
+        return t == IGNORED ? std::nullopt
+                            : std::optional{t};
       }),
       p
     };

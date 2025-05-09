@@ -3,22 +3,21 @@ export module executionnode;
 import std;
 import stormkit.core;
 
-import symbols;
 import grid;
 
 using namespace stormkit;
 
 export {
 
-using Action = std::function<std::vector<Change<symbol>>(TracedGrid<symbol>&)>;
+using Action = std::function<std::vector<Change<char>>(TracedGrid<char>&)>;
 
 }
 
 struct ActionNode {
   Action action;
-  inline constexpr auto operator()(TracedGrid<symbol>& grid) noexcept -> std::vector<Change<symbol>> {
+  inline constexpr auto operator()(TracedGrid<char>& grid) noexcept -> std::vector<Change<char>> {
     auto&& changes = action(grid);
-    std::ranges::for_each(changes, bindFront(&TracedGrid<symbol>::apply, &grid));
+    std::ranges::for_each(changes, bindFront(&TracedGrid<char>::apply, &grid));
     return changes;
   }
 };
@@ -26,7 +25,7 @@ struct ActionNode {
 export {
 
 struct NoLimit : ActionNode {
-  inline auto operator()(TracedGrid<symbol>& grid) noexcept -> std::generator<std::vector<Change<symbol>>> {
+  inline auto operator()(TracedGrid<char>& grid) noexcept -> std::generator<std::vector<Change<char>>> {
     auto&& changes = ActionNode::operator()(grid);
     if (std::ranges::empty(changes)) co_return;
     co_yield std::move(changes);
@@ -37,7 +36,7 @@ struct Limit : ActionNode {
   UInt count;
   inline constexpr Limit(UInt _count, Action&& _action) noexcept : ActionNode{std::move(_action)}, count{_count} {}
 
-  inline auto operator()(TracedGrid<symbol>& grid) noexcept -> std::generator<std::vector<Change<symbol>>> {
+  inline auto operator()(TracedGrid<char>& grid) noexcept -> std::generator<std::vector<Change<char>>> {
     if (count == 0) co_return;
     
     auto&& changes = ActionNode::operator()(grid);
@@ -48,11 +47,11 @@ struct Limit : ActionNode {
   }
 };
 
-using ExecutionNode = std::function<std::generator<std::vector<Change<symbol>>>(TracedGrid<symbol>&)>;
+using ExecutionNode = std::function<std::generator<std::vector<Change<char>>>(TracedGrid<char>&)>;
 
 struct Sequence {
   std::vector<ExecutionNode> nodes;
-  inline auto operator()(TracedGrid<symbol>& grid) noexcept -> std::generator<std::vector<Change<symbol>>> {
+  inline auto operator()(TracedGrid<char>& grid) noexcept -> std::generator<std::vector<Change<char>>> {
     auto&& current_node = std::ranges::begin(nodes);
     while (current_node != std::ranges::end(nodes)) {
       auto&& found = false;
@@ -68,7 +67,7 @@ struct Sequence {
 
 struct Markov {
   std::vector<ExecutionNode> nodes;
-  inline auto operator()(TracedGrid<symbol>& grid) noexcept -> std::generator<std::vector<Change<symbol>>> {
+  inline auto operator()(TracedGrid<char>& grid) noexcept -> std::generator<std::vector<Change<char>>> {
     auto&& current_node = std::ranges::begin(nodes);
     while (current_node != std::ranges::end(nodes)) {
       auto&& found = false;
