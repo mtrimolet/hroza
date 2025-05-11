@@ -18,15 +18,17 @@ public:
   // static constexpr auto WINDOW_SIZE  = math::ExtentU{800u, 600u};
 
   static constexpr auto DEFAULT_PALETTE_FILE = "./resources/palette.xml";
-  static constexpr auto DEFAULT_MODEL_FILE   = "./models/DenseSAW.xml";
+  static constexpr auto DEFAULT_MODEL_FILE   = "./models/GoToGradient.xml";
 
   // static constexpr auto DEFAULT_GRID_EXTENT = math::ExtentU{1u, 33u, 33u};
+
+  auto run(std::span<const std::string_view> args) noexcept -> int;
 
 private:
   ncurses::window window;
   std::unordered_map<char, unsigned int> color_offsets;
 
-  TracedGrid<char> grid;
+  TracedGrid<char>      grid;
   xmlparser::Palette    palette;
   xmlparser::Model      model;
 
@@ -41,7 +43,7 @@ private:
 
   inline constexpr auto load_model(const std::filesystem::path& modelfile) noexcept -> decltype(auto) {
     window.say(std::format("Loading model {}", modelfile.string()));
-    model = xmlparser::parseXmlModel(modelfile);
+    model = xmlparser::loadXmlFile(modelfile);
 
     window.setpalette(model.symbols
       | std::views::transform([this](auto&& s) noexcept {
@@ -69,30 +71,5 @@ private:
     } else {
       window.addch(u.y, u.x, value);
     }
-  }
-
-public:
-  inline constexpr auto run(std::span<const std::string_view> args) noexcept -> decltype(auto) {
-    init_window();
-
-    load_palette(DEFAULT_PALETTE_FILE);
-    load_model(std::ranges::size(args) >= 2 ? args[1] : DEFAULT_MODEL_FILE);
-
-    auto&& [h, w] = window.getmaxyx();
-    init_grid(std::dims<3>{1, h, w});
-
-    window.say("Press any key to start");
-    window.waitchar();
-
-    auto&& update = [this](auto&& data) noexcept { update_cell(data); };
-    std::ranges::for_each(std::views::zip(mdiota(grid.area()), grid), update);
-    window.refresh();
-
-    for (auto&& changes : model.program(grid)) {
-      std::ranges::for_each(changes, update);
-      window.refresh();
-    }
-
-    return 0;
   }
 };

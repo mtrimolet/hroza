@@ -14,7 +14,8 @@ using namespace stormkit;
 export {
 
 struct RewriteRule {
-  using Union = std::unordered_set<char>;
+  using Union  = std::unordered_set<char>;
+  using Unions = std::unordered_map<char, Union>;
 
   Grid<std::optional<Union>> input;
   Grid<std::optional<char>>  output;
@@ -26,7 +27,7 @@ struct RewriteRule {
     Grid<std::optional<char>>&&  _output,
     double _p = 1.0
   )
-    : input{std::move(_input)},
+  : input{std::move(_input)},
     output{std::move(_output)},
     p{_p}
   {}
@@ -34,7 +35,7 @@ struct RewriteRule {
   inline constexpr auto operator==(const RewriteRule& other) const noexcept -> bool = default;
 
   static inline constexpr auto parse(
-    std::unordered_map<char, Union> unions,
+    Unions unions,
     std::string_view input,
     std::string_view output,
     double p = 1.0

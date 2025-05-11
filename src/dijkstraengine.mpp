@@ -14,93 +14,35 @@ import forceengine;
 
 using namespace stormkit;
 
+export {
+
 /** Produce distance potential through substrate */
-export
 struct DijkstraField {
   bool recompute, essential, inversed;
   std::unordered_set<char> substrate, zero;
 
-  inline constexpr auto potential(Grid<char>::ConstView grid) const noexcept -> decltype(auto) {
-    auto potential = Potential{grid.extents(), inversed ? -std::numeric_limits<double>::infinity() : std::numeric_limits<double>::infinity()};
-    auto&& p_area = potential.area();
-    propagate(
-      mdiota(p_area)
-        | std::views::filter([&zero{zero}, &grid](auto&& u) noexcept {
-            return zero.contains(grid[u.z, u.y, u.x]);
-        })
-        | std::views::transform([&potential](auto&& u) noexcept {
-            potential[u] = 0.0;
-            return std::make_pair(u, 0.0);
-        }),
-      [&](auto&& front) noexcept {
-        static constexpr auto neigh_size = 3u * math::Vector3U{1, 1, 1};
-        static constexpr auto neigh_shift = -static_cast<math::Vector3I>(neigh_size) / 2;
-        static constexpr auto neigh = Area3I{neigh_shift, neigh_size};
-
-        auto&& [u, p] = front;
-        auto&& new_us = (neigh + u).umeet(p_area);
-        auto&& new_p = inversed ? p - 1.0 : p + 1.0;
-        return mdiota(new_us)
-          | std::views::filter([&, new_p](auto&& n) noexcept {
-              return (inversed ? potential[n] < new_p : potential[n] > new_p)
-                 and substrate.contains(grid[n.z, n.y, n.x]);
-          })
-          | std::views::transform([&, new_p](auto&& n) noexcept {
-              potential[n] = new_p;
-              return std::make_pair(n, new_p);
-          });
-      }
-    );
-
-    return potential;
-  }
+  auto potential(Grid<char>::ConstView grid) const noexcept -> Potential;
 };
 
-export using DijkstraFields = std::unordered_map<char, DijkstraField>;
+using DijkstraFields = std::unordered_map<char, DijkstraField>;
 
-export
 struct DijkstraEngine : ForceEngine {
   DijkstraFields fields;
 
   inline constexpr DijkstraEngine() noexcept = default;
 
-  inline constexpr DijkstraEngine(
-    double temperature,
-    DijkstraFields&& _fields
-  ) noexcept
-  : ForceEngine{temperature},
-  fields{std::move(_fields)}
+  inline constexpr DijkstraEngine(double temperature, DijkstraFields&& _fields) noexcept
+  : ForceEngine{temperature}, fields{std::move(_fields)}
   {}
 
-  inline constexpr auto updatePotentials(Grid<char>::ConstView grid) noexcept -> decltype(auto) {
-// #pragma clang diagnostic push
-// #pragma clang diagnostic ignored "-Wunused-result"
-    std::ranges::for_each(
-      fields | std::views::filter([&potentials{potentials}](auto&& _tuple) noexcept {
-        auto&& [c, f] = _tuple;
-        return not potentials.contains(c)
-            or f.recompute;
-      }),
-      [&potentials{potentials}, potential{bindBack(&DijkstraField::potential, std::move(grid))}]
-      (auto&& _tuple) noexcept {
-        auto&& [c, f] = _tuple;
-        auto&& p = potential(f);
-        if (std::ranges::all_of(p, [](auto&& p) static noexcept {
-          return std::abs(p) == std::numeric_limits<double>::infinity();
-        })) {
-          potentials.erase(c);
-          return;
-        }
-        potentials.insert_or_assign(c, std::move(p));
-      }
-    );
-// #pragma clang diagnostic pop
-  }
+  auto updatePotentials(Grid<char>::ConstView grid) noexcept -> void;
 
   inline constexpr auto essential_missing() const noexcept -> decltype(auto) {
-    return std::ranges::any_of(fields, [&potentials{potentials}](auto&& _f) noexcept {
+    return std::ranges::any_of(fields, [&](auto&& _f) noexcept {
       auto&& [c, f] = _f;
       return f.essential and not potentials.contains(c);
     });
   }
 };
+
+}
