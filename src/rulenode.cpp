@@ -2,37 +2,47 @@ module rulenode;
 
 using namespace stormkit;
 
-auto One::operator()(const TracedGrid<char>& grid) noexcept -> std::vector<Change<char>> {
+auto InferenceEngine::infer(const TracedGrid<char>& grid) noexcept -> std::vector<Change<char>> {
   auto changes = std::vector<Change<char>>{};
 
-  if (not std::ranges::empty(search.observations)
-  and not std::ranges::empty(search.future)) {
+  if (    not std::ranges::empty(search.observations)
+      and     std::ranges::empty(search.future)
+  ) {
     changes.append_range(search.updateFuture(grid, rules));
+  }
+
+  else if (    not std::ranges::empty(observe.observations)
+           and     std::ranges::empty(observe.future)
+  ) {
+    changes.append_range(observe.updateFuture(grid, rules));
   }
 
   if (not std::ranges::empty(search.trajectory)) {
     return search.followTrajectory();
   }
 
-  if (not std::ranges::empty(observe.observations)
-  and std::ranges::empty(observe.future)) {
-    changes.append_range(observe.updateFuture(grid, rules));
-  }
-
-  this->updateMatches(grid, grid.history);
-
-  if (not std::ranges::empty(observe.observations)) {
-    observe.applyPotentials(grid, this->matches);
-  }
-  else if (not std::ranges::empty(dijkstra.fields)) {
+  if (not std::ranges::empty(dijkstra.fields)) {
     dijkstra.updatePotentials(grid);
     if (dijkstra.essential_missing()) return changes;
-    /* auto&& thrown = */ dijkstra.applyPotentials(grid, this->matches);
-    // this->matches.erase(std::ranges::begin(thrown), std::ranges::end(thrown));
+  }
+
+  if (not std::ranges::empty(observe.observations)) {
+    observe.applyPotentials(grid, matches);
+  }
+  else if (not std::ranges::empty(dijkstra.fields)) {
+    dijkstra.applyPotentials(grid, matches);
   }
   else {
-    std::ranges::shuffle(this->matches, std::mt19937{});
+    std::ranges::shuffle(matches, std::mt19937{});
   }
+
+  return changes;
+}
+
+auto One::operator()(const TracedGrid<char>& grid) noexcept -> std::vector<Change<char>> {
+  this->updateMatches(grid, grid.history);
+
+  auto changes = this->infer(grid);
 
   auto&& triggered = std::ranges::find_last_if(this->matches, bindBack(&Match::match, grid));
   changes.append_range(triggered
@@ -99,35 +109,9 @@ inline constexpr auto removeOverlaps(std::ranges::input_range auto&& matches) no
 }
 
 auto All::operator()(const TracedGrid<char>& grid) noexcept -> std::vector<Change<char>> {
-  auto changes = std::vector<Change<char>>{};
-
-  if (not std::ranges::empty(search.observations)
-  and not std::ranges::empty(search.future)) {
-    changes.append_range(search.updateFuture(grid, rules));
-  }
-
-  if (not std::ranges::empty(search.trajectory)) {
-    return search.followTrajectory();
-  }
-
-  if (not std::ranges::empty(observe.observations)
-  and std::ranges::empty(observe.future)) {
-    changes.append_range(observe.updateFuture(grid, rules));
-  }
-
   this->updateMatches(grid, grid.history);
 
-  if (not std::ranges::empty(observe.observations)) {
-    observe.applyPotentials(grid, this->matches);
-  }
-  else if (not std::ranges::empty(dijkstra.fields)) {
-    dijkstra.updatePotentials(grid);
-    if (dijkstra.essential_missing()) return changes;
-    dijkstra.applyPotentials(grid, this->matches);
-  }
-  else {
-    std::ranges::shuffle(this->matches, std::mt19937{});
-  }
+  auto changes = this->infer(grid);
 
   auto&& triggered = removeOverlaps(
     std::views::reverse(std::move(this->matches))

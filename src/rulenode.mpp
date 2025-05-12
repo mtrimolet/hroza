@@ -30,16 +30,14 @@ else
 
 export {
 
-struct One : RewriteEngine {
+struct InferenceEngine : RewriteEngine {
   DijkstraEngine    dijkstra;
   ObservationEngine observe;
   SearchEngine      search;
 
-  inline constexpr One(std::vector<RewriteRule>&& rules) noexcept
-  : RewriteEngine{std::move(rules)}
-  {}
+  using RewriteEngine::RewriteEngine;
 
-  inline constexpr One(
+  inline constexpr InferenceEngine(
     double temperature,
     DijkstraFields&& fields,
     std::vector<RewriteRule>&& rules
@@ -48,7 +46,7 @@ struct One : RewriteEngine {
     dijkstra{temperature, std::move(fields)}
   {}
 
-  inline constexpr One(
+  inline constexpr InferenceEngine(
     double temperature,
     Observations&& observations,
     std::vector<RewriteRule>&& rules
@@ -57,7 +55,7 @@ struct One : RewriteEngine {
     observe{temperature, std::move(observations)}
   {}
 
-  inline constexpr One(
+  inline constexpr InferenceEngine(
     std::optional<UInt>&& limit, double depthCoefficient,
     Observations&& observations,
     std::vector<RewriteRule>&& rules
@@ -65,53 +63,24 @@ struct One : RewriteEngine {
   : RewriteEngine{std::move(rules)},
     search{std::move(limit), depthCoefficient, std::move(observations)}
   {}
+
+  auto infer(const TracedGrid<char>& grid) noexcept -> std::vector<Change<char>>;
+};
+
+struct One : InferenceEngine {
+  using InferenceEngine::InferenceEngine;
 
   auto operator()(const TracedGrid<char>& grid) noexcept -> std::vector<Change<char>>;
 };
 
 struct Prl : RewriteEngine {
-  inline constexpr Prl(std::vector<RewriteRule>&& rules) noexcept
-  : RewriteEngine{std::move(rules)}
-  {}
+  using RewriteEngine::RewriteEngine;
 
   auto operator()(const TracedGrid<char>& grid) noexcept -> std::vector<Change<char>>;
 };
 
-struct All : RewriteEngine {
-  DijkstraEngine    dijkstra;
-  ObservationEngine observe;
-  SearchEngine      search;
-
-  inline constexpr All(std::vector<RewriteRule>&& rules) noexcept
-  : RewriteEngine{std::move(rules)}
-  {}
-
-  inline constexpr All(
-    double temperature,
-    DijkstraFields&& fields,
-    std::vector<RewriteRule>&& rules
-  ) noexcept
-  : RewriteEngine{std::move(rules)},
-    dijkstra{temperature, std::move(fields)}
-  {}
-
-  inline constexpr All(
-    double temperature,
-    Observations&& observations,
-    std::vector<RewriteRule>&& rules
-  ) noexcept
-  : RewriteEngine{std::move(rules)},
-    observe{temperature, std::move(observations)}
-  {}
-
-  inline constexpr All(
-    std::optional<UInt>&& limit, double depthCoefficient,
-    Observations&& observations,
-    std::vector<RewriteRule>&& rules
-  ) noexcept
-  : RewriteEngine{std::move(rules)},
-    search{std::move(limit), depthCoefficient, std::move(observations)}
-  {}
+struct All : InferenceEngine {
+  using InferenceEngine::InferenceEngine;
 
   auto operator()(const TracedGrid<char>& grid) noexcept -> std::vector<Change<char>>;
 };
