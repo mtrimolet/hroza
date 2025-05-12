@@ -1,5 +1,7 @@
 module forceengine;
 
+import sort;
+
 using namespace stormkit;
 
 auto ForceEngine::gain(Grid<char>::ConstView grid, const Match& match) noexcept -> double {
@@ -8,12 +10,12 @@ auto ForceEngine::gain(Grid<char>::ConstView grid, const Match& match) noexcept 
       mdiota(match.area()),
       match.rule.output
     )
-    | std::views::filter([&grid](auto&& _o) noexcept {
+    | std::views::filter([&](auto&& _o) noexcept {
         auto&& [u, o] = _o;
         // locations where value is preserved, their difference is 0
         return o != std::nullopt and *o != grid[u.z, u.y, u.x];
     })
-    | std::views::transform([&grid, &potentials{potentials}] (auto&& _o) noexcept {
+    | std::views::transform([&] (auto&& _o) noexcept {
         auto&& [u, o] = _o;
 
         auto&& new_value = *o;

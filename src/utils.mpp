@@ -28,36 +28,6 @@ std::function<ReturnType (Args...)> memoize(std::function<ReturnType (Args...)> 
   });
 }
 
-template <class T>
-struct std::hash<std::unordered_set<T>> {
-  inline constexpr auto operator()(const std::unordered_set<T>& set) const noexcept -> std::size_t {
-    auto&& seed = std::hash<std::size_t>{}(set.size());
-    for (auto&& i : set) {
-      seed ^= std::hash<T>{}(i);
-    }
-    return seed;
-  }
-};
-
-template <class T>
-struct std::hash<std::vector<T>> {
-  inline constexpr auto operator()(const std::vector<T>& vec) const noexcept -> std::size_t {
-    auto&& seed = std::hash<std::size_t>{}(vec.size());
-    for (auto&& i : vec) {
-      seed ^= std::hash<T>{}(i);
-    }
-    return seed;
-  }
-};
-
-// template <class... T>
-// struct std::hash<std::tuple<T...>> {
-//   inline constexpr auto operator()(const std::tuple<T...>& tuple) const noexcept -> std::size_t {
-//     return (std::hash<std::size_t>{}(std::tuple_size_v<std::tuple<T...>>) 
-//          ^ ...
-//          ^ std::hash<T>{}(tuple));
-//   }
-// };
 template <meta::IsArithmetic T>
 inline constexpr auto fromBase(std::string_view x, UInt8 base) noexcept -> T {
   auto&& out = T{};
@@ -68,24 +38,6 @@ inline constexpr auto fromBase(std::string_view x, UInt8 base) noexcept -> T {
                       std::make_error_code(result.ec).message()));
   return out;
 }
-
-template <>
-struct std::hash<math::Vector3U> {
-  inline constexpr auto operator()(math::Vector3U u) const noexcept -> std::size_t {
-    return std::hash<UInt32>{}(u.x)
-         ^ std::hash<UInt32>{}(u.y)
-         ^ std::hash<UInt32>{}(u.z);
-  }
-};
-
-template <>
-struct std::hash<std::dims<3>> {
-  inline constexpr auto operator()(std::dims<3> u) const noexcept -> std::size_t {
-    return std::hash<RangeExtent>{}(u.extent(0))
-         ^ std::hash<RangeExtent>{}(u.extent(1))
-         ^ std::hash<RangeExtent>{}(u.extent(2));
-  }
-};
 
 template <std::ranges::sized_range A, std::ranges::sized_range B>
 inline constexpr auto cartesian_product(A&& a, B&& b) noexcept -> decltype(auto) {
@@ -110,35 +62,5 @@ inline constexpr auto chunk(A&& a, RangeExtent extent) noexcept -> decltype(auto
         );
     });
 }
-
-struct sort_fn
-{
-    template<std::random_access_iterator I, std::sentinel_for<I> S,
-             class Comp = std::ranges::less, class Proj = std::identity>
-    requires std::sortable<I, Comp, Proj>
-    constexpr I
-        operator()(I first, S last, Comp comp = {}, Proj proj = {}) const
-    {
-        if (first == last)
-            return first;
- 
-        I last_iter = std::ranges::next(first, last);
-        std::ranges::make_heap(first, last_iter, std::ref(comp), std::ref(proj));
-        std::ranges::sort_heap(first, last_iter, std::ref(comp), std::ref(proj));
- 
-        return last_iter;
-    }
- 
-    template<std::ranges::random_access_range R, class Comp = std::ranges::less,
-             class Proj = std::identity>
-    requires std::sortable<std::ranges::iterator_t<R>, Comp, Proj>
-    constexpr std::ranges::borrowed_iterator_t<R>
-        operator()(R&& r, Comp comp = {}, Proj proj = {}) const
-    {
-        return (*this)(std::ranges::begin(r), std::ranges::end(r), std::move(comp), std::move(proj));
-    }
-};
-
-inline constexpr sort_fn sort {};
 
 }

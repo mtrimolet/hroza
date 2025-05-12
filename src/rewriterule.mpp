@@ -11,8 +11,7 @@ import grid;
 
 using namespace stormkit;
 
-export {
-
+export 
 struct RewriteRule {
   using Union  = std::unordered_set<char>;
   using Unions = std::unordered_map<char, Union>;
@@ -104,7 +103,6 @@ struct RewriteRule {
     return a + shift;
   }
 };
-}
 
 auto&& square_groups = into_array<std::function<RewriteRule(const RewriteRule&)>>(
   [](auto&& rule) static noexcept { return auto{rule}; },
@@ -127,7 +125,26 @@ constexpr auto square_subgroups =
     {"(xy)",   {true,  true,  true,  true,  true,  true,  true,  true}}
   });
 
-export {
+template <>
+struct std::hash<std::dims<3, std::size_t>> {
+  inline constexpr auto operator()(std::dims<3, std::size_t> u) const noexcept -> std::size_t {
+    return std::hash<std::dims<3>::index_type>{}(u.extent(0))
+         ^ std::hash<std::dims<3>::index_type>{}(u.extent(1))
+         ^ std::hash<std::dims<3>::index_type>{}(u.extent(2));
+  }
+};
+
+template <class T>
+struct std::hash<std::unordered_set<T>> {
+  inline constexpr auto operator()(const std::unordered_set<T>& set) const noexcept -> std::size_t {
+    auto&& seed = std::hash<std::size_t>{}(set.size());
+    for (auto&& i : set) {
+      seed ^= std::hash<T>{}(i);
+    }
+    return seed;
+  }
+};
+
 template <>
 struct std::hash<RewriteRule> {
   inline constexpr auto operator()(const RewriteRule& rule) const noexcept -> std::size_t {
@@ -142,10 +159,10 @@ struct std::hash<RewriteRule> {
   }
 };
 
+export
 inline constexpr auto symmetries(const RewriteRule& rule, std::string_view subgroup = "") noexcept -> decltype(auto) {
   return std::views::zip(square_groups, square_subgroups.at(std::empty(subgroup) ? "(xy)" : subgroup))
     | std::views::filter(monadic::get<1>())
     | std::views::transform([&rule](auto&& action) noexcept { return std::get<0>(action)(rule); })
     | std::ranges::to<std::unordered_set>();
-}
 }
