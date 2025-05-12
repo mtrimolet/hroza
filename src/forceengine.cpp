@@ -29,7 +29,7 @@ auto ForceEngine::gain(Grid<char>::ConstView grid, const Match& match) noexcept 
   );
 }
 
-auto ForceEngine::applyPotentials(Grid<char>::ConstView grid, std::span<Match> matches) noexcept -> void {
+auto ForceEngine::sort(Grid<char>::ConstView grid, std::span<Match> matches) noexcept -> void {
   static auto rg = std::mt19937{std::random_device{}()};
   if (std::ranges::empty(potentials)) {
     std::ranges::shuffle(matches, rg);

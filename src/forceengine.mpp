@@ -31,7 +31,7 @@ struct ForceEngine {
   auto gain(Grid<char>::ConstView grid, const Match& match) noexcept -> double;
 
   /** Sort by (inverse) heated potential gain in non-descending order */
-  auto applyPotentials(Grid<char>::ConstView grid, std::span<Match> matches) noexcept -> void;
+  auto sort(Grid<char>::ConstView grid, std::span<Match> matches) noexcept -> void;
 };
 
 }
