@@ -43,7 +43,8 @@ add_requires("stormkit develop", {
 add_defines("PUGIXML_USE_STD_MODULE")
 add_requires(
     "pugixml",
-    "ncurses"
+    "ncurses",
+    "ftxui"
 )
 
 add_requireconfs(
@@ -80,7 +81,8 @@ target("hroza")
         "unordered_dense", "magic_enum", "tl_function_ref", "cpptrace",
 
         "pugixml",
-        "ncurses"
+        "ncurses",
+        "ftxui"
     )
 
     add_files("lib/**.mpp")
