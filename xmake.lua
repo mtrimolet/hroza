@@ -59,7 +59,7 @@ if is_mode("debug") then
     add_defines("_LIBCPP_DEBUG")
 end
 
-add_requireconfs("**", {configs = {modules = true}})
+add_requireconfs("**", { configs = { modules = true, std_import = true, cpp = "latest" }})
 add_cxxflags("-fexperimental-library")
 
 option("compile_commands", { default = true, category = "root menu/support" })
