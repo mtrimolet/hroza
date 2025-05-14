@@ -17,8 +17,6 @@ elseif is_mode("releasedbg") then
     add_mxflags("-ggdb3", { tools = { "clang", "gcc" } })
 end
 
-add_frameworks(is_plat("macosx") and { "Foundation" } or {})
-
 add_repositories("tapzcrew-repo https://github.com/tapzcrew/xmake-repo main")
 
 -- will become stormkit deps when their module is porperly re-exported
@@ -32,11 +30,10 @@ add_requires("unordered_dense", "magic_enum", "tl_function_ref", "cpptrace")
 add_requires("stormkit develop", {
     configs = {
         image = false,
-        wsi = false,
-        log = false,
+        wsi = true,
+        log = true,
         entities = false,
         gpu = false,
-        components = { "core", "main" },
     },
 })
 
@@ -69,9 +66,9 @@ end
 target("hroza")
     set_kind("binary")
 
-    add_packages(
-        "stormkit",
+    add_packages("stormkit", { components = { "core", "main", "wsi", "log" } })
 
+    add_packages(
         -- will become stormkit deps when their module is porperly re-exported
         "glm", "frozen",
 
@@ -86,3 +83,7 @@ target("hroza")
     add_files("src/**.mpp")
     add_files("src/*.cpp")
     set_rundir("$(projectdir)")
+
+    if is_plat("macosx") then
+        add_frameworks("Foundation", "AppKit", "Metal", "IOKit", "QuartzCore")
+    end
