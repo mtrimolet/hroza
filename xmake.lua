@@ -1,7 +1,7 @@
 add_rules("mode.debug", "mode.release", "mode.releasedbg")
 
 set_languages("c++latest")
--- set_warnings("allextra", "error")
+set_warnings("allextra", "error")
 
 set_symbols("hidden")
 if is_mode("release") then

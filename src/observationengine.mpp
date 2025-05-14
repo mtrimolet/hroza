@@ -26,13 +26,12 @@ auto future(Grid<char>::ConstView grid, Observations obs) noexcept -> std::pair<
 
 struct ObservationEngine : ForceEngine {
   Observations observations;
-  
-  Future future;
+  Future       future;
 
   inline constexpr ObservationEngine() noexcept = default;
 
   inline constexpr ObservationEngine(double temperature, Observations&& _observations) noexcept
-  : ForceEngine{temperature}, observations{std::move(_observations)}, future{} {}
+  : ForceEngine{temperature, {}}, observations{std::move(_observations)}, future{} {}
 
   auto updateFuture(Grid<char>::ConstView grid, std::span<const RewriteRule> rules) noexcept -> std::vector<Change<char>>;
 };

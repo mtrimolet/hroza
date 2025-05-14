@@ -32,7 +32,7 @@ struct DijkstraEngine : ForceEngine {
   inline constexpr DijkstraEngine() noexcept = default;
 
   inline constexpr DijkstraEngine(double temperature, DijkstraFields&& _fields) noexcept
-  : ForceEngine{temperature}, fields{std::move(_fields)}
+  : ForceEngine{temperature, {}}, fields{std::move(_fields)}
   {}
 
   auto updatePotentials(Grid<char>::ConstView grid) noexcept -> void;

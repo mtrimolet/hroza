@@ -28,7 +28,7 @@ auto RewriteEngine::newMatches(
         auto&& g_zone = (static_cast<Area3I>(g_area) + neigh.u).umeet(g_area);
         return changes
           | std::views::transform([&](const Change<char>& change) noexcept {
-              auto&& zone = (neigh + change.u).meet(static_cast<Area3I>(g_area) + neigh.u).umeet(g_area);
+              auto&& zone = (neigh + change.u).meet(g_zone);
               return mdiota(zone);
           })
           | std::views::join

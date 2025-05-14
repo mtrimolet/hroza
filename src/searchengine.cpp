@@ -92,7 +92,7 @@ auto forward(Grid<char>::ConstView grid, std::span<const RewriteRule> rules) noe
   return potentials;
 }
 
-auto SearchEngine::updateFuture(Grid<char>::ConstView grid, std::span<const RewriteRule> rules) noexcept -> std::vector<Change<char>> {
+auto SearchEngine::updateFuture(Grid<char>::ConstView grid, std::span<const RewriteRule>) noexcept -> std::vector<Change<char>> {
   if (not std::ranges::empty(future)) {
     return std::vector<Change<char>>{};
   }

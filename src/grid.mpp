@@ -163,7 +163,7 @@ struct Grid {
     auto&& area = ::xreflected(this->area());
     return mdiota(area)
       | std::views::transform([this, &size{area.size}](auto&& u) noexcept {
-          return at({ size.x - u.x - 1u, u.y, u.z });
+          return this->at({ size.x - u.x - 1u, u.y, u.z });
       })
       // | std::views::transform(bindFront(&Grid<T>::at, this))
       | std::ranges::to<Grid<T>>(toExtents(area.size));
@@ -173,7 +173,7 @@ struct Grid {
     auto&& area = ::xyrotated(this->area());
     return mdiota(area)
       | std::views::transform([this, &size{area.size}](auto&& u) noexcept {
-          return at({ u.y, size.x - u.x - 1u, u.z });
+          return this->at({ u.y, size.x - u.x - 1u, u.z });
       })
       // | std::views::transform(bindFront(&Grid<T>::at, this))
       | std::ranges::to<Grid<T>>(toExtents(area.size));
@@ -183,7 +183,7 @@ struct Grid {
     auto&& area = ::zyrotated(this->area());
     return mdiota(area)
       | std::views::transform([this, &size{area.size}](auto&& u) noexcept {
-          return at({ u.x, size.z - u.z - 1u, u.y });
+          return this->at({ u.x, size.z - u.z - 1u, u.y });
       })
       // | std::views::transform(bindFront(&Grid<T>::at, this))
       | std::ranges::to<Grid<T>>(toExtents(area.size));
@@ -208,7 +208,7 @@ struct TracedGrid : Grid<T> {
 
   inline constexpr auto apply(const Change<T>& change) noexcept -> decltype(auto) {
     history.push_back(change);
-    Grid<T>::operator[](change.u) = change.value;
+    this->at(change.u) = change.value;
   }
 };
 }

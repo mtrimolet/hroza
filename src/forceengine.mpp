@@ -24,7 +24,7 @@ using Potential  = Grid<double>;
 using Potentials = std::unordered_map<char, Potential>;
 
 struct ForceEngine {
-  double temperature;
+  double     temperature;
   Potentials potentials;
 
   /** Sum of differences of potential caused by applying match */
