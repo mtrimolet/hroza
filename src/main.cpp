@@ -1,4 +1,4 @@
-#include <stormkit/Main/MainMacro.hpp>
+#include <stormkit/main/main_macro.hpp>
 #include <unistd.h>
 
 import std;
