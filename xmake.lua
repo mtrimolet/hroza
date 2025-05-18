@@ -43,14 +43,12 @@ add_requires("stormkit develop", {
 add_defines("PUGIXML_USE_STD_MODULE")
 add_requires(
     "pugixml",
-    "ncurses",
     "ftxui"
 )
 
 add_requireconfs(
     "glm",
     "pugixml",
-    -- "ncurses",
     "cpptrace",
     {system=false}
 )
@@ -81,7 +79,6 @@ target("hroza")
         "unordered_dense", "magic_enum", "tl_function_ref", "cpptrace",
 
         "pugixml",
-        "ncurses",
         "ftxui"
     )
 
