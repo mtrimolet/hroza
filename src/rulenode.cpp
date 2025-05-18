@@ -1,5 +1,9 @@
 module rulenode;
 
+import geometry;
+
+import match;
+
 using namespace stormkit;
 
 auto InferenceEngine::infer(const TracedGrid<char>& grid) noexcept -> std::vector<Change<char>> {

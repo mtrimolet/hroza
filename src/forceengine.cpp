@@ -1,6 +1,8 @@
 module forceengine;
 
 import sort;
+import stormkit.core;
+import geometry;
 
 using namespace stormkit;
 

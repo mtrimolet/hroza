@@ -68,7 +68,7 @@ inline auto parseXmlRules(
   if (std::ranges::empty(xrules)) xrules.push_back(xnode);
   return std::move(xrules)
      | std::views::transform(bindBack(parseXmlRule, unions))
-     | std::views::transform(bindBack(symmetries, symmetry))
+     | std::views::transform(bindBack(RewriteRule::symmetries, symmetry))
      | std::views::join
      | std::ranges::to<std::vector>();
 }

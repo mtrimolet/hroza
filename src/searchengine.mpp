@@ -1,10 +1,7 @@
 export module searchengine;
 
 import std;
-import glm;
 import stormkit.core;
-import utils;
-import geometry;
 
 import grid;
 import rewriterule;

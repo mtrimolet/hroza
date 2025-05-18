@@ -1,15 +1,11 @@
 export module rewriteengine;
 
 import std;
-import glm;
 import stormkit.core;
-import utils;
-import geometry;
 
 import grid;
 import rewriterule;
 import match;
-import forceengine;
 
 using namespace stormkit;
 

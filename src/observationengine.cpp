@@ -1,5 +1,7 @@
 module observationengine;
 
+import stormkit.core;
+
 using namespace stormkit;
 
 auto future(Grid<char>::ConstView grid, Observations obs) noexcept -> std::pair<std::vector<Change<char>>, Future> {

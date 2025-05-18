@@ -1,9 +1,7 @@
 export module match;
 
 import std;
-import glm;
 import stormkit.core;
-import utils;
 import geometry;
 
 import grid;

@@ -8,6 +8,14 @@ using namespace stormkit;
 
 export {
 
+using glm::operator+;
+using glm::operator-;
+using glm::operator*;
+using glm::operator/;
+using glm::operator%;
+using glm::operator==;
+using glm::operator!=;
+
 //////////////////////////////////
 // Enrichment of math::Vector3U //
 //////////////////////////////////
@@ -90,7 +98,7 @@ struct HyperRectangle {
 
   inline constexpr auto operator/(T r) const noexcept -> decltype(auto) {
     if constexpr (std::is_same_v<Position, Size>)
-      return HyperRectangle{u * r, size / r};
+      return HyperRectangle{u / r, size / r};
     else
       return HyperRectangle{u / r, size / std::abs(r)};
   }

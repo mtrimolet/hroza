@@ -1,5 +1,8 @@
 module rewriteengine;
 
+import glm;
+import geometry;
+
 using namespace stormkit;
 
 auto RewriteEngine::newMatches(

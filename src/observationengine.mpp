@@ -1,16 +1,10 @@
 export module observationengine;
 
 import std;
-import glm;
-import stormkit.core;
-import utils;
-import geometry;
 
 import grid;
 import rewriterule;
 import forceengine;
-
-using namespace stormkit;
 
 export {
 

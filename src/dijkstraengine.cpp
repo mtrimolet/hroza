@@ -1,5 +1,8 @@
 module dijkstraengine;
 
+import stormkit.core;
+import geometry;
+
 using namespace stormkit;
 
 auto DijkstraField::potential(Grid<char>::ConstView grid) const noexcept -> Potential {

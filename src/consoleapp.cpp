@@ -1,5 +1,8 @@
 module consoleapp;
 
+import stormkit.core;
+import geometry;
+
 using namespace stormkit;
 using namespace ftxui;
 
