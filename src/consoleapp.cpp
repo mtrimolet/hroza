@@ -3,17 +3,24 @@ module consoleapp;
 import stormkit.core;
 import geometry;
 
+using namespace std::string_literals;
 using namespace stormkit;
 using namespace ftxui;
 
 using Palette = std::unordered_map<char, Color>;
+
+inline constexpr auto canvasFromImage(const Image& img) noexcept -> decltype(auto) {
+  return canvas(img.dimx(), img.dimy(), bindBack(&Canvas::DrawImage, 0, 0, img))
+    | size(WIDTH, GREATER_THAN, img.dimx())
+    | size(HEIGHT, GREATER_THAN, img.dimy());
+}
 
 auto ConsoleApp::run([[maybe_unused]] std::span<const std::string_view> args) noexcept -> int {
   load_palette(DEFAULT_PALETTE_FILE);
 
   load_model(std::ranges::size(args) >= 2 ? args[1] : DEFAULT_MODEL_FILE);
 
-  auto model_palette = model.symbols
+  auto symbols_palette = model.symbols
     | std::views::transform([&](auto&& character) noexcept {
         return std::make_pair(
           character,
@@ -26,19 +33,27 @@ auto ConsoleApp::run([[maybe_unused]] std::span<const std::string_view> args) no
     })
     | std::ranges::to<Palette>();
 
-  auto palette_texture = Image{8, static_cast<int>(std::ranges::size(model.symbols)) / 8};
+  auto symbols_texture = Image{8, static_cast<int>(std::ranges::size(model.symbols)) / 8};
   std::ranges::for_each(
     std::views::zip(
       model.symbols,
-      mdiota(std::dims<3>{1, palette_texture.dimy(), palette_texture.dimx()})
+      mdiota(std::dims<3>{1, symbols_texture.dimy(), symbols_texture.dimx()})
     ),
     [&](auto&& cu) noexcept {
       auto&& [character, u] = cu;
-      auto&& pixel = palette_texture.PixelAt(u.x, u.y);
+      auto&& pixel = symbols_texture.PixelAt(u.x, u.y);
       pixel.character = character;
-      pixel.background_color = model_palette.at(character);
+      pixel.background_color = symbols_palette.at(character);
     }
   );
+
+  auto symbols_view = Renderer([&]() noexcept {
+    return canvasFromImage(symbols_texture);
+  });
+  auto program_view = Renderer([&]() noexcept {
+    // TODO how the hell can I draw a program tree with my current typings O_O'
+    return text("<instruction_tree>");
+  });
 
   init_grid(DEFAULT_GRID_EXTENT);
 
@@ -50,36 +65,36 @@ auto ConsoleApp::run([[maybe_unused]] std::span<const std::string_view> args) no
     std::ranges::for_each(changes, [&](auto&& change) noexcept {
       auto&& [u, character] = change;
       auto&& pixel = grid_texture.PixelAt(u.x, u.y);
-      pixel.character = character;
-      pixel.background_color = model_palette.at(character);
+      pixel.character = /* character; */ " ";
+      pixel.background_color = symbols_palette.at(character);
     });
   };
   update_grid_texture(std::views::zip(mdiota(grid.area()), grid));
 
-  auto screen = ScreenInteractive::Fullscreen();
-  auto main_loop = Loop{&screen, Renderer([&]() noexcept {
+  auto grid_view = Renderer([&]() noexcept {
+    return canvasFromImage(grid_texture);
+  });
+
+  auto root_view = Renderer([&]() noexcept {
     return window(text("<model_title>"), hbox({
-      canvas(grid_texture.dimx(), grid_texture.dimy(),
-             bindBack(&Canvas::DrawImage, 0, 0, grid_texture))
-        | size(WIDTH, GREATER_THAN, grid_texture.dimx())
-        | size(HEIGHT, GREATER_THAN, grid_texture.dimy())
+      grid_view->Render()
         | center | flex_grow,
       separator(),
       vbox({
-        window(text("symbols"), canvas(
-          palette_texture.dimx(), palette_texture.dimy(),
-          bindBack(&Canvas::DrawImage, 0, 0, palette_texture)
-        )),
-        window(text("program"), text("<instruction_tree>")),
+        window(text("symbols"), symbols_view->Render()),
+        window(text("program"), program_view->Render()),
       }),
     }));
-  })};
+  });
+
+  auto screen = ScreenInteractive::Fullscreen();
+  auto main_loop = Loop{&screen, root_view};
 
   auto program_thread = std::jthread([&](std::stop_token stop) mutable noexcept {
     for (auto&& changes : model.program(grid)) {
       if (stop.stop_requested()) return;
       update_grid_texture(changes);
-      screen.RequestAnimationFrame();
+      screen.RequestAnimationFrame(); // TODO find how to handle bottom-up signal using custom Component or whatever
     }
   });
 
