@@ -8,6 +8,7 @@ if is_mode("release") then
     set_optimize("fastest")
 elseif is_mode("debug") then
     set_symbols("debug", "hidden")
+    add_cxflags("-fno-omit-frame-pointer", { tools = { "clang", "gcc" } })
     add_cxflags("-ggdb3", { tools = { "clang", "gcc" } })
     add_mxflags("-ggdb3", { tools = { "clang", "gcc" } })
 elseif is_mode("releasedbg") then
@@ -38,6 +39,8 @@ add_requires("stormkit develop", {
 })
 
 add_defines("PUGIXML_USE_STD_MODULE")
+-- TODO disable unused exceptions and edit code accordingly
+-- add_defines("PUGIXML_NO_EXCEPTIONS")
 add_requires(
     "pugixml",
     "ftxui"
