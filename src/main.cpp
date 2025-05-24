@@ -13,7 +13,6 @@ inline constexpr auto run_consoleapp(std::span<const std::string_view> args) noe
 }
 
 inline constexpr auto run_windowapp(std::span<const std::string_view> args) noexcept -> int {
-  auto _ = log::Logger::create_logger_instance<log::ConsoleLogger>();
   return WindowApp{}.run(args);
 }
 
@@ -23,6 +22,7 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
 
   auto&& tui = std::ranges::find(args, "--tui") != std::ranges::end(args);
   
+  auto _ = log::Logger::create_logger_instance<log::ConsoleLogger>();
   if (tui) return run_consoleapp(args);
   else     return run_windowapp(args);
 }

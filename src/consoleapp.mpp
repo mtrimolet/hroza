@@ -1,6 +1,7 @@
 export module consoleapp;
 
 import std;
+import log;
 import ftxui;
 
 import grid;
@@ -25,12 +26,12 @@ private:
   xmlparser::Model   model;
 
   inline constexpr auto load_palette(const std::filesystem::path& palettefile) noexcept -> decltype(auto) {
-    // window.say(std::format("Loading palette {}", palettefile.string()));
+    ilog("loading palette {}", palettefile.string());
     palette = xmlparser::parseXmlPalette(palettefile);
   }
 
   inline constexpr auto load_model(const std::filesystem::path& modelfile) noexcept -> decltype(auto) {
-    // window.say(std::format("Loading model {}", modelfile.string()));
+    ilog("loading model {}", modelfile.string());
     model = xmlparser::loadXmlFile(modelfile);
   }
 

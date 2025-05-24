@@ -1,13 +1,10 @@
-module;
-#include <stormkit/log/log_macro.hpp>
 export module windowapp;
 
 import std;
+import log;
 import stormkit.core;
-import stormkit.log;
 import stormkit.wsi;
 
-import log;
 import geometry;
 import grid;
 
@@ -51,12 +48,12 @@ private:
   }
 
   inline constexpr auto load_palette(const std::filesystem::path& palettefile) noexcept -> decltype(auto) {
-    ilog(std::format("loading palette {}", palettefile.string()));
+    ilog("loading palette {}", palettefile.string());
     palette = xmlparser::parseXmlPalette(palettefile);
   }
 
   inline constexpr auto load_model(const std::filesystem::path& modelfile) noexcept -> decltype(auto) {
-    ilog(std::format("loading model {}", modelfile.string()));
+    ilog("loading model {}", modelfile.string());
     model = xmlparser::loadXmlFile(modelfile);
 
     // window.setpalette(model.symbols
