@@ -23,10 +23,10 @@ struct ForceEngine {
   Potentials potentials;
 
   /** Sum of differences of potential caused by applying match */
-  auto gain(Grid<char>::ConstView grid, const Match& match) noexcept -> double;
+  auto weight(const Grid<char>& grid, const Match& match) noexcept -> double;
 
   /** Sort by (inverse) heated potential gain in non-descending order */
-  auto sort(Grid<char>::ConstView grid, std::span<Match> matches) noexcept -> void;
+  auto sort(const Grid<char>& grid, std::span<Match> matches) noexcept -> void;
 };
 
 }

@@ -1,0 +1,58 @@
+export module parser;
+
+import std;
+import stormkit.core;
+import utils;
+
+import pugixml;
+
+import rewriterule;         // <rule>
+import dijkstraengine;      // <field>
+import observationengine;   // <observe>
+import rulenode;            // <one>, <prl>, <all>
+import executionnode;       // <sequence>, <markov>
+
+import model;
+
+using namespace stormkit;
+using namespace std::literals;
+
+export {
+
+namespace parser {
+
+auto document(std::span<const std::byte> buffer) noexcept -> pugi::xml_document;
+auto document(const std::filesystem::path& filepath) noexcept -> pugi::xml_document;
+
+auto Model(const pugi::xml_document& xmodel) noexcept -> Model;
+
+auto ExecutionNode(
+  const pugi::xml_node& xnode,
+  RewriteRule::Unions unions,
+  std::string_view symmetry = ""
+) noexcept -> ExecutionNode;
+
+auto RuleNode(
+  const pugi::xml_node& xnode,
+  std::string_view symmetry = ""
+) noexcept -> Action;
+
+auto Rule(const pugi::xml_node& xnode) noexcept -> RewriteRule;
+auto Rules(
+  const pugi::xml_node& xnode,
+  std::string_view symmetry = ""
+) noexcept -> std::vector<RewriteRule>;
+
+auto Field(const pugi::xml_node& xnode) noexcept -> std::pair<char, DijkstraField>;
+auto Fields(const pugi::xml_node& xnode) noexcept -> DijkstraFields;
+
+auto Observation(const pugi::xml_node& xnode) noexcept -> std::pair<char, Observation>;
+auto Observations(const pugi::xml_node& xnode) noexcept -> ::Observations;
+
+using Color32 = UInt32;
+using ColorPalette = std::unordered_map<char, Color32>;
+
+auto Palette(const pugi::xml_document& xpalette) noexcept -> ColorPalette;
+
+}
+}

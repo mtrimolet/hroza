@@ -2,10 +2,14 @@ export module consoleapp;
 
 import std;
 import log;
-import ftxui;
 
 import grid;
-import xmlparser;
+
+import ftxui;
+
+import model;
+import parser;
+import render;
 
 export
 struct ConsoleApp {
@@ -13,30 +17,21 @@ public:
   // static constexpr auto WINDOW_TITLE = "Hroza";
   static constexpr auto WINDOW_SIZE  = std::dims<2>{100u, 100u};
 
-  static constexpr auto DEFAULT_PALETTE_FILE = "./resources/palette.xml";
-  static constexpr auto DEFAULT_MODEL_FILE   = "./models/GoToGradient.xml";
+  static constexpr auto DEFAULT_PALETTE_FILE = "resources/palette.xml";
+  static constexpr auto DEFAULT_MODEL_FILE   = "models/GoToGradient.xml";
 
   static constexpr auto DEFAULT_GRID_EXTENT = std::dims<3>{1u, 40u, 40u};
 
   auto run(std::span<const std::string_view> args) noexcept -> int;
 
 private:
-  TracedGrid<char>   grid;
-  xmlparser::Palette palette;
-  xmlparser::Model   model;
+  parser::ColorPalette default_palette;
+  auto load_palette(const std::filesystem::path& palettefile) noexcept -> void;
 
-  inline constexpr auto load_palette(const std::filesystem::path& palettefile) noexcept -> decltype(auto) {
-    ilog("loading palette {}", palettefile.string());
-    palette = xmlparser::parseXmlPalette(palettefile);
-  }
+  Model           model;
+  render::Palette palette;
+  auto load_model(const std::filesystem::path& modelfile) noexcept -> void;
 
-  inline constexpr auto load_model(const std::filesystem::path& modelfile) noexcept -> decltype(auto) {
-    ilog("loading model {}", modelfile.string());
-    model = xmlparser::loadXmlFile(modelfile);
-  }
-
-  inline constexpr auto init_grid(auto&& extents) noexcept -> decltype(auto) {
-    grid = TracedGrid{extents, model.symbols[0]};
-    if (model.origin) grid[grid.area().center()] = model.symbols[1];
-  }
+  TracedGrid<char> grid;
+  auto init_grid(TracedGrid<char>::Extents extents) noexcept -> void;
 };

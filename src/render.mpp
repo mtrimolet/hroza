@@ -1,0 +1,39 @@
+export module render;
+
+import std;
+import stormkit.core;
+import ftxui;
+
+import grid;
+import rewriterule;
+import rulenode;
+import executionnode;
+
+import model;
+
+using namespace ftxui;
+using namespace stormkit;
+
+export namespace render {
+
+using Palette = std::unordered_map<char, Color>;
+
+Element canvasFromImage(const Image& img) noexcept;
+
+Element   grid(const ::Grid<char>& g, const Palette& palette) noexcept;
+Component Grid(const ::Grid<char>& g, const Palette& palette) noexcept;
+
+Element   rule(const ::RewriteRule& rule, const Palette& palette) noexcept;
+Component Rule(const ::RewriteRule& rule, const Palette& palette) noexcept;
+
+Element   ruleNode(const Action& node, const Palette& palette, std::optional<UInt> count = {}) noexcept;
+Component RuleNode(const Action& node, const Palette& palette, std::optional<UInt> count = {}) noexcept;
+Element   executionNode(const ::ExecutionNode& node, const Palette& palette) noexcept;
+Component ExecutionNode(const ::ExecutionNode& node, const Palette& palette) noexcept;
+
+Element   symbols(std::string_view values, const Palette& palette) noexcept;
+Component Symbols(std::string_view symbols, const Palette& palette) noexcept;
+
+Element   model(const ::Model& node, const Palette& palette) noexcept;
+Component Model(const ::Model& node, const Palette& palette) noexcept;
+}

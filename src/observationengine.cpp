@@ -4,23 +4,23 @@ import stormkit.core;
 
 using namespace stormkit;
 
-auto future(Grid<char>::ConstView grid, Observations obs) noexcept -> std::pair<std::vector<Change<char>>, Future> {
+auto future(const Grid<char>& grid, Observations obs) noexcept -> std::pair<std::vector<Change<char>>, Future> {
   auto changes = std::vector<Change<char>>{};
-  auto f = mdiota(grid.extents())
+  auto f = mdiota(grid.area())
     | std::views::transform([&](auto&& u) noexcept {
-        auto&& c = grid[u.z, u.y, u.x];
+        auto&& c = grid[u];
         if (not obs.contains(c)) return std::optional<std::unordered_set<char>>{};
         auto&& o = obs.at(c);
         if (o.from) changes.emplace_back(u, *o.from);
         return std::optional{o.to};
     })
-    | std::ranges::to<Future>(grid.extents());
+    | std::ranges::to<Future>(grid.extents);
 
   return std::make_pair(std::move(changes), std::move(f));
 }
 
 // inline constexpr auto forward(
-//   Grid<char>::ConstView grid,
+//   const Grid<char>& grid,
 //   std::span<const RewriteRule> rules
 // ) noexcept -> Potentials {
 //   auto potentials = Potentials{};
@@ -112,7 +112,7 @@ auto future(Grid<char>::ConstView grid, Observations obs) noexcept -> std::pair<
 //   return potentials;
 // }
 
-auto ObservationEngine::updateFuture(Grid<char>::ConstView grid, std::span<const RewriteRule>) noexcept -> std::vector<Change<char>> {
+auto ObservationEngine::updateFuture(const Grid<char>& grid, std::span<const RewriteRule>) noexcept -> std::vector<Change<char>> {
   if (not std::ranges::empty(future)) {
     return std::vector<Change<char>>{};
   }

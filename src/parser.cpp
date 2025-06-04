@@ -1,43 +1,47 @@
-module xmlparser;
+module parser;
+
+import log;
 
 using namespace stormkit;
 using namespace std::literals;
 
-namespace xmlparser {
+namespace parser {
 
-auto parseXmlModel(const pugi::xml_document& xmodel) noexcept -> Model {
+auto Model(const pugi::xml_document& xmodel) noexcept -> ::Model {
   auto&& xnode = xmodel.first_child();
 
   ensures(xnode.attribute("values"),
           std::format("missing '{}' attribute in '{}' node [:{}]", "values", "[root]", xnode.offset_debug()));
-  auto&& symbols = std::string{xnode.attribute("values").as_string()};
+  auto symbols = std::string{xnode.attribute("values").as_string()};
   ensures(!std::ranges::empty(symbols),
           std::format("empty '{}' attribute in '{}' node [:{}]", "values", "[root]", xnode.offset_debug()));
   // ensure no duplicate
   auto&& origin = xnode.attribute("origin").as_bool(false);
 
-  auto&& unions = symbols
+  auto unions = RewriteRule::Unions{{'*', auto{symbols}}};
+  unions.insert_range(symbols
     | std::views::transform([](auto&& c) static noexcept { 
-        return std::make_pair(c, std::unordered_set{c});
-      })
-    | std::ranges::to<std::unordered_map>();
+        return std::make_pair(c, std::string{c});
+    }));
+  // ilog("unions: {}", unions);
 
-  auto&& program = parseXmlNode(xnode, unions);
+  auto&& program = ExecutionNode(xnode, unions);
   if (xnode.name() != "sequence"s and xnode.name() != "markov"s)
     program = Markov{{program}};
 
-  return Model{
+  return ::Model{
     // title,
-    std::move(symbols), std::move(origin),
+    std::move(symbols), std::move(unions),
+    std::move(origin),
     std::move(program)
   };
 }
 
-auto parseXmlNode(
+auto ExecutionNode(
   const pugi::xml_node& xnode,
-  std::unordered_map<char, RewriteRule::Union> unions,
+  RewriteRule::Unions unions,
   std::string_view symmetry
-) noexcept -> ExecutionNode {
+) noexcept -> ::ExecutionNode {
   symmetry = xnode.attribute("symmetry").as_string(std::data(symmetry));
 
   unions.insert_range(xnode.children("union") 
@@ -56,7 +60,7 @@ auto parseXmlNode(
       ensures(!std::ranges::empty(values),
               std::format("empty '{}' attribute in '{}' node [:{}]", "values", "union", xunion.offset_debug()));
 
-      return std::make_pair(symbol_str[0], values | std::ranges::to<std::unordered_set>());
+      return std::make_pair(symbol_str[0], std::move(values));
     })
   );
   
@@ -65,7 +69,7 @@ auto parseXmlNode(
     return Sequence{
       xnode.children()
         | std::views::filter([](const pugi::xml_node& c) static noexcept { return c.name() != "union"s; })
-        | std::views::transform(bindBack(parseXmlNode, unions, symmetry))
+        | std::views::transform(bindBack(ExecutionNode, unions, symmetry))
         | std::ranges::to<std::vector>()
     };
   }
@@ -73,7 +77,7 @@ auto parseXmlNode(
     return Markov{
       xnode.children()
         | std::views::filter([](const pugi::xml_node& c) static noexcept { return c.name() != "union"s; })
-        | std::views::transform(bindBack(parseXmlNode, unions, symmetry))
+        | std::views::transform(bindBack(ExecutionNode, unions, symmetry))
         | std::ranges::to<std::vector>()
     };
   }
@@ -82,20 +86,19 @@ auto parseXmlNode(
         or tag == "all"s) {
     auto&& steps = xnode.attribute("steps").as_uint(0);
     if (steps == 0)
-      return NoLimit{parseXmlRuleNode(xnode, unions, symmetry)};
+      return NoLimit{RuleNode(xnode, symmetry)};
     else
-      return Limit{std::move(steps), parseXmlRuleNode(xnode, unions, symmetry)};
+      return Limit{std::move(steps), RuleNode(xnode, symmetry)};
   }
   
   ensures(false, std::format("unknown tag '{}' [:{}]", tag, xnode.offset_debug()));
   std::unreachable();
 }
 
-auto parseXmlRuleNode(
+auto RuleNode(
   const pugi::xml_node& xnode,
-  std::unordered_map<char, RewriteRule::Union> unions,
   std::string_view symmetry
-) noexcept -> Action {
+) noexcept -> ::Action {
   auto&& tag = xnode.name();
   if (tag == "one"s) {
     auto&& observes = xnode.children("observe");
@@ -107,15 +110,15 @@ auto parseXmlRuleNode(
             ? std::optional{xnode.attribute("limit").as_uint()}
             : std::nullopt,
           xnode.attribute("depthCoefficient").as_double(0.5),
-          parseXmlObservations(xnode),
-          parseXmlRules(xnode, unions, symmetry)
+          Observations(xnode),
+          Rules(xnode, symmetry)
         };
       }
 
       return One{
         xnode.attribute("temperature").as_double(0.0),
-        parseXmlObservations(xnode),
-        parseXmlRules(xnode, unions, symmetry)
+        Observations(xnode),
+        Rules(xnode, symmetry)
       };
     }
 
@@ -123,19 +126,19 @@ auto parseXmlRuleNode(
     if (not std::ranges::empty(fields)) {
       return One{
         xnode.attribute("temperature").as_double(0.0),
-        parseXmlFields(xnode),
-        parseXmlRules(xnode, unions, symmetry)
+        Fields(xnode),
+        Rules(xnode, symmetry)
       };
     }
 
     return One{
-      parseXmlRules(xnode, unions, symmetry)
+      Rules(xnode, symmetry)
     };
   }
 
   if (tag == "prl"s) {
     return Prl{
-      parseXmlRules(xnode, unions, symmetry)
+      Rules(xnode, symmetry)
     };
   }
 
@@ -149,15 +152,15 @@ auto parseXmlRuleNode(
             ? std::optional{xnode.attribute("limit").as_uint()}
             : std::nullopt,
           xnode.attribute("depthCoefficient").as_double(0.5),
-          parseXmlObservations(xnode),
-          parseXmlRules(xnode, unions, symmetry)
+          Observations(xnode),
+          Rules(xnode, symmetry)
         };
       }
 
       return All{
         xnode.attribute("temperature").as_double(0.0),
-        parseXmlObservations(xnode),
-        parseXmlRules(xnode, unions, symmetry)
+        Observations(xnode),
+        Rules(xnode, symmetry)
       };
     }
 
@@ -165,13 +168,13 @@ auto parseXmlRuleNode(
     if (not std::ranges::empty(fields)) {
       return All{
         xnode.attribute("temperature").as_double(0.0),
-        parseXmlFields(xnode),
-        parseXmlRules(xnode, unions, symmetry)
+        Fields(xnode),
+        Rules(xnode, symmetry)
       };
     }
 
     return All{
-      parseXmlRules(xnode, unions, symmetry)
+      Rules(xnode, symmetry)
     };
   }
 
@@ -179,10 +182,7 @@ auto parseXmlRuleNode(
   std::unreachable();
 }
 
-auto parseXmlRule(
-  const pugi::xml_node& xnode,
-  std::unordered_map<char, RewriteRule::Union> unions
-) noexcept -> RewriteRule {
+auto Rule(const pugi::xml_node& xnode) noexcept -> ::RewriteRule {
   ensures(xnode.attribute("in"),
           std::format("missing '{}' attribute in '{}' node [:{}]", "in", "[rule]", xnode.offset_debug()));
   auto&& input = std::string{xnode.attribute("in").as_string()};
@@ -196,12 +196,25 @@ auto parseXmlRule(
           std::format("empty '{}' attribute in '{}' node [:{}]", "out", "[rule]", xnode.offset_debug()));
   
   return RewriteRule::parse(
-    unions, input, output,
+    input, output,
     xnode.attribute("p").as_double(1.0)
   );
 }
 
-auto parseXmlField(const pugi::xml_node& xnode) noexcept -> std::pair<char, DijkstraField> {
+auto Rules(
+  const pugi::xml_node& xnode,
+  std::string_view symmetry
+) noexcept -> std::vector<RewriteRule> {
+  auto xrules = xnode.children("rule") | std::ranges::to<std::vector>();
+  if (std::ranges::empty(xrules)) xrules.push_back(xnode);
+  return std::move(xrules)
+     | std::views::transform(Rule)
+     | std::views::transform(bindBack(RewriteRule::symmetries, symmetry))
+     | std::views::join
+     | std::ranges::to<std::vector>();
+}
+
+auto Field(const pugi::xml_node& xnode) noexcept -> std::pair<char, ::DijkstraField> {
   ensures(xnode.attribute("for"),
           std::format("missing '{}' attribute in '{}' node [:{}]", "for", "field", xnode.offset_debug()));
   auto&& _for = std::string{xnode.attribute("for").as_string()};
@@ -237,7 +250,13 @@ auto parseXmlField(const pugi::xml_node& xnode) noexcept -> std::pair<char, Dijk
   );
 }
 
-auto parseXmlObservation(const pugi::xml_node& xnode) noexcept -> std::pair<char, Observation> {
+auto Fields(const pugi::xml_node& xnode) noexcept -> DijkstraFields {
+  return xnode.children("field")
+    | std::views::transform(Field)
+    | std::ranges::to<DijkstraFields>();
+}
+
+auto Observation(const pugi::xml_node& xnode) noexcept -> std::pair<char, ::Observation> {
   ensures(xnode.attribute("value"),
           std::format("missing '{}' attribute in '{}' node [:{}]", "value", "observe", xnode.offset_debug()));
   auto&& value = std::string{xnode.attribute("value").as_string()};
@@ -254,18 +273,20 @@ auto parseXmlObservation(const pugi::xml_node& xnode) noexcept -> std::pair<char
   
   return std::make_pair(
     value[0],
-    Observation{
+    ::Observation{
       not xnode.attribute("from") ? std::nullopt : std::optional{from[0]},
       std::string{xnode.attribute("to").as_string()} | std::ranges::to<std::unordered_set>()
     }
   );
 }
 
-auto parseXmlPalette(std::filesystem::path filepath) noexcept -> Palette {
-  auto&& xpalette = pugi::xml_document{};
-  auto&& result = xpalette.load_file(filepath.c_str());
-  ensures(result, std::format("Error while parsing xml ({}:{}) : {}", filepath.generic_string(), result.offset, result.description()));
+auto Observations(const pugi::xml_node& xnode) noexcept -> ::Observations {
+  return xnode.children("observe")
+    | std::views::transform(Observation)
+    | std::ranges::to<std::unordered_map>();
+}
 
+auto Palette(const pugi::xml_document& xpalette) noexcept -> ColorPalette {
   return xpalette.child("colors").children("color")
     | std::views::transform([](auto&& xcolor) static noexcept {
       ensures(xcolor.attribute("symbol"),
@@ -284,7 +305,21 @@ auto parseXmlPalette(std::filesystem::path filepath) noexcept -> Palette {
         
         return std::make_pair(symbol_str[0], (255u << 24u) + fromBase<UInt32>(value, 16));
     })
-    | std::ranges::to<Palette>();
+    | std::ranges::to<ColorPalette>();
+}
+
+auto document(std::span<const std::byte> buffer) noexcept -> pugi::xml_document {
+  auto xdocument = pugi::xml_document{};
+  auto&& result = xdocument.load_buffer(std::data(buffer), std::size(buffer));
+  ensures(result, std::format("Error while parsing xml (<buffer>:{}) : {}", result.offset, result.description()));
+  return xdocument;
+}
+
+auto document(const std::filesystem::path& filepath) noexcept -> pugi::xml_document {
+  auto xdocument = pugi::xml_document{};
+  auto&& result = xdocument.load_file(filepath.c_str());
+  ensures(result, std::format("Error while parsing xml ({}:{}) : {}", filepath.generic_string(), result.offset, result.description()));
+  return xdocument;
 }
 
 }

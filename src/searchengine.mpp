@@ -12,7 +12,7 @@ using namespace stormkit;
 
 export {
 
-auto forward(Grid<char>::ConstView grid, std::span<const RewriteRule> rules) noexcept -> Potentials;
+auto forward(const Grid<char>& grid, std::span<const RewriteRule> rules) noexcept -> Potentials;
 
 struct SearchEngine {
   std::optional<UInt> limit;
@@ -35,7 +35,7 @@ struct SearchEngine {
     observations{std::move(_observations)}
   {}
 
-  auto updateFuture(Grid<char>::ConstView grid, std::span<const RewriteRule> rules) noexcept -> std::vector<Change<char>>;
+  auto updateFuture(const Grid<char>& grid, std::span<const RewriteRule> rules) noexcept -> std::vector<Change<char>>;
 
   inline constexpr auto followTrajectory() noexcept -> decltype(auto) {
     if (std::ranges::empty(trajectory)) {

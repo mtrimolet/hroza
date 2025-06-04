@@ -6,10 +6,10 @@ import geometry;
 using namespace stormkit;
 
 auto RewriteEngine::newMatches(
-  Grid<char>::ConstView grid,
+  Grid<char> grid,
   std::span<const Change<char>> changes
 ) const noexcept -> std::vector<Match> {
-  auto&& g_area = Area3U{{}, fromExtents(grid.extents())};
+  auto&& g_area = grid.area();
 
   if (std::ranges::empty(changes)) {
     return rules

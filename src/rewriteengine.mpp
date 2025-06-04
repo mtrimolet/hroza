@@ -25,6 +25,7 @@ struct EventTracker {
 
 export
 struct RewriteEngine : EventTracker {
+  RewriteRule::Unions unions;
   std::vector<RewriteRule> rules;
   std::vector<Match> matches;
 
@@ -32,15 +33,15 @@ struct RewriteEngine : EventTracker {
   : rules{std::move(_rules)} {}
 
   auto newMatches(
-    Grid<char>::ConstView grid,
+    Grid<char> grid,
     std::span<const Change<char>> changes = {}
   ) const noexcept -> std::vector<Match>;
 
   inline constexpr auto updateMatches(
-    Grid<char>::ConstView grid,
+    Grid<char> grid,
     std::span<const Change<char>> history = {}
   ) noexcept -> decltype(auto) {
-    matches.append_range(newMatches(grid, EventTracker::newEvents(history))
-      | std::views::filter(bindBack(&Match::match, grid)));
+    matches.append_range(newMatches(grid, newEvents(history))
+      | std::views::filter(bindBack(&Match::match, grid, unions)));
   }
 };

@@ -10,56 +10,38 @@ using namespace stormkit;
 
 export 
 struct RewriteRule {
-  using Union  = std::unordered_set<char>;
-  using Unions = std::unordered_map<char, Union>;
+  using Unions = std::unordered_map<char, std::string>;
+  using Union  = Unions::node_type;
 
-  Grid<std::optional<Union>> input;
-  Grid<std::optional<char>>  output;
+  Grid<char> input;
+  Grid<char> output;
 
-  double p;
+  double p = 1.0;
 
-  inline constexpr RewriteRule(
-    Grid<std::optional<Union>>&& _input,
-    Grid<std::optional<char>>&&  _output,
-    double _p = 1.0
-  )
-  : input{std::move(_input)},
-    output{std::move(_output)},
-    p{_p}
-  {}
+  // inline constexpr RewriteRule(
+  //   Grid<std::optional<Union>>&& _input,
+  //   Grid<std::optional<char>>&&  _output,
+  //   double _p = 1.0
+  // )
+  // : input{std::move(_input)},
+  //   output{std::move(_output)},
+  //   p{_p}
+  // {}
 
   static auto symmetries(const RewriteRule& rule, std::string_view subgroup = "") noexcept -> std::unordered_set<RewriteRule>;
 
   inline constexpr auto operator==(const RewriteRule& other) const noexcept -> bool = default;
 
   static inline constexpr auto parse(
-    Unions unions,
     std::string_view input,
     std::string_view output,
     double p = 1.0
   ) noexcept -> decltype(auto) {
-    static constexpr auto IGNORED = '*';
-
     return RewriteRule{
-      decltype(RewriteRule::input)::parse(input, [&unions](auto&& t) noexcept {
-        return t == IGNORED    ? std::nullopt
-          : unions.contains(t) ? std::optional{unions.at(t)}
-                               : std::optional{Union{t}};
-      }),
-      decltype(RewriteRule::output)::parse(output, [](auto&& t) static noexcept {
-        return t == IGNORED ? std::nullopt
-                            : std::optional{t};
-      }),
+      Grid<char>::parse(input),
+      Grid<char>::parse(output),
       p
     };
-  }
-
-  static inline constexpr auto parse(
-    std::string_view input,
-    std::string_view output,
-    double p = 1.0
-  ) noexcept -> decltype(auto) {
-    return parse({}, input, output, p);
   }
 
   inline constexpr auto xreflected() const noexcept -> decltype(auto) {

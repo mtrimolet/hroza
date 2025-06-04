@@ -9,13 +9,14 @@ if is_mode("release") then
 elseif is_mode("debug") then
     set_symbols("debug", "hidden")
     add_cxflags("-fno-omit-frame-pointer", { tools = { "clang", "gcc" } })
-    add_cxflags("-ggdb3", { tools = { "clang", "gcc" } })
-    add_mxflags("-ggdb3", { tools = { "clang", "gcc" } })
+    add_cxflags("-fstandalone-debug", { tools = { "clang", "gcc" } })
+    add_cxflags("-glldb", { tools = { "clang", "gcc" } })
+    -- add_mxflags("-glldb", { tools = { "clang", "gcc" } })
 elseif is_mode("releasedbg") then
     set_optimize("fast")
     set_symbols("debug", "hidden")
     add_cxflags("-fno-omit-frame-pointer", { tools = { "clang", "gcc" } })
-    add_mxflags("-ggdb3", { tools = { "clang", "gcc" } })
+    -- add_mxflags("-glldb", { tools = { "clang", "gcc" } })
 end
 
 add_repositories("tapzcrew-repo https://github.com/tapzcrew/xmake-repo main")
@@ -50,11 +51,15 @@ add_requireconfs(
     "glm",
     "pugixml",
     "cpptrace",
-    {system=false}
+    { system=false }
 )
 
 if is_mode("debug") then
     add_defines("_LIBCPP_DEBUG")
+    add_requireconfs(
+        "ftxui",
+        { debug = true }
+    )
 end
 
 add_requireconfs("**", { configs = { modules = true, std_import = true, cpp = "latest" }})

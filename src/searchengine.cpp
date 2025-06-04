@@ -1,15 +1,17 @@
 module searchengine;
 
+import match;
+
 using namespace stormkit;
 
-auto forward(Grid<char>::ConstView grid, std::span<const RewriteRule> rules) noexcept -> Potentials {
+auto forward(const Grid<char>& grid, RewriteRule::Unions unions, std::span<const RewriteRule> rules) noexcept -> Potentials {
   auto potentials = Potentials{};
 
   propagate(
-    mdiota(grid.extents())
+    mdiota(grid.area())
       | std::views::transform([&](auto&& u) noexcept {
-          auto&& c = grid[u.z, u.y, u.x];
-          potentials.try_emplace(c, grid.extents(), std::numeric_limits<double>::infinity());
+          auto&& c = grid[u];
+          potentials.try_emplace(c, grid.extents, std::numeric_limits<double>::infinity());
           potentials.at(c)[u] = 0.0;
           return std::make_pair(c, u);
       }),
@@ -37,7 +39,7 @@ auto forward(Grid<char>::ConstView grid, std::span<const RewriteRule> rules) noe
                   return std::ranges::none_of(
                     _uios | std::views::filter([](auto&& _uio) static noexcept {
                       auto&& [u, i, o] = _uio;
-                      return i != std::nullopt;
+                      return i != Match::IGNORED_SYMBOL;
                     }),
                     bindBack(std::greater{}, p),
                     [&](auto&& _uio) noexcept {
@@ -56,7 +58,7 @@ auto forward(Grid<char>::ConstView grid, std::span<const RewriteRule> rules) noe
                       //   ? potentials.at(i)[u]
                       //   : std::optional{0u};
 
-                      auto&& e = *i
+                      auto&& e = unions.at(i)
                         | std::views::filter([&](auto&& i) noexcept {
                             return potentials.contains(i)
                                and potentials.at(i)[u] != std::numeric_limits<double>::infinity();
@@ -77,14 +79,14 @@ auto forward(Grid<char>::ConstView grid, std::span<const RewriteRule> rules) noe
         | std::views::join
         | std::views::filter([&potentials](auto&& _uio) noexcept {
             auto&& [u, i, o] = _uio;
-            return o != std::nullopt
-               and potentials.contains(*o)
-               and potentials.at(*o)[u] == std::numeric_limits<double>::infinity();
+            return o != Match::IGNORED_SYMBOL
+               and potentials.contains(o)
+               and potentials.at(o)[u] == std::numeric_limits<double>::infinity();
         })
         | std::views::transform([&, new_p](auto&& _uio) noexcept {
             auto&& [u, i, o] = _uio;
-            potentials.at(*o)[u] = new_p;
-            return std::make_pair(*o, u);
+            potentials.at(o)[u] = new_p;
+            return std::make_pair(o, u);
         });
     }
   );
@@ -92,7 +94,7 @@ auto forward(Grid<char>::ConstView grid, std::span<const RewriteRule> rules) noe
   return potentials;
 }
 
-auto SearchEngine::updateFuture(Grid<char>::ConstView grid, std::span<const RewriteRule>) noexcept -> std::vector<Change<char>> {
+auto SearchEngine::updateFuture(const Grid<char>& grid, std::span<const RewriteRule>) noexcept -> std::vector<Change<char>> {
   if (not std::ranges::empty(future)) {
     return std::vector<Change<char>>{};
   }

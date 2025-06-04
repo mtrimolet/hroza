@@ -1,0 +1,16 @@
+export module model;
+
+import std;
+
+import rewriterule;
+import executionnode;
+
+export
+struct Model {
+  // std::string title;
+  std::string symbols;
+  RewriteRule::Unions unions;
+  bool origin;
+  ExecutionNode program;
+};
+

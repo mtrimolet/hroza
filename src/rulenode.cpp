@@ -44,18 +44,18 @@ auto InferenceEngine::infer(const TracedGrid<char>& grid) noexcept -> std::vecto
 }
 
 auto One::operator()(const TracedGrid<char>& grid) noexcept -> std::vector<Change<char>> {
-  this->updateMatches(grid, grid.history);
+  updateMatches(grid, grid.history);
 
-  auto changes = this->infer(grid);
+  auto changes = infer(grid);
 
-  auto&& triggered = std::ranges::find_last_if(this->matches, bindBack(&Match::match, grid));
+  auto&& triggered = std::ranges::find_last_if(matches, bindBack(&Match::match, grid, unions));
   changes.append_range(triggered
     | std::views::take(1)
     | std::views::transform(bindBack(&Match::changes, grid))
     | std::views::join);
 
-  if (std::ranges::empty(triggered)) this->matches.clear();
-  else this->matches.erase(
+  if (std::ranges::empty(triggered)) matches.clear();
+  else matches.erase(
     std::ranges::begin(triggered), 
     std::ranges::end(triggered)
   );
@@ -64,22 +64,22 @@ auto One::operator()(const TracedGrid<char>& grid) noexcept -> std::vector<Chang
 }
 
 auto Prl::operator()(const TracedGrid<char>& grid) noexcept -> std::vector<Change<char>> {
-  this->updateMatches(grid, grid.history);
+  updateMatches(grid, grid.history);
 
   static auto rg = std::mt19937{std::random_device{}()};
-  auto&& triggered = std::ranges::partition(this->matches, std::not_fn([](auto&& match) static noexcept {
+  auto&& triggered = std::ranges::partition(matches, std::not_fn([](auto&& match) static noexcept {
     static auto prob = std::uniform_real_distribution<>{};
     return match.rule.p == 1.0 or prob(rg) <= match.rule.p;
   }));
 
   auto changes = triggered
-    | std::views::filter(bindBack(&Match::match, grid))
+    | std::views::filter(bindBack(&Match::match, grid, unions))
     | std::views::transform(bindBack(&Match::changes, grid))
     | std::views::join
     | std::ranges::to<std::vector>();
 
-  if (std::ranges::empty(triggered)) this->matches.clear();
-  else this->matches.erase(
+  if (std::ranges::empty(triggered)) matches.clear();
+  else matches.erase(
     std::ranges::begin(triggered),
     std::ranges::end(triggered)
   );
@@ -113,13 +113,13 @@ inline constexpr auto removeOverlaps(std::ranges::input_range auto&& matches) no
 }
 
 auto All::operator()(const TracedGrid<char>& grid) noexcept -> std::vector<Change<char>> {
-  this->updateMatches(grid, grid.history);
+  updateMatches(grid, grid.history);
 
-  auto changes = this->infer(grid);
+  auto changes = infer(grid);
 
   auto&& triggered = removeOverlaps(
-    std::views::reverse(std::move(this->matches))
-      | std::views::filter(bindBack(&Match::match, grid))
+    std::views::reverse(std::move(matches))
+      | std::views::filter(bindBack(&Match::match, grid, unions))
   );
   changes.append_range(std::move(triggered)
     | std::views::transform(bindBack(&Match::changes, grid))

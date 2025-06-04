@@ -7,8 +7,9 @@ import stormkit.wsi;
 
 import geometry;
 import grid;
+import model;
 
-import xmlparser;
+import parser;
 
 using namespace stormkit;
 
@@ -18,8 +19,8 @@ public:
   static constexpr auto WINDOW_TITLE = "Hroza";
   static constexpr auto WINDOW_SIZE  = math::ExtentU{800u, 600u};
 
-  static constexpr auto DEFAULT_PALETTE_FILE = "./resources/palette.xml";
-  static constexpr auto DEFAULT_MODEL_FILE   = "./models/GoToGradient.xml";
+  static constexpr auto DEFAULT_PALETTE_FILE = "resources/palette.xml";
+  static constexpr auto DEFAULT_MODEL_FILE   = "models/GoToGradient.xml";
 
   // static constexpr auto DEFAULT_GRID_EXTENT = math::ExtentU{1u, 33u, 33u};
 
@@ -32,8 +33,8 @@ private:
   std::unordered_map<char, unsigned int> color_offsets;
 
   TracedGrid<char>      grid;
-  xmlparser::Palette    palette;
-  xmlparser::Model      model;
+  parser::ColorPalette    palette;
+  Model      model;
 
   inline constexpr auto init_window() noexcept -> decltype(auto) {
     ilog("create window");
@@ -49,12 +50,12 @@ private:
 
   inline constexpr auto load_palette(const std::filesystem::path& palettefile) noexcept -> decltype(auto) {
     ilog("loading palette {}", palettefile.string());
-    palette = xmlparser::parseXmlPalette(palettefile);
+    palette = parser::Palette(parser::document(palettefile));
   }
 
   inline constexpr auto load_model(const std::filesystem::path& modelfile) noexcept -> decltype(auto) {
     ilog("loading model {}", modelfile.string());
-    model = xmlparser::loadXmlFile(modelfile);
+    model = parser::Model(parser::document(modelfile));
 
     // window.setpalette(model.symbols
     //   | std::views::transform([this](auto&& s) noexcept {
