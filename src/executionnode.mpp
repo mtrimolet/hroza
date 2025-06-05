@@ -51,8 +51,9 @@ using ExecutionNode = std::function<std::generator<std::vector<Change<char>>>(Tr
 
 struct Sequence {
   std::vector<ExecutionNode> nodes;
+  decltype(std::ranges::begin(nodes)) current_node = std::ranges::begin(nodes);
   inline auto operator()(TracedGrid<char>& grid) noexcept -> std::generator<std::vector<Change<char>>> {
-    auto&& current_node = std::ranges::begin(nodes);
+    current_node = std::ranges::begin(nodes);
     while (current_node != std::ranges::end(nodes)) {
       auto&& found = false;
       for (auto&& changes : (*current_node)(grid)) {
@@ -67,8 +68,9 @@ struct Sequence {
 
 struct Markov {
   std::vector<ExecutionNode> nodes;
+  decltype(std::ranges::begin(nodes)) current_node = std::ranges::begin(nodes);
   inline auto operator()(TracedGrid<char>& grid) noexcept -> std::generator<std::vector<Change<char>>> {
-    auto&& current_node = std::ranges::begin(nodes);
+    current_node = std::ranges::begin(nodes);
     while (current_node != std::ranges::end(nodes)) {
       auto&& found = false;
       for (auto&& changes : (*current_node)(grid)) {

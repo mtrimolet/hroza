@@ -1,15 +1,17 @@
 module render;
 
 import grid;
+import log;
 
 using namespace ftxui;
 using namespace stormkit;
 
 namespace render {
 
-Element canvasFromImage(const Image& img) noexcept {
-  return canvas(img.dimx(), img.dimy(), bindBack(&Canvas::DrawImage, 0, 0, img));
-  // return canvas(img.dimx(), img.dimy(), [&img](auto&& c) noexcept { c.DrawImage(0, 0, img); });
+Element canvasFromImage(Image&& img) noexcept {
+  auto c = Canvas{img.dimx(), img.dimy()};
+  c.DrawImage(0, 0, img);
+  return canvas(std::move(c));
 }
 
 Element grid(const ::Grid<char>& g, const Palette& palette) noexcept {
@@ -21,13 +23,10 @@ Element grid(const ::Grid<char>& g, const Palette& palette) noexcept {
     auto&& [u, character] = u_char;
     auto&& pixel = texture.PixelAt(u.x, u.y);
     pixel.character = /* character; */ " ";
-    pixel.background_color = palette.at(character);
+    pixel.background_color = palette.contains(character) ? palette.at(character) : Color::Default;
   });
-  return canvasFromImage(texture);
-}
-
-Component Grid(const ::Grid<char>& g, const Palette& palette) noexcept {
-  return Renderer([&]() noexcept { return grid(g, palette); });
+  return canvasFromImage(std::move(texture));
+  // return text("<grid>");
 }
 
 Element rule(const ::RewriteRule& rule, const Palette& palette) noexcept {
@@ -55,17 +54,13 @@ Element rule(const ::RewriteRule& rule, const Palette& palette) noexcept {
     }
   );
 
-  return hbox({
-    // canvasFromImage(input) | border,
-    text(std::format("{}x{}", input.dimx(), input.dimy())) | border,
-    text("->") | vcenter,
-    // Renderer([output = std::move(output)]() noexcept { return canvasFromImage(output) | border; }),
-    text(std::format("{}x{}", output.dimx(), output.dimy()))  | border,
-  });
-}
+// TODO here's the issue, canvas don't get sized properly
 
-Component Rule(const ::RewriteRule& r, const Palette& palette) noexcept {
-  return Renderer([&]() noexcept { return rule(r, palette); });
+  return hbox({
+    canvasFromImage(std::move(input)),
+    text("->") | vcenter,
+    canvasFromImage(std::move(output)),
+  });
 }
 
 Element ruleNode(const Action& node, const Palette& palette, std::optional<UInt> count) noexcept {
@@ -74,11 +69,7 @@ Element ruleNode(const Action& node, const Palette& palette, std::optional<UInt>
       text("one"),
     };
     if (count) nodes.push_back(text(std::format("({}/?)", *count)));
-    auto _ = std::ranges::size(one->rules);
-    nodes.append_range(one->rules | std::views::transform([&palette](auto&& r) noexcept {
-                       
-                       return bindBack(rule, palette)(r);
-                     }));
+    nodes.append_range(one->rules | std::views::transform(bindBack(rule, palette)));
     return vbox(std::move(nodes));
   }
   if (const auto all = node.target<All>(); all != nullptr) {
@@ -98,10 +89,6 @@ Element ruleNode(const Action& node, const Palette& palette, std::optional<UInt>
     return vbox(std::move(nodes));
   }
   return text("<unknown_rule_node>");
-}
-
-Component RuleNode(const Action& node, const Palette& palette, std::optional<UInt> count) noexcept {
-  return Renderer([&]() noexcept { return ruleNode(node, palette, count); });
 }
 
 Element executionNode(const ::ExecutionNode& node, const Palette& palette) noexcept {
@@ -128,10 +115,6 @@ Element executionNode(const ::ExecutionNode& node, const Palette& palette) noexc
   return text("<unknown_execution_node>");
 }
 
-Component ExecutionNode(const ::ExecutionNode& node, const Palette& palette) noexcept {
-  return Renderer([&]() noexcept { return executionNode(node, palette); });
-}
-
 Element symbols(std::string_view values, const Palette& palette) noexcept {
   auto texture = Image{8, 1 + static_cast<int>(std::ranges::size(values)) / 8};
   std::ranges::for_each(
@@ -147,28 +130,20 @@ Element symbols(std::string_view values, const Palette& palette) noexcept {
     }
   );
 
-  return canvasFromImage(texture);
-}
-
-Component Symbols(std::string_view values, const Palette& palette) noexcept {
-  return Renderer([&]() noexcept { return symbols(values, palette); });
+  return canvasFromImage(std::move(texture));
 }
 
 Element model(const ::Model& model, const Palette& palette) noexcept {
   return vbox({
-    window(
-      text("symbols"),
-      symbols(model.symbols, palette)
-    ),
-    window(
-      text("program"),
-      executionNode(model.program, palette)
-    ),
+    // window(
+      // text("symbols"),
+      symbols(model.symbols, palette) | border,
+    // ),
+    // window(
+      // text("program"),
+      executionNode(model.program, palette) | border
+    // ),
   });
-}
-
-Component Model(const ::Model& values, const Palette& palette) noexcept {
-  return Renderer([&]() noexcept { return model(values, palette); });
 }
 
 }

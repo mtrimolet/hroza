@@ -22,13 +22,14 @@ auto ConsoleApp::run(std::span<const std::string_view> args) noexcept -> int {
 
   init_grid(DEFAULT_GRID_EXTENT);
 
-  auto view = Window({
-    .inner = Container::Horizontal({
-      render::Grid(grid, palette),
-      render::Model(model, palette),
-    }),
-    .title = std::data(modelfile),
-    .render = nullptr,
+  // auto container = Container::Horizontal({
+  //   Renderer(bindFront(render::grid, grid, palette)),
+  //   Renderer(bindFront(render::model, model, palette)),
+  // });
+
+  auto view = Container::Horizontal({
+    Renderer(bindFront(render::grid, grid, palette)),
+    Renderer(bindFront(render::model, model, palette)),
   });
 
   auto screen = ScreenInteractive::Fullscreen();
