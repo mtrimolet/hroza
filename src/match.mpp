@@ -22,23 +22,19 @@ struct Match {
     return rule.area() + u;
   }
 
-  inline constexpr auto match(Grid<char> grid, const RewriteRule::Unions& unions) const noexcept -> decltype(auto) {
+  inline constexpr auto match(const Grid<char>& grid, const RewriteRule::Unions& unions) const noexcept -> decltype(auto) {
     return std::ranges::all_of(
       std::views::zip(mdiota(area()), rule.input),
       [&](auto&& input) noexcept {
         auto&& [u, i] = input;
-        return unions.contains(grid[u])
-           and std::ranges::all_of(
-             unions.at(grid[u]),
-             [_union = unions.at(i)](auto&& c) noexcept {
-               return std::ranges::contains(_union, c);
-             }
-           );
+        return i == IGNORED_SYMBOL
+            or (unions.contains(i)
+            and std::ranges::contains(unions.at(i), grid[u]));
       }
     );
   }
 
-  inline constexpr auto changes(Grid<char> grid) const noexcept -> decltype(auto) {
+  inline constexpr auto changes(const Grid<char>& grid) const noexcept -> decltype(auto) {
     return std::views::zip(mdiota(area()), rule.output)
       | std::views::filter([&](auto&& output) noexcept {
           auto&& [u, value] = output;

@@ -6,7 +6,7 @@ import geometry;
 using namespace stormkit;
 
 auto RewriteEngine::newMatches(
-  Grid<char> grid,
+  const Grid<char>& grid,
   std::span<const Change<char>> changes
 ) const noexcept -> std::vector<Match> {
   auto&& g_area = grid.area();

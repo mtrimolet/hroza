@@ -23,7 +23,6 @@ auto Model(const pugi::xml_document& xmodel) noexcept -> ::Model {
     | std::views::transform([](auto&& c) static noexcept { 
         return std::make_pair(c, std::string{c});
     }));
-  // ilog("unions: {}", unions);
 
   auto&& program = ExecutionNode(xnode, unions);
   if (xnode.name() != "sequence"s and xnode.name() != "markov"s)
@@ -86,9 +85,9 @@ auto ExecutionNode(
         or tag == "all"s) {
     auto&& steps = xnode.attribute("steps").as_uint(0);
     if (steps == 0)
-      return NoLimit{RuleNode(xnode, symmetry)};
+      return NoLimit{RuleNode(xnode, unions, symmetry)};
     else
-      return Limit{std::move(steps), RuleNode(xnode, symmetry)};
+      return Limit{std::move(steps), RuleNode(xnode, unions, symmetry)};
   }
   
   ensures(false, std::format("unknown tag '{}' [:{}]", tag, xnode.offset_debug()));
@@ -97,6 +96,7 @@ auto ExecutionNode(
 
 auto RuleNode(
   const pugi::xml_node& xnode,
+  RewriteRule::Unions unions,
   std::string_view symmetry
 ) noexcept -> ::Action {
   auto&& tag = xnode.name();
@@ -111,6 +111,7 @@ auto RuleNode(
             : std::nullopt,
           xnode.attribute("depthCoefficient").as_double(0.5),
           Observations(xnode),
+          std::move(unions),
           Rules(xnode, symmetry)
         };
       }
@@ -118,6 +119,7 @@ auto RuleNode(
       return One{
         xnode.attribute("temperature").as_double(0.0),
         Observations(xnode),
+        std::move(unions),
         Rules(xnode, symmetry)
       };
     }
@@ -127,17 +129,20 @@ auto RuleNode(
       return One{
         xnode.attribute("temperature").as_double(0.0),
         Fields(xnode),
+        std::move(unions),
         Rules(xnode, symmetry)
       };
     }
 
     return One{
+      std::move(unions),
       Rules(xnode, symmetry)
     };
   }
 
   if (tag == "prl"s) {
     return Prl{
+      std::move(unions),
       Rules(xnode, symmetry)
     };
   }
@@ -153,6 +158,7 @@ auto RuleNode(
             : std::nullopt,
           xnode.attribute("depthCoefficient").as_double(0.5),
           Observations(xnode),
+          std::move(unions),
           Rules(xnode, symmetry)
         };
       }
@@ -160,6 +166,7 @@ auto RuleNode(
       return All{
         xnode.attribute("temperature").as_double(0.0),
         Observations(xnode),
+        std::move(unions),
         Rules(xnode, symmetry)
       };
     }
@@ -169,11 +176,13 @@ auto RuleNode(
       return All{
         xnode.attribute("temperature").as_double(0.0),
         Fields(xnode),
+        std::move(unions),
         Rules(xnode, symmetry)
       };
     }
 
     return All{
+      std::move(unions),
       Rules(xnode, symmetry)
     };
   }
@@ -194,7 +203,10 @@ auto Rule(const pugi::xml_node& xnode) noexcept -> ::RewriteRule {
   auto&& output = std::string{xnode.attribute("out").as_string()};
   ensures(!std::ranges::empty(output),
           std::format("empty '{}' attribute in '{}' node [:{}]", "out", "[rule]", xnode.offset_debug()));
-  
+
+  ensures(std::ranges::size(input) == std::ranges::size(output),
+          std::format("attributes '{}' and '{}' of '{}' node must be of same shape [:{}]", "in", "out", "[rule]", xnode.offset_debug()));
+
   return RewriteRule::parse(
     input, output,
     xnode.attribute("p").as_double(1.0)

@@ -34,6 +34,7 @@ auto ExecutionNode(
 
 auto RuleNode(
   const pugi::xml_node& xnode,
+  RewriteRule::Unions unions,
   std::string_view symmetry = ""
 ) noexcept -> Action;
 

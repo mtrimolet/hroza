@@ -3,6 +3,7 @@ export module executionnode;
 import std;
 import stormkit.core;
 
+import log;
 import grid;
 
 using namespace stormkit;

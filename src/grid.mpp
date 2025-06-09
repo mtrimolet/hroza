@@ -191,9 +191,75 @@ struct Grid {
 };
 
 template <class T>
+struct std::formatter<Grid<T>> {
+  template<class ParseContext>
+  constexpr ParseContext::iterator parse(ParseContext& ctx)
+  {
+      auto it = ctx.begin();
+      if (it == ctx.end())
+          return it;
+
+      // if (*it == '#')
+      // {
+      //     quoted = true;
+      //     ++it;
+      // }
+      if (it != ctx.end() && *it != '}')
+          throw std::format_error("Invalid format args for Grid.");
+
+      return it;
+  }
+
+  template<class FmtContext>
+  FmtContext::iterator format(const Grid<T>& g, FmtContext& ctx) const
+  {
+      std::ostringstream out;
+      // if (quoted)
+      //     out << std::quoted(s);
+      // else
+          out << std::format("{}", g.values);
+
+      return std::ranges::copy(std::move(out).str(), ctx.out()).out;
+  }
+};
+
+template <class T>
 struct Change {
   math::Vector3U u;
   T value;
+};
+
+template <class T>
+struct std::formatter<Change<T>> {
+  template<class ParseContext>
+  constexpr ParseContext::iterator parse(ParseContext& ctx)
+  {
+      auto it = ctx.begin();
+      if (it == ctx.end())
+          return it;
+
+      // if (*it == '#')
+      // {
+      //     quoted = true;
+      //     ++it;
+      // }
+      if (it != ctx.end() && *it != '}')
+          throw std::format_error("Invalid format args for Grid.");
+
+      return it;
+  }
+
+  template<class FmtContext>
+  FmtContext::iterator format(const Change<T>& c, FmtContext& ctx) const
+  {
+      std::ostringstream out;
+      // if (quoted)
+      //     out << std::quoted(s);
+      // else
+          out << std::format("change[u = {}, value = {}] ", c.u, c.value);
+
+      return std::ranges::copy(std::move(out).str(), ctx.out()).out;
+  }
 };
 
 template <class T>
@@ -208,7 +274,7 @@ struct TracedGrid : Grid<T> {
 
   inline constexpr auto apply(const Change<T>& change) noexcept -> decltype(auto) {
     history.push_back(change);
-    this->at(change.u) = change.value;
+    Grid<T>::operator[](change.u) = change.value;
   }
 };
 }

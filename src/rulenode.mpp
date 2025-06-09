@@ -36,27 +36,30 @@ struct InferenceEngine : RewriteEngine {
   inline constexpr InferenceEngine(
     double temperature,
     DijkstraFields&& fields,
+    RewriteRule::Unions&& unions,
     std::vector<RewriteRule>&& rules
   ) noexcept
-  : RewriteEngine{std::move(rules)},
+  : RewriteEngine{std::move(unions), std::move(rules)},
     dijkstra{temperature, std::move(fields)}
   {}
 
   inline constexpr InferenceEngine(
     double temperature,
     Observations&& observations,
+    RewriteRule::Unions&& unions,
     std::vector<RewriteRule>&& rules
   ) noexcept
-  : RewriteEngine{std::move(rules)},
+  : RewriteEngine{std::move(unions), std::move(rules)},
     observe{temperature, std::move(observations)}
   {}
 
   inline constexpr InferenceEngine(
     std::optional<UInt>&& limit, double depthCoefficient,
     Observations&& observations,
+    RewriteRule::Unions&& unions,
     std::vector<RewriteRule>&& rules
   ) noexcept
-  : RewriteEngine{std::move(rules)},
+  : RewriteEngine{std::move(unions), std::move(rules)},
     search{std::move(limit), depthCoefficient, std::move(observations)}
   {}
 

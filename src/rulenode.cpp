@@ -2,6 +2,7 @@ module rulenode;
 
 import geometry;
 
+import log;
 import match;
 
 using namespace stormkit;

@@ -118,3 +118,37 @@ struct std::hash<RewriteRule> {
     return seed;
   }
 };
+
+export template <>
+struct std::formatter<RewriteRule> {
+  std::string sep = "->";
+  template<class ParseContext>
+  constexpr ParseContext::iterator parse(ParseContext& ctx)
+  {
+      auto it = ctx.begin();
+      if (it == ctx.end())
+          return it;
+
+      // if (*it == '#')
+      // {
+      //     quoted = true;
+      //     ++it;
+      // }
+      if (it != ctx.end() && *it != '}')
+          throw std::format_error("Invalid format args for RewriteRule.");
+
+      return it;
+  }
+
+  template<class FmtContext>
+  FmtContext::iterator format(const RewriteRule& r, FmtContext& ctx) const
+  {
+      std::ostringstream out;
+      // if (quoted)
+      //     out << std::quoted(s);
+      // else
+          out << std::format("{}{}{}", r.input, sep, r.output);
+
+      return std::ranges::copy(std::move(out).str(), ctx.out()).out;
+  }
+};

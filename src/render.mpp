@@ -18,9 +18,9 @@ export namespace render {
 
 using Palette = std::unordered_map<char, Color>;
 
-Element canvasFromImage(Image&& img) noexcept;
+// Element canvasFromImage(Image&& img) noexcept;
 
-Element grid(const ::Grid<char>& g, const Palette& palette) noexcept;
+Element grid(const ::TracedGrid<char>& g, const Palette& palette) noexcept;
 
 Element rule(const ::RewriteRule& rule, const Palette& palette) noexcept;
 

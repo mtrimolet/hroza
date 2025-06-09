@@ -28,14 +28,15 @@ auto ConsoleApp::run(std::span<const std::string_view> args) noexcept -> int {
   // });
 
   auto view = Container::Horizontal({
-    Renderer(bindFront(render::grid, grid, palette)),
+    // Renderer(bindFront(render::grid, grid, palette)),
+    Renderer([this]() noexcept { return render::grid(grid, palette); }),
     Renderer(bindFront(render::model, model, palette)),
   });
 
   auto screen = ScreenInteractive::Fullscreen();
   screen.TrackMouse(false);
 
-  auto program_thread = std::jthread{[&](std::stop_token stop) mutable noexcept {
+  auto program_thread = std::jthread{[this, &screen](std::stop_token stop) mutable noexcept {
     for (auto&& changes : model.program(grid)) {
       if (stop.stop_requested()) return;
       // update_grid_texture(changes);
@@ -47,9 +48,18 @@ auto ConsoleApp::run(std::span<const std::string_view> args) noexcept -> int {
 
   screen.Loop(view);
 
-  // auto main_loop = Loop{&screen, root_view};
-  // while (not main_loop.HasQuitted()) {
+  // auto main_loop = Loop{&screen, view};
+  // // while (not main_loop.HasQuitted()) {
+  // //   main_loop.RunOnce();
+  // // }
+
+  // main_loop.RunOnce();
+  // for (auto&& changes : model.program(grid)) {
+  //   // TODO find how to handle bottom-up signal using custom Component or whatever
+  //   screen.RequestAnimationFrame();
+
   //   main_loop.RunOnce();
+  //   if (main_loop.HasQuitted()) break;
   // }
 
   return 0;

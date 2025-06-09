@@ -8,13 +8,17 @@ using namespace stormkit;
 
 namespace render {
 
-Element canvasFromImage(Image&& img) noexcept {
-  auto c = Canvas{img.dimx(), img.dimy()};
-  c.DrawImage(0, 0, img);
-  return canvas(std::move(c));
+Element canvasFromImage(const Image& img) noexcept {
+  return canvas(img.dimx(), img.dimy(), bindBack(&Canvas::DrawImage, 0, 0, img));
 }
 
-Element grid(const ::Grid<char>& g, const Palette& palette) noexcept {
+// TODO here's the issue, canvas don't get sized properly
+Element canvasFromImage(Image&& img) noexcept {
+  return canvas(img.dimx(), img.dimy(), bindBack(&Canvas::DrawImage, 0, 0, std::move(img)));
+}
+
+Element grid(const ::TracedGrid<char>& g, const Palette& palette) noexcept {
+  auto&& w = g.extents.extent(2), h = g.extents.extent(1);
   auto texture = Image{
     static_cast<int>(g.extents.extent(2)),
     static_cast<int>(g.extents.extent(1))
@@ -25,8 +29,9 @@ Element grid(const ::Grid<char>& g, const Palette& palette) noexcept {
     pixel.character = /* character; */ " ";
     pixel.background_color = palette.contains(character) ? palette.at(character) : Color::Default;
   });
-  return canvasFromImage(std::move(texture));
-  // return text("<grid>");
+  return canvasFromImage(std::move(texture))
+    | size(WIDTH, EQUAL, w)
+    | size(HEIGHT, EQUAL, h);
 }
 
 Element rule(const ::RewriteRule& rule, const Palette& palette) noexcept {
@@ -46,7 +51,7 @@ Element rule(const ::RewriteRule& rule, const Palette& palette) noexcept {
 
       auto&& ip = input.PixelAt(u.x, u.y);
       ip.character = i;
-      ip.background_color = palette.contains(o) ? palette.at(o) : Color::Default;
+      ip.background_color = palette.contains(i) ? palette.at(i) : Color::Default;
 
       auto&& op = output.PixelAt(u.x, u.y);
       op.character = o;
@@ -54,12 +59,15 @@ Element rule(const ::RewriteRule& rule, const Palette& palette) noexcept {
     }
   );
 
-// TODO here's the issue, canvas don't get sized properly
-
+  auto w = input.dimx(), h = input.dimy();
   return hbox({
-    canvasFromImage(std::move(input)),
+    canvasFromImage(std::move(input))
+    | size(WIDTH, EQUAL, w)
+    | size(HEIGHT, EQUAL, h),
     text("->") | vcenter,
-    canvasFromImage(std::move(output)),
+    canvasFromImage(std::move(output))
+    | size(WIDTH, EQUAL, w)
+    | size(HEIGHT, EQUAL, h),
   });
 }
 
@@ -135,14 +143,8 @@ Element symbols(std::string_view values, const Palette& palette) noexcept {
 
 Element model(const ::Model& model, const Palette& palette) noexcept {
   return vbox({
-    // window(
-      // text("symbols"),
-      symbols(model.symbols, palette) | border,
-    // ),
-    // window(
-      // text("program"),
-      executionNode(model.program, palette) | border
-    // ),
+    window(text("symbols"), symbols(model.symbols, palette)),
+    window(text("program"), executionNode(model.program, palette)),
   });
 }
 

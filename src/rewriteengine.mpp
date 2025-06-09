@@ -7,6 +7,8 @@ import grid;
 import rewriterule;
 import match;
 
+import log;
+
 using namespace stormkit;
 
 struct EventTracker {
@@ -32,13 +34,16 @@ struct RewriteEngine : EventTracker {
   inline constexpr RewriteEngine(std::vector<RewriteRule>&& _rules) noexcept
   : rules{std::move(_rules)} {}
 
+  inline constexpr RewriteEngine(RewriteRule::Unions&& _unions, std::vector<RewriteRule>&& _rules) noexcept
+  : unions{std::move(_unions)}, rules{std::move(_rules)} {}
+
   auto newMatches(
-    Grid<char> grid,
+    const Grid<char>& grid,
     std::span<const Change<char>> changes = {}
   ) const noexcept -> std::vector<Match>;
 
   inline constexpr auto updateMatches(
-    Grid<char> grid,
+    const Grid<char>& grid,
     std::span<const Change<char>> history = {}
   ) noexcept -> decltype(auto) {
     matches.append_range(newMatches(grid, newEvents(history))
