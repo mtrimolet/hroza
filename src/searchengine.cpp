@@ -11,8 +11,8 @@ auto forward(const Grid<char>& grid, RewriteRule::Unions unions, std::span<const
     mdiota(grid.area())
       | std::views::transform([&](auto&& u) noexcept {
           auto&& c = grid[u];
-          potentials.try_emplace(c, grid.extents, std::numeric_limits<double>::infinity());
-          potentials.at(c)[u] = 0.0;
+          potentials.try_emplace(c, grid.extents, -1);
+          potentials.at(c)[u] = 0;
           return std::make_pair(c, u);
       }),
     [&](auto&& front) noexcept {
@@ -21,7 +21,7 @@ auto forward(const Grid<char>& grid, RewriteRule::Unions unions, std::span<const
       auto&& p_area = potential.area();
 
       auto&& p = potential[u];
-      auto&& new_p = p + 1.0;
+      auto&& new_p = p + 1;
   
       return rules 
         | std::views::transform([&, p_area](auto&& rule) noexcept {
@@ -61,13 +61,13 @@ auto forward(const Grid<char>& grid, RewriteRule::Unions unions, std::span<const
                       auto&& e = unions.at(i)
                         | std::views::filter([&](auto&& i) noexcept {
                             return potentials.contains(i)
-                               and potentials.at(i)[u] != std::numeric_limits<double>::infinity();
+                               and potentials.at(i)[u] >= 0;
                         })
                         | std::views::transform([&](auto&& i) noexcept {
                             return potentials.at(i)[u];
                         })
                         | std::ranges::to<std::unordered_set>();
-                      if (std::ranges::empty(e)) return std::numeric_limits<double>::infinity();
+                      if (std::ranges::empty(e)) return -1;
   
                       return *std::ranges::max_element(e);
                     }
@@ -81,7 +81,7 @@ auto forward(const Grid<char>& grid, RewriteRule::Unions unions, std::span<const
             auto&& [u, i, o] = _uio;
             return o != Match::IGNORED_SYMBOL
                and potentials.contains(o)
-               and potentials.at(o)[u] == std::numeric_limits<double>::infinity();
+               and potentials.at(o)[u] == -1;
         })
         | std::views::transform([&, new_p](auto&& _uio) noexcept {
             auto&& [u, i, o] = _uio;

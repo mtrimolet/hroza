@@ -1,5 +1,6 @@
 module rulenode;
 
+import sort;
 import geometry;
 
 import log;
@@ -32,10 +33,10 @@ auto InferenceEngine::infer(const TracedGrid<char>& grid) noexcept -> std::vecto
   }
 
   if (not std::ranges::empty(observe.observations)) {
-    observe.sort(grid, matches);
+    ::sort(matches, {}, observe.score_projection(grid, matches));
   }
   else if (not std::ranges::empty(dijkstra.fields)) {
-    dijkstra.sort(grid, matches);
+    ::sort(matches, {}, dijkstra.score_projection(grid, matches));
   }
   else {
     std::ranges::shuffle(matches, std::mt19937{});

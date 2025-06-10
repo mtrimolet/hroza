@@ -1,16 +1,9 @@
 module consoleapp;
 
 import stormkit.core;
-// import ftxui;
 
 import geometry;
-// import render;
 
-// import executionnode;
-// import rulenode;
-// import rewriterule;
-
-// using namespace std::string_literals;
 using namespace stormkit;
 using namespace ftxui;
 
@@ -22,15 +15,9 @@ auto ConsoleApp::run(std::span<const std::string_view> args) noexcept -> int {
 
   init_grid(DEFAULT_GRID_EXTENT);
 
-  // auto container = Container::Horizontal({
-  //   Renderer(bindFront(render::grid, grid, palette)),
-  //   Renderer(bindFront(render::model, model, palette)),
-  // });
-
   auto view = Container::Horizontal({
-    // Renderer(bindFront(render::grid, grid, palette)),
     Renderer([this]() noexcept { return render::grid(grid, palette); }),
-    Renderer(bindFront(render::model, model, palette)),
+    Renderer([this]() noexcept { return render::model(model, palette); }),
   });
 
   auto screen = ScreenInteractive::Fullscreen();
@@ -39,7 +26,6 @@ auto ConsoleApp::run(std::span<const std::string_view> args) noexcept -> int {
   auto program_thread = std::jthread{[this, &screen](std::stop_token stop) mutable noexcept {
     for (auto&& changes : model.program(grid)) {
       if (stop.stop_requested()) return;
-      // update_grid_texture(changes);
 
       // TODO find how to handle bottom-up signal using custom Component or whatever
       screen.RequestAnimationFrame(); 

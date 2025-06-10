@@ -6,10 +6,7 @@ import geometry;
 using namespace stormkit;
 
 auto DijkstraField::potential(const Grid<char>& grid) const noexcept -> Potential {
-  auto potential = Potential{
-    grid.extents,
-    (inversed ? -1.0 : 1.0) * std::numeric_limits<double>::infinity()
-  };
+  auto potential = Potential{grid.extents, -1};
   auto&& p_area = potential.area();
   propagate(
     mdiota(p_area)
@@ -17,8 +14,8 @@ auto DijkstraField::potential(const Grid<char>& grid) const noexcept -> Potentia
           return zero.contains(grid[u]);
       })
       | std::views::transform([&](auto&& u) noexcept {
-          potential[u] = 0.0;
-          return std::make_pair(u, 0.0);
+          potential[u] = 0;
+          return std::make_pair(u, 0);
       }),
     [&](auto&& front) noexcept {
       static constexpr auto neigh_size = 3u * math::Vector3U{1, 1, 1};
@@ -27,14 +24,14 @@ auto DijkstraField::potential(const Grid<char>& grid) const noexcept -> Potentia
 
       auto&& [u, p] = front;
       auto&& new_us = (neigh + u).umeet(p_area);
-      auto&& new_p = p + (inversed ? -1.0 : 1.0);
+      auto&& new_p = p + 1;
       return mdiota(new_us)
         | std::views::filter([&, new_p](auto&& n) noexcept {
-            return (inversed ? potential[n] < new_p : potential[n] > new_p)
+            return (inversed ? potential[n] > new_p : potential[n] < new_p)
                and substrate.contains(grid[n]);
         })
         | std::views::transform([&, new_p](auto&& n) noexcept {
-            potential[n] = new_p;
+            potential[n] = (inversed ? +new_p : -new_p);
             return std::make_pair(n, new_p);
         });
     }
@@ -54,7 +51,7 @@ auto DijkstraEngine::updatePotentials(const Grid<char>& grid) noexcept -> void {
       auto&& [c, f] = _tuple;
       auto&& p = f.potential(grid);
       if (std::ranges::none_of(p, [](auto&& p) static noexcept {
-        return p == 0.0 or std::isnormal(p);
+        return p >= 0;
       })) {
         potentials.erase(c);
         return;

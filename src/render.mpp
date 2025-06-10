@@ -25,7 +25,7 @@ Element grid(const ::TracedGrid<char>& g, const Palette& palette) noexcept;
 Element rule(const ::RewriteRule& rule, const Palette& palette) noexcept;
 
 Element ruleNode(const Action& node, const Palette& palette, std::optional<UInt> count = {}) noexcept;
-Element executionNode(const ::ExecutionNode& node, const Palette& palette) noexcept;
+Element executionNode(const ::ExecutionNode& node, const Palette& palette, bool selected = true) noexcept;
 
 Element symbols(std::string_view values, const Palette& palette) noexcept;
 

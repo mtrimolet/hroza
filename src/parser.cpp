@@ -26,7 +26,7 @@ auto Model(const pugi::xml_document& xmodel) noexcept -> ::Model {
 
   auto&& program = ExecutionNode(xnode, unions);
   if (xnode.name() != "sequence"s and xnode.name() != "markov"s)
-    program = Markov{{program}};
+    program = Markov{std::vector{program}};
 
   return ::Model{
     // title,

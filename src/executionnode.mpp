@@ -14,76 +14,47 @@ using Action = std::function<std::vector<Change<char>>(TracedGrid<char>&)>;
 
 }
 
-struct ActionNode {
+struct ActionNodeBase {
   Action action;
-  inline constexpr auto operator()(TracedGrid<char>& grid) noexcept -> std::vector<Change<char>> {
-    auto&& changes = action(grid);
-    std::ranges::for_each(changes, bindFront(&TracedGrid<char>::apply, &grid));
-    return changes;
+  auto operator()(TracedGrid<char>& grid) noexcept -> std::vector<Change<char>>;
+};
+
+export {
+
+struct NoLimit : ActionNodeBase {
+  auto operator()(TracedGrid<char>& grid) noexcept -> std::generator<std::vector<Change<char>>>;
+};
+
+struct Limit : ActionNodeBase {
+  UInt count;
+
+  inline constexpr Limit(UInt _count, Action&& _action) noexcept
+  : ActionNodeBase{std::move(_action)}, count{_count} {}
+
+  auto operator()(TracedGrid<char>& grid) noexcept -> std::generator<std::vector<Change<char>>>;
+};
+
+using ExecutionNode = std::function<std::generator<std::vector<Change<char>>>(TracedGrid<char>&)>;
+
+}
+
+struct ExecutionNodeBase {
+  std::vector<ExecutionNode> nodes;
+  decltype(std::ranges::begin(nodes)) current_node = std::ranges::begin(nodes);
+
+  inline constexpr auto current_index() const noexcept -> RangeOffset {
+    return std::ranges::distance(std::ranges::begin(nodes), current_node);
   }
 };
 
 export {
 
-struct NoLimit : ActionNode {
-  inline auto operator()(TracedGrid<char>& grid) noexcept -> std::generator<std::vector<Change<char>>> {
-    auto&& changes = ActionNode::operator()(grid);
-    if (std::ranges::empty(changes)) co_return;
-    co_yield std::move(changes);
-  }
+struct Sequence : ExecutionNodeBase {
+  auto operator()(TracedGrid<char>& grid) noexcept -> std::generator<std::vector<Change<char>>>;
 };
 
-struct Limit : ActionNode {
-  UInt count;
-  inline constexpr Limit(UInt _count, Action&& _action) noexcept : ActionNode{std::move(_action)}, count{_count} {}
-
-  inline auto operator()(TracedGrid<char>& grid) noexcept -> std::generator<std::vector<Change<char>>> {
-    if (count == 0) co_return;
-    
-    auto&& changes = ActionNode::operator()(grid);
-    if (std::ranges::empty(changes)) co_return;
-
-    count--;
-    co_yield std::move(changes);
-  }
-};
-
-using ExecutionNode = std::function<std::generator<std::vector<Change<char>>>(TracedGrid<char>&)>;
-
-struct Sequence {
-  std::vector<ExecutionNode> nodes;
-  decltype(std::ranges::begin(nodes)) current_node = std::ranges::begin(nodes);
-  inline auto operator()(TracedGrid<char>& grid) noexcept -> std::generator<std::vector<Change<char>>> {
-    current_node = std::ranges::begin(nodes);
-    while (current_node != std::ranges::end(nodes)) {
-      auto&& found = false;
-      for (auto&& changes : (*current_node)(grid)) {
-        if (not found) found = true;
-        co_yield changes;
-      }
-      if (not found)
-        current_node++;
-    }
-  }
-};
-
-struct Markov {
-  std::vector<ExecutionNode> nodes;
-  decltype(std::ranges::begin(nodes)) current_node = std::ranges::begin(nodes);
-  inline auto operator()(TracedGrid<char>& grid) noexcept -> std::generator<std::vector<Change<char>>> {
-    current_node = std::ranges::begin(nodes);
-    while (current_node != std::ranges::end(nodes)) {
-      auto&& found = false;
-      for (auto&& changes : (*current_node)(grid)) {
-        if (not found) found = true;
-        co_yield changes;
-      }
-      if (found)
-        current_node = std::ranges::begin(nodes);
-      else
-        current_node++;
-    }
-  }
+struct Markov : ExecutionNodeBase {
+  auto operator()(TracedGrid<char>& grid) noexcept -> std::generator<std::vector<Change<char>>>;
 };
 
 }

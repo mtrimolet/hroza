@@ -14,9 +14,6 @@ import render;
 export
 struct ConsoleApp {
 public:
-  // static constexpr auto WINDOW_TITLE = "Hroza";
-  static constexpr auto WINDOW_SIZE  = std::dims<2>{100u, 100u};
-
   static constexpr auto DEFAULT_PALETTE_FILE = "resources/palette.xml";
   static constexpr auto DEFAULT_MODEL_FILE   = "models/GoToGradient.xml";
 

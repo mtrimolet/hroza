@@ -15,7 +15,7 @@ inline constexpr auto propagate(auto&& initial, auto&& unfold) noexcept -> declt
   ) q.push_range(unfold(q.front()));
 }
 
-using Potential  = Grid<double>;
+using Potential  = Grid<int>;
 using Potentials = std::unordered_map<char, Potential>;
 
 struct ForceEngine {
@@ -23,10 +23,10 @@ struct ForceEngine {
   Potentials potentials;
 
   /** Sum of differences of potential caused by applying match */
-  auto weight(const Grid<char>& grid, const Match& match) noexcept -> double;
+  auto weight(const Grid<char>& grid, const Match& match) noexcept -> std::optional<int>;
 
-  /** Sort by (inverse) heated potential gain in non-descending order */
-  auto sort(const Grid<char>& grid, std::span<Match> matches) noexcept -> void;
+  /** Get heated potential */
+  auto score_projection(const Grid<char>& grid, std::span<const Match> matches) noexcept -> std::function<double(const Match&)>;
 };
 
 }

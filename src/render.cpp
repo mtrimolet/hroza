@@ -50,11 +50,11 @@ Element rule(const ::RewriteRule& rule, const Palette& palette) noexcept {
       auto&& [u, i, o] = uio;
 
       auto&& ip = input.PixelAt(u.x, u.y);
-      ip.character = i;
+      ip.character = palette.contains(i) ? ' ' : i;
       ip.background_color = palette.contains(i) ? palette.at(i) : Color::Default;
 
       auto&& op = output.PixelAt(u.x, u.y);
-      op.character = o;
+      op.character = palette.contains(i) ? ' ' : i;
       op.background_color = palette.contains(o) ? palette.at(o) : Color::Default;
     }
   );
@@ -62,12 +62,12 @@ Element rule(const ::RewriteRule& rule, const Palette& palette) noexcept {
   auto w = input.dimx(), h = input.dimy();
   return hbox({
     canvasFromImage(std::move(input))
-    | size(WIDTH, EQUAL, w)
-    | size(HEIGHT, EQUAL, h),
+      | size(WIDTH, EQUAL, w)
+      | size(HEIGHT, EQUAL, h),
     text("->") | vcenter,
     canvasFromImage(std::move(output))
-    | size(WIDTH, EQUAL, w)
-    | size(HEIGHT, EQUAL, h),
+      | size(WIDTH, EQUAL, w)
+      | size(HEIGHT, EQUAL, h),
   });
 }
 
@@ -99,26 +99,38 @@ Element ruleNode(const Action& node, const Palette& palette, std::optional<UInt>
   return text("<unknown_rule_node>");
 }
 
-Element executionNode(const ::ExecutionNode& node, const Palette& palette) noexcept {
+Element executionNode(const ::ExecutionNode& node, const Palette& palette, bool selected) noexcept {
   if (const auto markov = node.target<Markov>(); markov != nullptr) {
     auto nodes = Elements{
       text("markov"),
     };
-    nodes.append_range(markov->nodes | std::views::transform(bindBack(executionNode, palette)));
+    nodes.append_range(std::views::zip(markov->nodes, std::views::iota(0))
+      | std::views::transform([&palette, &selected, current_index = markov->current_index()](auto&& ni) noexcept {
+        auto&& [n, i] = ni;
+        return executionNode(n, palette, selected and i == current_index);
+        }));
     return vbox(std::move(nodes));
   }
   if (const auto sequence = node.target<Sequence>(); sequence != nullptr) {
     auto nodes = Elements{
       text("sequence"),
     };
-    nodes.append_range(sequence->nodes | std::views::transform(bindBack(executionNode, palette)));
+    nodes.append_range(std::views::zip(sequence->nodes, std::views::iota(0))
+      | std::views::transform([&palette, &selected, current_index = sequence->current_index()](auto&& ni) noexcept {
+        auto&& [n, i] = ni;
+        return executionNode(n, palette, selected and i == current_index);
+        }));
     return vbox(std::move(nodes));
   }
   if (const auto limit = node.target<Limit>(); limit != nullptr) {
-    return ruleNode(limit->action, palette, limit->count);
+    auto n = ruleNode(limit->action, palette, limit->count);
+    if (selected) return hbox({std::move(n), text("<")});
+    else return n;
   }
   if (const auto nolimit = node.target<NoLimit>(); nolimit != nullptr) {
-    return ruleNode(nolimit->action, palette);
+    auto n = ruleNode(nolimit->action, palette);
+    if (selected) return hbox({std::move(n), text("<")});
+    else return n;
   }
   return text("<unknown_execution_node>");
 }
