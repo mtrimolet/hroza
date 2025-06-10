@@ -1,12 +1,15 @@
 module dijkstraengine;
 
 import stormkit.core;
+import log;
+
 import geometry;
 
 using namespace stormkit;
 
 auto DijkstraField::potential(const Grid<char>& grid) const noexcept -> Potential {
-  auto potential = Potential{grid.extents, -1};
+  auto&& unit = inversed ? -1.0 : +1.0;
+  auto potential = Potential{grid.extents, std::numeric_limits<double>::quiet_NaN()};
   auto&& p_area = potential.area();
   propagate(
     mdiota(p_area)
@@ -14,8 +17,8 @@ auto DijkstraField::potential(const Grid<char>& grid) const noexcept -> Potentia
           return zero.contains(grid[u]);
       })
       | std::views::transform([&](auto&& u) noexcept {
-          potential[u] = 0;
-          return std::make_pair(u, 0);
+          potential[u] = 0.0;
+          return std::make_pair(u, 0.0);
       }),
     [&](auto&& front) noexcept {
       static constexpr auto neigh_size = 3u * math::Vector3U{1, 1, 1};
@@ -24,14 +27,14 @@ auto DijkstraField::potential(const Grid<char>& grid) const noexcept -> Potentia
 
       auto&& [u, p] = front;
       auto&& new_us = (neigh + u).umeet(p_area);
-      auto&& new_p = p + 1;
+      auto&& new_p = p + unit;
       return mdiota(new_us)
-        | std::views::filter([&, new_p](auto&& n) noexcept {
-            return (inversed ? potential[n] > new_p : potential[n] < new_p)
+        | std::views::filter([&](auto&& n) noexcept {
+            return potential[n] == std::numeric_limits<double>::quiet_NaN()
                and substrate.contains(grid[n]);
         })
         | std::views::transform([&, new_p](auto&& n) noexcept {
-            potential[n] = (inversed ? +new_p : -new_p);
+            potential[n] = new_p;
             return std::make_pair(n, new_p);
         });
     }
@@ -51,7 +54,7 @@ auto DijkstraEngine::updatePotentials(const Grid<char>& grid) noexcept -> void {
       auto&& [c, f] = _tuple;
       auto&& p = f.potential(grid);
       if (std::ranges::none_of(p, [](auto&& p) static noexcept {
-        return p >= 0;
+        return p == 0.0 or std::isnormal(p);
       })) {
         potentials.erase(c);
         return;

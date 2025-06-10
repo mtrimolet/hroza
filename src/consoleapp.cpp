@@ -1,5 +1,6 @@
 module consoleapp;
 
+import log;
 import stormkit.core;
 
 import geometry;
@@ -23,30 +24,30 @@ auto ConsoleApp::run(std::span<const std::string_view> args) noexcept -> int {
   auto screen = ScreenInteractive::Fullscreen();
   screen.TrackMouse(false);
 
-  auto program_thread = std::jthread{[this, &screen](std::stop_token stop) mutable noexcept {
-    for (auto&& changes : model.program(grid)) {
-      if (stop.stop_requested()) return;
+  // auto program_thread = std::jthread{[this, &screen](std::stop_token stop) mutable noexcept {
+  //   for (auto&& changes : model.program(grid)) {
+  //     if (stop.stop_requested()) return;
 
-      // TODO find how to handle bottom-up signal using custom Component or whatever
-      screen.RequestAnimationFrame(); 
-    }
-  }};
+  //     // TODO find how to handle bottom-up signal using custom Component or whatever
+  //     screen.RequestAnimationFrame(); 
+  //   }
+  // }};
 
-  screen.Loop(view);
+  // screen.Loop(view);
 
-  // auto main_loop = Loop{&screen, view};
+  auto main_loop = Loop{&screen, view};
   // // while (not main_loop.HasQuitted()) {
   // //   main_loop.RunOnce();
   // // }
 
-  // main_loop.RunOnce();
-  // for (auto&& changes : model.program(grid)) {
-  //   // TODO find how to handle bottom-up signal using custom Component or whatever
-  //   screen.RequestAnimationFrame();
+  main_loop.RunOnce();
+  for (auto&& changes : model.program(grid)) {
+    // TODO find how to handle bottom-up signal using custom Component or whatever
+    screen.RequestAnimationFrame();
 
-  //   main_loop.RunOnce();
-  //   if (main_loop.HasQuitted()) break;
-  // }
+    main_loop.RunOnce();
+    if (main_loop.HasQuitted()) break;
+  }
 
   return 0;
 }

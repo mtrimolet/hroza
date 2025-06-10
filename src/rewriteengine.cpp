@@ -1,5 +1,7 @@
 module rewriteengine;
 
+import log;
+
 import glm;
 import geometry;
 

@@ -36,7 +36,12 @@ auto InferenceEngine::infer(const TracedGrid<char>& grid) noexcept -> std::vecto
     ::sort(matches, {}, observe.score_projection(grid, matches));
   }
   else if (not std::ranges::empty(dijkstra.fields)) {
-    ::sort(matches, {}, dijkstra.score_projection(grid, matches));
+    // ilog("(dijkstra) matches: {}", std::ranges::size(matches));
+    auto&& proj = dijkstra.score_projection(grid, matches);
+    auto&& erased = std::ranges::remove(matches, std::numeric_limits<double>::signaling_NaN(), proj);
+    matches.erase(std::ranges::begin(erased), std::ranges::end(erased));
+    // ilog("(dijkstra) remaining matches: {}", std::ranges::size(matches));
+    ::sort(matches, {}, proj);
   }
   else {
     std::ranges::shuffle(matches, std::mt19937{});
@@ -90,19 +95,19 @@ auto Prl::operator()(const TracedGrid<char>& grid) noexcept -> std::vector<Chang
 }
 
 inline constexpr auto removeOverlaps(std::ranges::input_range auto&& matches) noexcept -> decltype(auto) {
-  return std::ranges::fold_left(matches, std::vector<Match>{},
+  return std::ranges::fold_left(std::move(matches), std::vector<Match>{},
     [](auto&& triggered, auto&& match) static noexcept {
       if (std::ranges::none_of(triggered, [&match](auto&& visited) noexcept {
           auto&& overlap = visited.area().meet(match.area());
           return std::ranges::any_of(
             mdiota(overlap),
             [](auto&& p) static noexcept {
-              return std::apply(std::logical_and<std::optional<char>>{}, p);
+              return std::get<0>(p) and std::get<1>(p);
             },
             [&visited, &match](auto&& u) noexcept {
               return std::make_tuple(
-                visited.rule.output.at(u - visited.u),
-                match.rule.output.at(u - match.u)
+                visited.rule.output.at(u - visited.u) != Match::IGNORED_SYMBOL,
+                match.rule.output.at(u - match.u) != Match::IGNORED_SYMBOL
               );
             }
           );
@@ -128,7 +133,7 @@ auto All::operator()(const TracedGrid<char>& grid) noexcept -> std::vector<Chang
     | std::views::join
     | std::ranges::to<std::vector>());
 
-  this->matches.clear();
+  matches.clear();
 
   return changes;
 }
