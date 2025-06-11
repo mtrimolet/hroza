@@ -16,7 +16,7 @@ public:
   static constexpr auto DEFAULT_PALETTE_FILE = "resources/palette.xml";
   static constexpr auto DEFAULT_MODEL_FILE   = "models/GoToGradient.xml";
 
-  static constexpr auto DEFAULT_GRID_EXTENT = std::dims<3>{1u, 40u, 40u};
+  static constexpr auto DEFAULT_GRID_EXTENT = std::dims<3>{1u, 20u, 20u};
 
   auto run(std::span<const std::string_view> args) noexcept -> int;
 

@@ -79,11 +79,25 @@ Element potential_grid(const ::Potential& g) noexcept {
     static_cast<int>(g.extents.extent(2)),
     static_cast<int>(g.extents.extent(1))
   };
+  auto [min_g, max_g] = std::ranges::fold_left(g, std::make_pair(0.0, 0.0), [](auto&& a, auto&& p) static noexcept {
+    return std::make_pair(
+      std::min(std::get<0>(a), p),
+      std::max(std::get<1>(a), p)
+    );
+  });
+
+  auto normalize = [&min_g, &max_g](double t) noexcept {
+    t /= t > 0.0 ? max_g : t < 0.0 ? min_g : 1.0; // go to [-1, 1]
+    t += 1.0;                                       // go to [0, 2]
+    t /= 2.0;                                       // go to [0, 1]
+    return t;
+  };
   std::ranges::for_each(std::views::zip(mdiota(g.area()), g), [&](auto&& u_val) noexcept {
     auto&& [u, value] = u_val;
     auto&& pixel = texture.PixelAt(u.x, u.y);
-    pixel.character = " ";
-    pixel.background_color = Color::Interpolate(value, Color::Blue, Color::Red);
+    auto&& normal = value == 0.0 or std::isnormal(value);
+    pixel.character = value == 0.0 ? "•" : value == std::numeric_limits<double>::signaling_NaN() ? "*" : " ";
+    pixel.background_color = normal ? Color::Interpolate(normalize(value), Color::Blue, Color::Red) : Color::Default;
   });
   auto&& w = texture.dimx(), h = texture.dimy();
   return canvasFromImage(std::move(texture))
@@ -94,7 +108,7 @@ Element potential_grid(const ::Potential& g) noexcept {
 Element potential(char c, const Potential& pot, const Palette& palette) noexcept {
   auto&& col = palette.contains(c) ? palette.at(c) : Color::Default;
   return window(
-    text(std::format("{}", c)) | color(col) | inverted,
+    text(std::string{c}) | color(col) | inverted,
     potential_grid(pot)
   );
 }
@@ -108,8 +122,11 @@ Element ruleNode(const Action& node, const Palette& palette, std::optional<UInt>
     nodes.append_range(one->rules
       | std::views::filter(std::not_fn(&RewriteRule::transformed))
       | std::views::transform(bindBack(rule, palette)));
-    nodes.append_range(one->dijkstra.potentials
-      | std::views::transform([&palette](auto&& p) noexcept { return potential(std::get<0>(p), std::get<1>(p), palette); }));
+    nodes.push_back(hbox(one->dijkstra.potentials
+      | std::views::transform([&palette](auto&& p) noexcept {
+          return potential(std::get<0>(p), std::get<1>(p), palette);
+        })
+      | std::ranges::to<Elements>()));
     return vbox(std::move(nodes));
   }
   if (const auto all = node.target<All>(); all != nullptr) {
@@ -120,8 +137,11 @@ Element ruleNode(const Action& node, const Palette& palette, std::optional<UInt>
     nodes.append_range(all->rules
       | std::views::filter(std::not_fn(&RewriteRule::transformed))
       | std::views::transform(bindBack(rule, palette)));
-    nodes.append_range(all->dijkstra.potentials
-      | std::views::transform([&palette](auto&& p) noexcept { return potential(std::get<0>(p), std::get<1>(p), palette); }));
+    nodes.push_back(hbox(all->dijkstra.potentials
+      | std::views::transform([&palette](auto&& p) noexcept {
+          return potential(std::get<0>(p), std::get<1>(p), palette);
+        })
+      | std::ranges::to<Elements>()));
     return vbox(std::move(nodes));
   }
   if (const auto prl = node.target<Prl>(); prl != nullptr) {
@@ -147,7 +167,8 @@ Element executionNode(const ::ExecutionNode& node, const Palette& palette, bool 
           auto&& [n, i] = ni;
           return executionNode(n, palette, selected and i == current_index);
         }));
-    return vbox(std::move(nodes));
+    if (selected) return vbox(std::move(nodes)) | focus;
+    else return vbox(std::move(nodes));
   }
   if (const auto sequence = node.target<Sequence>(); sequence != nullptr) {
     auto nodes = Elements{
@@ -158,15 +179,18 @@ Element executionNode(const ::ExecutionNode& node, const Palette& palette, bool 
           auto&& [n, i] = ni;
           return executionNode(n, palette, selected and i == current_index);
         }));
-    return vbox(std::move(nodes));
+    if (selected) return vbox(std::move(nodes)) | focus;
+    else return vbox(std::move(nodes));
   }
   if (const auto limit = node.target<Limit>(); limit != nullptr) {
     auto n = ruleNode(limit->action, palette, limit->count);
-    return hbox({std::move(n), text(selected ? "<" : " ")});
+    if (selected) return hbox({std::move(n), text("<")}) | focus;
+    else return hbox({std::move(n), text(" ")});
   }
   if (const auto nolimit = node.target<NoLimit>(); nolimit != nullptr) {
     auto n = ruleNode(nolimit->action, palette);
-    return hbox({std::move(n), text(selected ? "<" : " ")});
+    if (selected) return hbox({std::move(n), text("<")}) | focus;
+    else return hbox({std::move(n), text(" ")});
   }
   return text("<unknown_execution_node>");
 }

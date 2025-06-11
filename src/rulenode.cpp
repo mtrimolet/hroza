@@ -29,7 +29,10 @@ auto InferenceEngine::infer(const TracedGrid<char>& grid) noexcept -> std::vecto
 
   if (not std::ranges::empty(dijkstra.fields)) {
     dijkstra.updatePotentials(grid);
-    if (dijkstra.essential_missing()) return changes;
+    if (dijkstra.essential_missing()) {
+      matches.clear();
+      return changes;
+    }
   }
 
   if (not std::ranges::empty(observe.observations)) {
@@ -38,8 +41,8 @@ auto InferenceEngine::infer(const TracedGrid<char>& grid) noexcept -> std::vecto
   else if (not std::ranges::empty(dijkstra.fields)) {
     // ilog("(dijkstra) matches: {}", std::ranges::size(matches));
     auto&& proj = dijkstra.score_projection(grid, matches);
-    auto&& erased = std::ranges::remove(matches, std::numeric_limits<double>::signaling_NaN(), proj);
-    matches.erase(std::ranges::begin(erased), std::ranges::end(erased));
+    // auto&& erased = std::ranges::remove_if(matches, [](auto&& p) static noexcept { return p == std::numeric_limits<double>::signaling_NaN(); }, proj);
+    // matches.erase(std::ranges::begin(erased), std::ranges::end(erased));
     // ilog("(dijkstra) remaining matches: {}", std::ranges::size(matches));
     ::sort(matches, {}, proj);
   }
@@ -102,12 +105,13 @@ inline constexpr auto removeOverlaps(std::ranges::input_range auto&& matches) no
           return std::ranges::any_of(
             mdiota(overlap),
             [](auto&& p) static noexcept {
-              return std::get<0>(p) and std::get<1>(p);
+              return std::get<0>(p) != Match::IGNORED_SYMBOL
+                 and std::get<1>(p) != Match::IGNORED_SYMBOL;
             },
             [&visited, &match](auto&& u) noexcept {
               return std::make_tuple(
-                visited.rule.output.at(u - visited.u) != Match::IGNORED_SYMBOL,
-                match.rule.output.at(u - match.u) != Match::IGNORED_SYMBOL
+                visited.rule.output.at(u - visited.u),
+                match.rule.output.at(u - match.u)
               );
             }
           );
@@ -130,8 +134,7 @@ auto All::operator()(const TracedGrid<char>& grid) noexcept -> std::vector<Chang
   );
   changes.append_range(std::move(triggered)
     | std::views::transform(bindBack(&Match::changes, grid))
-    | std::views::join
-    | std::ranges::to<std::vector>());
+    | std::views::join);
 
   matches.clear();
 

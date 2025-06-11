@@ -30,7 +30,7 @@ auto DijkstraField::potential(const Grid<char>& grid) const noexcept -> Potentia
       auto&& new_p = p + unit;
       return mdiota(new_us)
         | std::views::filter([&](auto&& n) noexcept {
-            return potential[n] == std::numeric_limits<double>::quiet_NaN()
+            return not (potential[n] == 0.0 or std::isnormal(potential[n]))
                and substrate.contains(grid[n]);
         })
         | std::views::transform([&, new_p](auto&& n) noexcept {
