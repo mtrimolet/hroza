@@ -1,11 +1,14 @@
 export module match;
 
 import std;
+import glm;
 import stormkit.core;
 import geometry;
 
 import grid;
 import rewriterule;
+
+import log;
 
 using namespace stormkit;
 
@@ -13,44 +16,62 @@ export
 struct Match {
   static constexpr auto IGNORED_SYMBOL = '*';
   
+  std::span<const RewriteRule> rules;
   math::Vector3U u;
-  RewriteRule rule;
+  RangeOffset    r;
 
-  inline constexpr auto operator==(const Match& other) const noexcept -> bool = default;
+  // inline constexpr Match(math::Vector3U _u, RewriteRule& _rule) noexcept
+  // : u{_u}, rule{_rule} {}
 
-  inline constexpr auto area() const noexcept -> decltype(auto) {
-    return rule.area() + u;
+  // inline constexpr Match(const Match& other) noexcept
+  // : rules{other.rules}, u{other.u}, r{other.r} {}
+  // inline constexpr auto operator=(Match&& other) noexcept -> Match& {
+  //   u = other.u; rule = other.rule;
+  //   return *this;
+  // }
+
+  // inline constexpr auto operator==(const Match& other) const noexcept -> bool {
+  //   return rules == other.rules u == other.u and rules[r] == other.rules[other.r];
+  // }
+
+  inline constexpr auto area() const noexcept -> Area3U {
+    return rules[r].area() + u;
   }
 
-  inline constexpr auto match(const Grid<char>& grid, const RewriteRule::Unions& unions) const noexcept -> decltype(auto) {
-    return std::ranges::all_of(
-      std::views::zip(mdiota(area()), rule.input),
-      [&](auto&& input) noexcept {
-        auto&& [u, i] = input;
-        return i == IGNORED_SYMBOL
-            or (unions.contains(i)
-            and std::ranges::contains(unions.at(i), grid[u]));
-      }
-    );
-  }
-
-  inline constexpr auto changes(const Grid<char>& grid) const noexcept -> decltype(auto) {
-    return std::views::zip(mdiota(area()), rule.output)
-      | std::views::filter([&](auto&& output) noexcept {
-          auto&& [u, value] = output;
-          return value != IGNORED_SYMBOL
-             and value != grid[u];
-      })
-      | std::views::transform([](auto&& uo) static noexcept {
-          return Change{std::get<0>(uo), std::get<1>(uo)};
-      });
-  }
+  auto conflict(const Match& other) const noexcept -> bool;
+  auto match(const Grid<char>& grid, const RewriteRule::Unions& unions) const noexcept -> bool;
+  auto changes(const Grid<char>& grid) const noexcept -> std::vector<Change<char>>;
 };
 
 export template <>
-struct std::hash<Match> {
-  inline constexpr auto operator()(const Match& match) const noexcept -> std::size_t {
-    return std::hash<math::Vector3U>{}(match.u)
-         ^ std::hash<RewriteRule>{}(match.rule);
+struct std::formatter<Match> {
+  template<class ParseContext>
+  constexpr ParseContext::iterator parse(ParseContext& ctx)
+  {
+      auto it = ctx.begin();
+      if (it == ctx.end())
+          return it;
+
+      // if (*it == '#')
+      // {
+      //     quoted = true;
+      //     ++it;
+      // }
+      if (it != ctx.end() && *it != '}')
+          throw std::format_error("Invalid format args for RewriteRule.");
+
+      return it;
+  }
+
+  template<class FmtContext>
+  FmtContext::iterator format(const Match& m, FmtContext& ctx) const
+  {
+      std::ostringstream out;
+      // if (quoted)
+      //     out << std::quoted(s);
+      // else
+          out << std::format("{} {}", m.u, m.rules[m.r]);
+
+      return std::ranges::copy(std::move(out).str(), ctx.out()).out;
   }
 };

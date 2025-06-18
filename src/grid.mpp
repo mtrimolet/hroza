@@ -10,45 +10,57 @@ using namespace stormkit;
 
 export {
 
-inline constexpr auto fromExtents(const std::dims<3>& extents) noexcept -> decltype(auto) {
-  return math::Vector3U{
+inline constexpr auto fromExtents(std::dims<3> extents) noexcept -> math::Vector3U {
+  return {
     extents.extent(2),
     extents.extent(1),
     extents.extent(0),
   };
 }
 
-inline constexpr auto toExtents(const math::Vector3U& size) noexcept -> decltype(auto) {
-  return std::dims<3>{size.z, size.y, size.x};
+inline constexpr auto toExtents(math::Vector3U size) noexcept -> std::dims<3> {
+  return std::dims<3>{
+    size.z,
+    size.y,
+    size.x
+  };
 }
 
-inline constexpr auto strides(const std::dims<3>& extents) noexcept -> decltype(auto) {
+inline constexpr auto strides(std::dims<3> extents) noexcept -> decltype(auto) {
   return std::make_tuple(extents.extent(2) * extents.extent(1), extents.extent(2), 1u);
 }
 
-inline constexpr auto toIndex(math::Vector3U u, const std::dims<3>& extents) noexcept -> decltype(auto) {
+inline constexpr auto toIndex(math::Vector3U u, std::dims<3> extents) noexcept -> UInt32 {
   auto&& [z, y, x] = strides(extents);
   return geometry::dot(u, {x, y, z});
 }
 
-inline constexpr auto fromIndex(UInt32 i, const std::dims<3>& extents) noexcept -> decltype(auto) {
+inline constexpr auto fromIndex(UInt32 i, std::dims<3> extents) noexcept -> math::Vector3U {
   auto&& [z, y, x] = strides(extents);
   return math::Vector3U{i / x, i / y, i / z} % fromExtents(extents);
 }
 
+inline constexpr auto next(math::Vector3U u, std::dims<3> extents) noexcept -> math::Vector3U {
+  return fromIndex(toIndex(u, extents) + 1, extents);
+}
+
+inline constexpr auto prev(math::Vector3U u, const std::dims<3>& extents) noexcept -> math::Vector3U {
+  return fromIndex(toIndex(u, extents) - 1, extents);
+}
+
 template <meta::IsArithmetic T>
-inline constexpr auto mdiota(const HyperRectangle<3, T>& zone) noexcept -> decltype(auto) {
+inline constexpr auto mdiota(HyperRectangle<3, T> zone) noexcept -> decltype(auto) {
   return std::views::iota(static_cast<T>(0), static_cast<T>(zone.size.z * zone.size.y * zone.size.x))
     | std::views::transform(bindBack(fromIndex, toExtents(zone.size)))
     | std::views::transform(bindBack(std::plus<math::Vector<3, T>>{}, zone.u));
 }
 
 template <meta::IsArithmetic T>
-inline constexpr auto mdiota(const math::Vector<3, T>& origin, const math::Vector<3, T>& outerbound) noexcept -> decltype(auto) {
+inline constexpr auto mdiota(math::Vector<3, T> origin, math::Vector<3, T> outerbound) noexcept -> decltype(auto) {
   return mdiota<T>({origin, outerbound - origin});
 }
 
-inline constexpr auto mdiota(const std::dims<3>& extents) noexcept -> decltype(auto) {
+inline constexpr auto mdiota(std::dims<3> extents) noexcept -> decltype(auto) {
   return mdiota({}, fromExtents(extents));
 }
 
@@ -155,34 +167,34 @@ struct Grid {
       | std::ranges::to<Grid<T>>(std::move(extents));
   }
 
-  inline constexpr auto area() const noexcept -> decltype(auto) {
-    return Area3U{{}, fromExtents(extents)};
+  inline constexpr auto area() const noexcept -> Area3U {
+    return {{}, fromExtents(extents)};
   }
 
-  inline constexpr auto xreflected() const noexcept -> decltype(auto) {
-    auto&& area = ::xreflected(this->area());
+  inline constexpr auto xreflected() const noexcept -> Grid<T> {
+    auto area = ::xreflected(this->area());
     return mdiota(area)
-      | std::views::transform([this, &size{area.size}](auto&& u) noexcept {
+      | std::views::transform([this, size = area.size](auto&& u) noexcept {
           return this->at({ size.x - u.x - 1u, u.y, u.z });
       })
       // | std::views::transform(bindFront(&Grid<T>::at, this))
       | std::ranges::to<Grid<T>>(toExtents(area.size));
   }
 
-  inline constexpr auto xyrotated() const noexcept -> decltype(auto) {
-    auto&& area = ::xyrotated(this->area());
+  inline constexpr auto xyrotated() const noexcept -> Grid<T> {
+    auto area = ::xyrotated(this->area());
     return mdiota(area)
-      | std::views::transform([this, &size{area.size}](auto&& u) noexcept {
+      | std::views::transform([this, size = area.size](auto&& u) noexcept {
           return this->at({ u.y, size.x - u.x - 1u, u.z });
       })
       // | std::views::transform(bindFront(&Grid<T>::at, this))
       | std::ranges::to<Grid<T>>(toExtents(area.size));
   }
 
-  inline constexpr auto zyrotated() const noexcept -> decltype(auto) {
-    auto&& area = ::zyrotated(this->area());
+  inline constexpr auto zyrotated() const noexcept -> Grid<T> {
+    auto area = ::zyrotated(this->area());
     return mdiota(area)
-      | std::views::transform([this, &size{area.size}](auto&& u) noexcept {
+      | std::views::transform([this, size = area.size](auto&& u) noexcept {
           return this->at({ u.x, size.z - u.z - 1u, u.y });
       })
       // | std::views::transform(bindFront(&Grid<T>::at, this))
@@ -272,7 +284,7 @@ struct TracedGrid : Grid<T> {
   inline constexpr TracedGrid(Grid<T>::Extents _extents, T v) noexcept
     : Grid<T>{_extents, v}, history{} {}
 
-  inline constexpr auto apply(const Change<T>& change) noexcept -> decltype(auto) {
+  inline constexpr auto apply(Change<T> change) noexcept -> void {
     history.push_back(change);
     Grid<T>::operator[](change.u) = change.value;
   }

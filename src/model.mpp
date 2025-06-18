@@ -3,7 +3,7 @@ export module model;
 import std;
 
 import rewriterule;
-import executionnode;
+import runner;
 
 export
 struct Model {
@@ -11,6 +11,5 @@ struct Model {
   std::string symbols;
   RewriteRule::Unions unions;
   bool origin;
-  ExecutionNode program;
+  NodeRunner program;
 };
-

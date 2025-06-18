@@ -1,0 +1,10 @@
+export module search;
+
+import std;
+
+import grid;
+import observes;
+
+export {
+using Trajectory = std::vector<std::vector<Change<char>>>;
+}

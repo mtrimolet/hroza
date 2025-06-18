@@ -6,16 +6,16 @@ import utils;
 
 import pugixml;
 
-import rewriterule;         // <rule>
-import dijkstraengine;      // <field>
-import observationengine;   // <observe>
-import rulenode;            // <one>, <prl>, <all>
-import executionnode;       // <sequence>, <markov>
-
 import model;
 
-using namespace stormkit;
-using namespace std::literals;
+import rewriterule; // <rule>
+import rulenode;    // <one>, <prl>, <all>
+import fields;      // <field>
+import observes;    // <observe>
+import runner;      // <sequence>, <markov>
+
+// using namespace stormkit;
+// using namespace std::literals;
 
 export {
 
@@ -26,17 +26,16 @@ auto document(const std::filesystem::path& filepath) noexcept -> pugi::xml_docum
 
 auto Model(const pugi::xml_document& xmodel) noexcept -> Model;
 
-auto ExecutionNode(
+auto NodeRunner(
   const pugi::xml_node& xnode,
   RewriteRule::Unions unions,
   std::string_view symmetry = ""
-) noexcept -> ExecutionNode;
-
+) noexcept -> ::NodeRunner;
 auto RuleNode(
   const pugi::xml_node& xnode,
   RewriteRule::Unions unions,
   std::string_view symmetry = ""
-) noexcept -> Action;
+) noexcept -> ::RuleNode;
 
 auto Rule(const pugi::xml_node& xnode) noexcept -> RewriteRule;
 auto Rules(
@@ -44,13 +43,13 @@ auto Rules(
   std::string_view symmetry = ""
 ) noexcept -> std::vector<RewriteRule>;
 
-auto Field(const pugi::xml_node& xnode) noexcept -> std::pair<char, DijkstraField>;
-auto Fields(const pugi::xml_node& xnode) noexcept -> DijkstraFields;
+auto Field(const pugi::xml_node& xnode) noexcept -> std::pair<char, ::Field>;
+auto Fields(const pugi::xml_node& xnode) noexcept -> ::Fields;
 
-auto Observation(const pugi::xml_node& xnode) noexcept -> std::pair<char, Observation>;
-auto Observations(const pugi::xml_node& xnode) noexcept -> ::Observations;
+auto Observe(const pugi::xml_node& xnode) noexcept -> std::pair<char, ::Observe>;
+auto Observes(const pugi::xml_node& xnode) noexcept -> ::Observes;
 
-using Color32 = UInt32;
+using Color32 = stormkit::UInt32;
 using ColorPalette = std::unordered_map<char, Color32>;
 
 auto Palette(const pugi::xml_document& xpalette) noexcept -> ColorPalette;

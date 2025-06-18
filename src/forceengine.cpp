@@ -1,5 +1,6 @@
 module forceengine;
 
+import glm;
 import stormkit.core;
 import log;
 import geometry;
@@ -10,7 +11,7 @@ auto ForceEngine::weight(const Grid<char>& grid, const Match& match) noexcept ->
   return std::ranges::fold_left(
     std::views::zip(
       mdiota(match.area()),
-      match.rule.output
+      match.rules[match.r].output
     )
     | std::views::filter([&](auto&& _o) noexcept {
         auto&& [u, o] = _o;
@@ -32,32 +33,32 @@ auto ForceEngine::weight(const Grid<char>& grid, const Match& match) noexcept ->
   );
 }
 
-auto ForceEngine::score_projection(const Grid<char>& grid, std::span<const Match> matches) noexcept -> std::function<double(const Match&)> {
-  static auto rg = std::mt19937{std::random_device{}()};
-  static auto prob = std::uniform_real_distribution<>{};
+// auto ForceEngine::score_projection(const Grid<char>& grid, std::span<const Match> matches) noexcept -> std::function<double(const Match&)> {
+//   static auto rg = std::mt19937{std::random_device{}()};
+//   static auto prob = std::uniform_real_distribution<>{};
 
-  if (std::ranges::empty(potentials)) {
-    // std::ranges::shuffle(matches, rg);
-    return [](auto&&) static noexcept { return prob(rg); };
-  }
+//   if (std::ranges::empty(potentials)) {
+//     // std::ranges::shuffle(matches, rg);
+//     return [](auto&&) static noexcept { return prob(rg); };
+//   }
 
-  auto&& weights = matches
-      | std::views::transform(bindFront(&ForceEngine::weight, this, grid));
+//   auto&& weights = matches
+//       | std::views::transform(bindFront(&ForceEngine::weight, this, grid));
 
-  auto&& scores = std::views::zip(
-    matches,
-    std::move(weights) | std::views::transform([&](auto&& w) noexcept {
-      auto&& u = prob(rg);
+//   auto&& scores = std::views::zip(
+//     matches,
+//     std::move(weights) | std::views::transform([&](auto&& w) noexcept {
+//       auto&& u = prob(rg);
 
-      return temperature > 0.0
-        /** Boltzmann distribution: `p(r) ~ exp(-w(r)/t)` */
-        ? std::pow(u, std::exp(w / temperature))   
-        /** frozen config */
-        : -w + 0.001 * u;
-    }))
-    | std::ranges::to<std::unordered_map<Match, double>>();
+//       return temperature > 0.0
+//         /** Boltzmann distribution: `p(r) ~ exp(-w(r)/t)` */
+//         ? std::pow(u, std::exp(w / temperature))   
+//         /** frozen config */
+//         : -w + 0.001 * u;
+//     }))
+//     | std::ranges::to<std::unordered_map<Match, double>>();
 
-  return [scores = std::move(scores)](auto&& m) noexcept {
-    return scores.at(m);
-  };
-}
+//   return [scores = std::move(scores)](auto&& m) noexcept {
+//     return scores.at(m);
+//   };
+// }

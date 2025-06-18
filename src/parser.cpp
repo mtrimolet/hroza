@@ -7,6 +7,12 @@ using namespace std::literals;
 
 namespace parser {
 
+inline constexpr auto is_tag(std::string_view tag) noexcept -> decltype(auto) {
+  return [tag](const pugi::xml_node& c) noexcept {
+    return c.name() == tag;
+  };
+}
+
 auto Model(const pugi::xml_document& xmodel) noexcept -> ::Model {
   auto&& xnode = xmodel.first_child();
 
@@ -24,9 +30,9 @@ auto Model(const pugi::xml_document& xmodel) noexcept -> ::Model {
         return std::make_pair(c, std::string{c});
     }));
 
-  auto&& program = ExecutionNode(xnode, unions);
-  if (xnode.name() != "sequence"s and xnode.name() != "markov"s)
-    program = Markov{std::vector{program}};
+  auto program = NodeRunner(xnode, unions);
+  if (const auto p = program.target<TreeRunner>(); p == nullptr)
+    program = TreeRunner{TreeRunner::Mode::MARKOV, {std::move(program)}};
 
   return ::Model{
     // title,
@@ -36,60 +42,57 @@ auto Model(const pugi::xml_document& xmodel) noexcept -> ::Model {
   };
 }
 
-auto ExecutionNode(
+auto Union(const pugi::xml_node& xnode) noexcept -> decltype(auto) {
+  ensures(xnode.attribute("symbol"),
+          std::format("missing '{}' attribute in '{}' node [:{}]", "symbol", "union", xnode.offset_debug()));
+  auto&& symbol_str = std::string{xnode.attribute("symbol").as_string()};
+  ensures(!std::ranges::empty(symbol_str),
+          std::format("empty '{}' attribute in '{}' node [:{}]", "symbol", "union", xnode.offset_debug()));
+  ensures(std::ranges::size(symbol_str) == 1,
+          std::format("only one character allowed for '{}' attribute of '{}' node [:{}]", "symbol", "union", xnode.offset_debug()));
+
+  ensures(xnode.attribute("values"),
+          std::format("missing '{}' attribute in '{}' node [:{}]", "values", "union", xnode.offset_debug()));
+  auto&& values = std::string{xnode.attribute("values").as_string()};
+  ensures(!std::ranges::empty(values),
+          std::format("empty '{}' attribute in '{}' node [:{}]", "values", "union", xnode.offset_debug()));
+
+  return std::make_pair(symbol_str[0], std::move(values));
+}
+
+auto NodeRunner(
   const pugi::xml_node& xnode,
   RewriteRule::Unions unions,
   std::string_view symmetry
-) noexcept -> ::ExecutionNode {
+) noexcept -> ::NodeRunner {
   symmetry = xnode.attribute("symmetry").as_string(std::data(symmetry));
 
   unions.insert_range(xnode.children("union") 
-    | std::views::transform([](const pugi::xml_node& xunion) static noexcept {
-      ensures(xunion.attribute("symbol"),
-              std::format("missing '{}' attribute in '{}' node [:{}]", "symbol", "union", xunion.offset_debug()));
-      auto&& symbol_str = std::string{xunion.attribute("symbol").as_string()};
-      ensures(!std::ranges::empty(symbol_str),
-              std::format("empty '{}' attribute in '{}' node [:{}]", "symbol", "union", xunion.offset_debug()));
-      ensures(std::ranges::size(symbol_str) == 1,
-              std::format("only one character allowed for '{}' attribute of '{}' node [:{}]", "symbol", "union", xunion.offset_debug()));
+    | std::views::transform(Union));
 
-      ensures(xunion.attribute("values"),
-              std::format("missing '{}' attribute in '{}' node [:{}]", "values", "union", xunion.offset_debug()));
-      auto&& values = std::string{xunion.attribute("values").as_string()};
-      ensures(!std::ranges::empty(values),
-              std::format("empty '{}' attribute in '{}' node [:{}]", "values", "union", xunion.offset_debug()));
-
-      return std::make_pair(symbol_str[0], std::move(values));
-    })
-  );
-  
   auto&& tag = xnode.name();
-  if (tag == "sequence"s) {
-    return Sequence{
+  if (tag == "sequence"s
+   or tag == "markov"s
+  ) {
+    auto mode = tag == "sequence"s ? TreeRunner::Mode::SEQUENCE : TreeRunner::Mode::MARKOV;
+    return TreeRunner{
+      mode,
       xnode.children()
-        | std::views::filter([](const pugi::xml_node& c) static noexcept { return c.name() != "union"s; })
-        | std::views::transform(bindBack(ExecutionNode, unions, symmetry))
+        | std::views::filter(std::not_fn(is_tag("union")))
+        | std::views::transform(bindBack(NodeRunner, unions, symmetry))
         | std::ranges::to<std::vector>()
     };
   }
-  else if (tag == "markov"s) {
-    return Markov{
-      xnode.children()
-        | std::views::filter([](const pugi::xml_node& c) static noexcept { return c.name() != "union"s; })
-        | std::views::transform(bindBack(ExecutionNode, unions, symmetry))
-        | std::ranges::to<std::vector>()
+  if (tag == "one"s
+   or tag == "prl"s
+   or tag == "all"s
+  ) {
+    return RuleRunner{
+      RuleNode(xnode, unions, symmetry),
+      xnode.attribute("steps").as_uint(0)
     };
   }
-  else if (tag == "one"s
-        or tag == "prl"s
-        or tag == "all"s) {
-    auto&& steps = xnode.attribute("steps").as_uint(0);
-    if (steps == 0)
-      return NoLimit{RuleNode(xnode, unions, symmetry)};
-    else
-      return Limit{std::move(steps), RuleNode(xnode, unions, symmetry)};
-  }
-  
+
   ensures(false, std::format("unknown tag '{}' [:{}]", tag, xnode.offset_debug()));
   std::unreachable();
 }
@@ -98,97 +101,45 @@ auto RuleNode(
   const pugi::xml_node& xnode,
   RewriteRule::Unions unions,
   std::string_view symmetry
-) noexcept -> ::Action {
+) noexcept -> ::RuleNode {
   auto&& tag = xnode.name();
-  if (tag == "one"s) {
-    auto&& observes = xnode.children("observe");
-    if (not std::ranges::empty(observes)) {
-      auto&& search = xnode.attribute("search").as_bool(false);
-      if (search) {
-        return One{
-          xnode.attribute("limit")
-            ? std::optional{xnode.attribute("limit").as_uint()}
-            : std::nullopt,
-          xnode.attribute("depthCoefficient").as_double(0.5),
-          Observations(xnode),
-          std::move(unions),
-          Rules(xnode, symmetry)
-        };
-      }
+  auto mode =
+      tag == "one"s ? ::RuleNode::Mode::ONE
+    : tag == "all"s ? ::RuleNode::Mode::ALL
+    :                 ::RuleNode::Mode::PRL;
 
-      return One{
-        xnode.attribute("temperature").as_double(0.0),
-        Observations(xnode),
-        std::move(unions),
-        Rules(xnode, symmetry)
-      };
-    }
-
-    auto&& fields = xnode.children("field");
-    if (not std::ranges::empty(fields)) {
-      return One{
-        xnode.attribute("temperature").as_double(0.0),
-        Fields(xnode),
-        std::move(unions),
-        Rules(xnode, symmetry)
-      };
-    }
-
-    return One{
+  if (xnode.attribute("search").as_bool(false)) {
+    return ::RuleNode{
+      mode, Rules(xnode, symmetry),
       std::move(unions),
-      Rules(xnode, symmetry)
+      Observes(xnode),
+      xnode.attribute("limit").as_uint(0),
+      xnode.attribute("depthCoefficient").as_double(0.5)
     };
   }
 
-  if (tag == "prl"s) {
-    return Prl{
+  if (not std::ranges::empty(xnode.children("observe"))) {
+    return ::RuleNode{
+      mode, Rules(xnode, symmetry),
       std::move(unions),
-      Rules(xnode, symmetry)
+      Observes(xnode),
+      xnode.attribute("temperature").as_double(0.0)
     };
   }
 
-  if (tag == "all"s) {
-    auto&& observes = xnode.children("observe");
-    if (not std::ranges::empty(observes)) {
-      auto&& search = xnode.attribute("search").as_bool(false);
-      if (search) {
-        return All{
-          xnode.attribute("limit")
-            ? std::optional{xnode.attribute("limit").as_uint()}
-            : std::nullopt,
-          xnode.attribute("depthCoefficient").as_double(0.5),
-          Observations(xnode),
-          std::move(unions),
-          Rules(xnode, symmetry)
-        };
-      }
-
-      return All{
-        xnode.attribute("temperature").as_double(0.0),
-        Observations(xnode),
-        std::move(unions),
-        Rules(xnode, symmetry)
-      };
-    }
-
-    auto&& fields = xnode.children("field");
-    if (not std::ranges::empty(fields)) {
-      return All{
-        xnode.attribute("temperature").as_double(0.0),
-        Fields(xnode),
-        std::move(unions),
-        Rules(xnode, symmetry)
-      };
-    }
-
-    return All{
+  if (not std::ranges::empty(xnode.children("field"))) {
+    return ::RuleNode{
+      mode, Rules(xnode, symmetry),
       std::move(unions),
-      Rules(xnode, symmetry)
+      Fields(xnode),
+      xnode.attribute("temperature").as_double(0.0)
     };
   }
 
-  ensures(false, std::format("unknown rulenode {}", tag));
-  std::unreachable();
+  return ::RuleNode{
+    mode, Rules(xnode, symmetry),
+    std::move(unions)
+  };
 }
 
 auto Rule(const pugi::xml_node& xnode) noexcept -> ::RewriteRule {
@@ -219,14 +170,15 @@ auto Rules(
 ) noexcept -> std::vector<RewriteRule> {
   auto xrules = xnode.children("rule") | std::ranges::to<std::vector>();
   if (std::ranges::empty(xrules)) xrules.push_back(xnode);
-  return std::move(xrules)
+  auto rs = std::move(xrules)
      | std::views::transform(Rule)
-     | std::views::transform(bindBack(RewriteRule::symmetries, symmetry))
+     | std::views::transform(bindBack(&RewriteRule::symmetries, symmetry))
      | std::views::join
      | std::ranges::to<std::vector>();
+  return rs;
 }
 
-auto Field(const pugi::xml_node& xnode) noexcept -> std::pair<char, ::DijkstraField> {
+auto Field(const pugi::xml_node& xnode) noexcept -> std::pair<char, ::Field> {
   ensures(xnode.attribute("for"),
           std::format("missing '{}' attribute in '{}' node [:{}]", "for", "field", xnode.offset_debug()));
   auto&& _for = std::string{xnode.attribute("for").as_string()};
@@ -250,25 +202,23 @@ auto Field(const pugi::xml_node& xnode) noexcept -> std::pair<char, ::DijkstraFi
   auto&& zero = std::string{xnode.attribute("from").as_string(xnode.attribute("to").as_string())};
   ensures(!std::ranges::empty(zero),
           std::format("empty '{}' attribute in '{}' node [:{}]", inversed ? "from" : "to", "field", xnode.offset_debug()));
-  return std::make_pair(
-    _for[0],
-    DijkstraField{
-      xnode.attribute("recompute").as_bool(false),
-      xnode.attribute("essential").as_bool(false),
-      inversed,
-      substrate | std::ranges::to<std::unordered_set>(),
-      zero | std::ranges::to<std::unordered_set>()
-    }
-  );
+
+  return std::make_pair(_for[0], ::Field{
+    xnode.attribute("recompute").as_bool(false),
+    xnode.attribute("essential").as_bool(false),
+    inversed,
+    substrate | std::ranges::to<std::unordered_set>(),
+    zero | std::ranges::to<std::unordered_set>()
+  });
 }
 
-auto Fields(const pugi::xml_node& xnode) noexcept -> DijkstraFields {
+auto Fields(const pugi::xml_node& xnode) noexcept -> ::Fields {
   return xnode.children("field")
     | std::views::transform(Field)
-    | std::ranges::to<DijkstraFields>();
+    | std::ranges::to<::Fields>();
 }
 
-auto Observation(const pugi::xml_node& xnode) noexcept -> std::pair<char, ::Observation> {
+auto Observe(const pugi::xml_node& xnode) noexcept -> std::pair<char, ::Observe> {
   ensures(xnode.attribute("value"),
           std::format("missing '{}' attribute in '{}' node [:{}]", "value", "observe", xnode.offset_debug()));
   auto&& value = std::string{xnode.attribute("value").as_string()};
@@ -282,19 +232,16 @@ auto Observation(const pugi::xml_node& xnode) noexcept -> std::pair<char, ::Obse
           std::format("empty '{}' attribute in '{}' node [:{}]", "from", "observe", xnode.offset_debug()));
   ensures(not xnode.attribute("from") or std::ranges::size(from) == 1,
           std::format("only one character allowed for '{}' attribute of '{}' node [:{}]", "from", "observe", xnode.offset_debug()));
-  
-  return std::make_pair(
-    value[0],
-    ::Observation{
-      not xnode.attribute("from") ? std::nullopt : std::optional{from[0]},
-      std::string{xnode.attribute("to").as_string()} | std::ranges::to<std::unordered_set>()
-    }
-  );
+
+  return std::make_pair(value[0], ::Observe{
+    not xnode.attribute("from") ? std::nullopt : std::optional{from[0]},
+    std::string{xnode.attribute("to").as_string()} | std::ranges::to<std::unordered_set>()
+  });
 }
 
-auto Observations(const pugi::xml_node& xnode) noexcept -> ::Observations {
+auto Observes(const pugi::xml_node& xnode) noexcept -> ::Observes {
   return xnode.children("observe")
-    | std::views::transform(Observation)
+    | std::views::transform(Observe)
     | std::ranges::to<std::unordered_map>();
 }
 

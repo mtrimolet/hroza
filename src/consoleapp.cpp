@@ -7,24 +7,52 @@ import geometry;
 
 using namespace stormkit;
 using namespace ftxui;
+using namespace std::string_literals;
 
-auto ConsoleApp::run(std::span<const std::string_view> args) noexcept -> int {
-  load_palette(DEFAULT_PALETTE_FILE);
+static const auto DEFAULT_PALETTE_FILE = "resources/palette.xml"s;
+static const auto DEFAULT_MODEL_FILE   = "models/GoToGradient.xml"s;
 
-  auto modelfile = std::ranges::size(args) >= 2 ? args[1] : DEFAULT_MODEL_FILE;
-  load_model(modelfile);
+static constexpr auto DEFAULT_GRID_EXTENT = std::dims<3>{1u, 50u, 100u};
 
-  init_grid(DEFAULT_GRID_EXTENT);
+auto ConsoleApp::operator()(std::span<const std::string_view> args) noexcept -> int {
+  auto palettefile = DEFAULT_PALETTE_FILE;
+  // ilog("loading palette {}", palettefile.string());
+  auto default_palette = parser::Palette(parser::document(palettefile));
+
+  auto modelarg = std::ranges::find_if(args, [](const auto& arg) static noexcept {
+    return std::ranges::cbegin(std::ranges::search(arg, "models/"s)) == std::ranges::cbegin(arg);
+  });
+  auto modelfile =
+    modelarg != std::ranges::end(args) ? std::string{*modelarg} : DEFAULT_MODEL_FILE;
+  // ilog("loading model {}", modelfile.string());
+
+  auto model = parser::Model(parser::document(modelfile));
+  auto palette = model.symbols
+    | std::views::transform([&](auto&& character) noexcept {
+        return std::make_pair(
+          character,
+          default_palette.contains(character)
+            ? Color::RGB((default_palette.at(character) >> 16) & 0xff,
+                         (default_palette.at(character) >>  8) & 0xff,
+                         (default_palette.at(character)      ) & 0xff)
+            : Color::Default
+        );
+    })
+    | std::ranges::to<render::Palette>();
+
+  auto extent = DEFAULT_GRID_EXTENT;
+  auto grid = TracedGrid{extent, model.symbols[0]};
+  if (model.origin) grid[grid.area().center()] = model.symbols[1];
 
   auto view = Container::Horizontal({
-    Renderer([this]() noexcept { return render::grid(grid, palette); }),
-    Renderer([this]() noexcept { return render::model(model, palette); }),
+    Renderer([&grid, &palette]() noexcept { return render::grid(grid, palette); }),
+    Renderer([&model, &palette]() noexcept { return render::model(model, palette); }),
   });
 
-  auto screen = ScreenInteractive::Fullscreen();
+  auto screen = ScreenInteractive::TerminalOutput();
   screen.TrackMouse(false);
 
-  auto program_thread = std::jthread{[this, &screen](std::stop_token stop) mutable noexcept {
+  auto program_thread = std::jthread{[&grid, &model, &screen](std::stop_token stop) mutable noexcept {
     for (auto&& changes : model.program(grid)) {
       if (stop.stop_requested()) return;
 
@@ -50,31 +78,4 @@ auto ConsoleApp::run(std::span<const std::string_view> args) noexcept -> int {
   // }
 
   return 0;
-}
-
-auto ConsoleApp::load_palette(const std::filesystem::path& palettefile) noexcept -> void {
-  ilog("loading palette {}", palettefile.string());
-  default_palette = parser::Palette(parser::document(palettefile));
-}
-
-auto ConsoleApp::load_model(const std::filesystem::path& modelfile) noexcept -> void {
-  ilog("loading model {}", modelfile.string());
-  model = parser::Model(parser::document(modelfile));
-  palette = model.symbols
-    | std::views::transform([&](auto&& character) noexcept {
-        return std::make_pair(
-          character,
-          default_palette.contains(character)
-            ? Color::RGB((default_palette.at(character) >> 16) & 0xff,
-                         (default_palette.at(character) >>  8) & 0xff,
-                         (default_palette.at(character)      ) & 0xff)
-            : Color::Default
-        );
-    })
-    | std::ranges::to<render::Palette>();
-}
-
-auto ConsoleApp::init_grid(TracedGrid<char>::Extents extents) noexcept -> void {
-  grid = TracedGrid{extents, model.symbols[0]};
-  if (model.origin) grid[grid.area().center()] = model.symbols[1];
 }

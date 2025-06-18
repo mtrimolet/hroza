@@ -26,7 +26,7 @@ struct ForceEngine {
   auto weight(const Grid<char>& grid, const Match& match) noexcept -> double;
 
   /** Get heated potential */
-  auto score_projection(const Grid<char>& grid, std::span<const Match> matches) noexcept -> std::function<double(const Match&)>;
+  // auto score_projection(const Grid<char>& grid, std::span<const Match> matches) noexcept -> std::function<double(const Match&)>;
 };
 
 }

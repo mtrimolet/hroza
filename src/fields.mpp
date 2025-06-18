@@ -1,0 +1,16 @@
+export module fields;
+
+import std;
+
+import grid;
+import potentials;
+
+export {
+struct Field {
+  bool recompute, essential, inversed;
+  std::unordered_set<char> substrate, zero;
+  auto potential(const Grid<char>& grid) const noexcept -> Potential;
+};
+
+using Fields = std::unordered_map<char, Field>;
+}

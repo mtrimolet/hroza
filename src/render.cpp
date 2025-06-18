@@ -13,7 +13,7 @@ Element canvasFromImage(const Image& img) noexcept {
   return canvas(img.dimx(), img.dimy(), bindBack(&Canvas::DrawImage, 0, 0, img));
 }
 
-// TODO here's the issue, canvas don't get sized properly
+// TODO canvas don't get sized properly
 Element canvasFromImage(Image&& img) noexcept {
   return canvas(img.dimx(), img.dimy(), bindBack(&Canvas::DrawImage, 0, 0, std::move(img)));
 }
@@ -35,7 +35,7 @@ Element grid(const ::TracedGrid<char>& g, const Palette& palette) noexcept {
     | size(HEIGHT, EQUAL, h);
 }
 
-Element rule(const ::RewriteRule& rule, const Palette& palette) noexcept {
+Element rule(const ::RewriteRule& rule, const Palette& palette, UInt count = 1) noexcept {
   auto input = Image{
     static_cast<int>(rule.input.extents.extent(2)),
     static_cast<int>(rule.input.extents.extent(1))
@@ -66,11 +66,12 @@ Element rule(const ::RewriteRule& rule, const Palette& palette) noexcept {
       | size(WIDTH, EQUAL, w)
       | size(HEIGHT, EQUAL, h)
       | border,
-    text("->") | vcenter,
+    text("→") | vcenter,
     canvasFromImage(std::move(output))
       | size(WIDTH, EQUAL, w)
       | size(HEIGHT, EQUAL, h)
       | border,
+    text(std::format("x{}", count)),
   });
 }
 
@@ -113,86 +114,69 @@ Element potential(char c, const Potential& pot, const Palette& palette) noexcept
   );
 }
 
-Element ruleNode(const Action& node, const Palette& palette, std::optional<UInt> count) noexcept {
-  if (const auto one = node.target<One>(); one != nullptr) {
-    auto nodes = Elements{
-      text("one"),
-    };
-    if (count) nodes.push_back(text(std::format("({}/?)", *count)));
-    nodes.append_range(one->rules
-      | std::views::filter(std::not_fn(&RewriteRule::transformed))
-      | std::views::transform(bindBack(rule, palette)));
-    nodes.push_back(hbox(one->dijkstra.potentials
-      | std::views::transform([&palette](auto&& p) noexcept {
-          return potential(std::get<0>(p), std::get<1>(p), palette);
-        })
-      | std::ranges::to<Elements>()));
-    return vbox(std::move(nodes));
+Element ruleRunner(const RuleRunner& node, const Palette& palette) noexcept {
+  auto rulenode = node.rulenode.target<RuleNode>();
+  if (rulenode == nullptr) return text("<unknown_rule_node>");
+  
+  auto elements = Elements{};
+
+  auto tag =
+      rulenode->mode == RuleNode::Mode::ONE ? "one"
+    : rulenode->mode == RuleNode::Mode::ALL ? "all"
+    :                                         "prl";
+
+  auto steps = node.steps != 0 ? std::format("{}", node.steps) : std::string{"∞"};
+  elements.push_back(text(std::format("{} ({}/{})", tag, node.step, steps)));
+
+  for(
+    auto irule = std::ranges::cbegin(rulenode->rules);
+    irule != std::ranges::cend(rulenode->rules);
+  ) {
+    auto next_rule = std::ranges::find_if(
+      std::ranges::subrange(irule, std::ranges::cend(rulenode->rules))
+        | std::views::drop(1),
+      &RewriteRule::original
+    );
+    elements.push_back(rule(*irule, palette, std::ranges::distance(irule, next_rule)));
+    irule = next_rule;
   }
-  if (const auto all = node.target<All>(); all != nullptr) {
-    auto nodes = Elements{
-      text("all"),
-    };
-    if (count) nodes.push_back(text(std::format("({}/?)", *count)));
-    nodes.append_range(all->rules
-      | std::views::filter(std::not_fn(&RewriteRule::transformed))
-      | std::views::transform(bindBack(rule, palette)));
-    nodes.push_back(hbox(all->dijkstra.potentials
-      | std::views::transform([&palette](auto&& p) noexcept {
-          return potential(std::get<0>(p), std::get<1>(p), palette);
-        })
-      | std::ranges::to<Elements>()));
-    return vbox(std::move(nodes));
-  }
-  if (const auto prl = node.target<Prl>(); prl != nullptr) {
-    auto nodes = Elements{
-      text("prl"),
-    };
-    if (count) nodes.push_back(text(std::format("({}/?)", *count)));
-    nodes.append_range(prl->rules
-      | std::views::filter(std::not_fn(&RewriteRule::transformed))
-      | std::views::transform(bindBack(rule, palette)));
-    return vbox(std::move(nodes));
-  }
-  return text("<unknown_rule_node>");
+  // elements.append_range(rulenode->rules
+  //   | std::views::filter(&RewriteRule::original)
+  //   | std::views::transform(bindBack(rule, palette)));
+  elements.push_back(hbox(rulenode->potentials
+    | std::views::transform([&palette](auto&& p) noexcept {
+        return potential(std::get<0>(p), std::get<1>(p), palette);
+      })
+    | std::ranges::to<Elements>()));
+  return vbox(elements);
 }
 
-Element executionNode(const ::ExecutionNode& node, const Palette& palette, bool selected) noexcept {
-  if (const auto markov = node.target<Markov>(); markov != nullptr) {
-    auto nodes = Elements{
-      text("markov"),
-    };
-    nodes.append_range(std::views::zip(markov->nodes, std::views::iota(0))
-      | std::views::transform([&palette, &selected, current_index = markov->current_index()](auto&& ni) noexcept {
-          auto&& [n, i] = ni;
-          return executionNode(n, palette, selected and i == current_index);
-        }));
-    if (selected) return vbox(std::move(nodes)) | focus;
-    else return vbox(std::move(nodes));
+Element treeRunner(const TreeRunner& node, const Palette& palette, bool selected) noexcept {
+  auto elements = Elements{};
+  auto tag =
+      node.mode == TreeRunner::Mode::SEQUENCE ? "sequence"
+    :                                           "markov";
+  elements.push_back(text(tag));
+
+  elements.append_range(std::views::zip(node.nodes, std::views::iota(0))
+    | std::views::transform([&palette, &selected, current_index = node.current_index()](auto&& ni) noexcept {
+        auto&& [n, i] = ni;
+        return nodeRunner(n, palette, selected and current_index == i);
+      }));
+
+  auto element = vbox(std::move(elements));
+  if (selected) element |= focus;
+  return element;
+}
+
+Element nodeRunner(const NodeRunner& node, const Palette& palette, bool selected) noexcept {
+  if (const auto t = node.target<TreeRunner>(); t != nullptr) {
+    return treeRunner(*t, palette, selected);
   }
-  if (const auto sequence = node.target<Sequence>(); sequence != nullptr) {
-    auto nodes = Elements{
-      text("sequence"),
-    };
-    nodes.append_range(std::views::zip(sequence->nodes, std::views::iota(0))
-      | std::views::transform([&palette, &selected, current_index = sequence->current_index()](auto&& ni) noexcept {
-          auto&& [n, i] = ni;
-          return executionNode(n, palette, selected and i == current_index);
-        }));
-    if (selected) return vbox(std::move(nodes)) | focus;
-    else return vbox(std::move(nodes));
+  if (const auto r = node.target<RuleRunner>(); r != nullptr) {
+    return ruleRunner(*r, palette);
   }
-  if (const auto limit = node.target<Limit>(); limit != nullptr) {
-    auto n = ruleNode(limit->action, palette, limit->count);
-    if (selected) return hbox({std::move(n), text("<")}) | focus;
-    else return hbox({std::move(n), text(" ")});
-  }
-  if (const auto nolimit = node.target<NoLimit>(); nolimit != nullptr) {
-    auto n = ruleNode(nolimit->action, palette);
-    if (selected) return hbox({std::move(n), text("<")}) | focus;
-    else return hbox({std::move(n), text(" ")});
-  }
-  return text("<unknown_execution_node>");
+  return text("<unknown_node_runner>");
 }
 
 Element symbols(std::string_view values, const Palette& palette) noexcept {
@@ -219,7 +203,7 @@ Element symbols(std::string_view values, const Palette& palette) noexcept {
 Element model(const ::Model& model, const Palette& palette) noexcept {
   return vbox({
     window(text("symbols"), symbols(model.symbols, palette)),
-    window(text("program"), executionNode(model.program, palette) | vscroll_indicator | yframe),
+    window(text("program"), nodeRunner(model.program, palette)),
   });
 }
 

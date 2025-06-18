@@ -1,0 +1,19 @@
+export module potentials;
+
+import std;
+
+import grid;
+
+export {
+using Potential = Grid<double>;
+using Potentials = std::unordered_map<char, Potential>;
+
+inline constexpr auto propagate(auto&& initial, auto&& unfold) noexcept -> decltype(auto) {
+  for (
+    auto&& q = std::forward<decltype(initial)>(initial) | std::ranges::to<std::queue>();
+    not std::ranges::empty(q);
+    q.pop()
+  ) q.push_range(unfold(q.front()));
+}
+
+}

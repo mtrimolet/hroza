@@ -9,11 +9,13 @@ import windowapp;
 using namespace stormkit;
 
 inline constexpr auto run_consoleapp(std::span<const std::string_view> args) noexcept -> int {
-  return ConsoleApp{}.run(args);
+  auto app = ConsoleApp{};
+  return app(args);
 }
 
 inline constexpr auto run_windowapp(std::span<const std::string_view> args) noexcept -> int {
-  return WindowApp{}.run(args);
+  auto app = WindowApp{};
+  return app.run(args);
 }
 
 auto main(std::span<const std::string_view> args) noexcept -> int {

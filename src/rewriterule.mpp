@@ -1,6 +1,7 @@
 export module rewriterule;
 
 import std;
+import glm;
 import stormkit.core;
 import geometry;
 
@@ -16,106 +17,82 @@ struct RewriteRule {
   Grid<char> input;
   Grid<char> output;
 
-  double p = 1.0;
-  bool transformed = false;
+  std::bernoulli_distribution draw = std::bernoulli_distribution{1.0};
+  bool original;
 
-  static auto symmetries(const RewriteRule& rule, std::string_view subgroup = "") noexcept -> std::unordered_set<RewriteRule>;
+  using Shifts = std::unordered_multimap<char, math::Vector3U>;
+  Shifts ishifts;
 
-  inline constexpr auto operator==(const RewriteRule& other) const noexcept -> bool = default;
+  RewriteRule() = delete;
+  RewriteRule(Grid<char>&& input, Grid<char>&& output, double p = 1.0, bool original = true) noexcept;
+
+  auto symmetries(std::string_view subgroup = "") const noexcept -> std::vector<RewriteRule>;
+
+  inline constexpr auto operator==(const RewriteRule& other) const noexcept -> bool {
+    return input    == other.input
+       and output   == other.output
+       and draw.p() == other.draw.p();
+  };
 
   static inline constexpr auto parse(
     std::string_view input,
     std::string_view output,
     double p = 1.0
-  ) noexcept -> decltype(auto) {
-    return RewriteRule{
+  ) noexcept -> RewriteRule {
+    return {
       Grid<char>::parse(input),
       Grid<char>::parse(output),
       p
     };
   }
 
-  inline constexpr auto xreflected() const noexcept -> decltype(auto) {
+  inline constexpr auto xreflected() const noexcept -> RewriteRule {
     return RewriteRule{
       input.xreflected(),
       output.xreflected(),
-      p,
-      true
+      draw.p(),
+      false
     };
   }
 
-  inline constexpr auto xyrotated() const noexcept -> decltype(auto) {
-    return RewriteRule{
+  inline constexpr auto xyrotated() const noexcept -> RewriteRule {
+    return {
       input.xyrotated(),
       output.xyrotated(),
-      p,
-      true
+      draw.p(),
+      false
     };
   }
 
-  inline constexpr auto zyrotated() const noexcept -> decltype(auto) {
-    return RewriteRule{
+  inline constexpr auto zyrotated() const noexcept -> RewriteRule {
+    return {
       input.zyrotated(),
       output.zyrotated(),
-      p,
-      true
+      draw.p(),
+      false
     };
   }
 
-  inline constexpr auto area() const noexcept -> decltype(auto) {
+  inline constexpr auto area() const noexcept -> Area3U {
     return output.area();
   }
 
   /** Provides the relative area that this rule would update */
-  inline constexpr auto forward_neighborhood() const noexcept -> decltype(auto) {
-    return static_cast<Area3I>(area());
+  inline constexpr auto forward_neighborhood() const noexcept -> Area3I {
+    return area();
   }
 
   /** Provides the relative area from inside which this rule would update the origin */
-  inline constexpr auto backward_neighborhood() const noexcept -> decltype(auto) {
+  inline constexpr auto backward_neighborhood() const noexcept -> Area3I {
     auto&& a = forward_neighborhood();
     auto&& shift = math::Vector3I{1, 1, 1} - static_cast<math::Vector3I>(a.size);
     return a + shift;
   }
 };
 
-template <>
-struct std::hash<std::dims<3, std::size_t>> {
-  inline constexpr auto operator()(std::dims<3, std::size_t> u) const noexcept -> std::size_t {
-    return std::hash<std::dims<3>::index_type>{}(u.extent(0))
-         ^ std::hash<std::dims<3>::index_type>{}(u.extent(1))
-         ^ std::hash<std::dims<3>::index_type>{}(u.extent(2));
-  }
-};
-
-template <class T>
-struct std::hash<std::unordered_set<T>> {
-  inline constexpr auto operator()(const std::unordered_set<T>& set) const noexcept -> std::size_t {
-    auto&& seed = std::hash<std::size_t>{}(set.size());
-    for (auto&& i : set) {
-      seed ^= std::hash<T>{}(i);
-    }
-    return seed;
-  }
-};
-
-export template <>
-struct std::hash<RewriteRule> {
-  inline constexpr auto operator()(const RewriteRule& rule) const noexcept -> std::size_t {
-    auto&& seed = std::hash<std::dims<3>>{}(rule.input.extents);
-    for (auto&& v : rule.input) {
-      seed ^= std::hash<std::remove_cvref_t<decltype(v)>>{}(v);
-    }
-    for (auto&& v : rule.output) {
-      seed ^= std::hash<std::remove_cvref_t<decltype(v)>>{}(v);
-    }
-    return seed;
-  }
-};
-
 export template <>
 struct std::formatter<RewriteRule> {
-  std::string sep = "->";
+  std::string sep = "→";
   template<class ParseContext>
   constexpr ParseContext::iterator parse(ParseContext& ctx)
   {
@@ -141,7 +118,7 @@ struct std::formatter<RewriteRule> {
       // if (quoted)
       //     out << std::quoted(s);
       // else
-          out << std::format("{}{}{}", r.input, sep, r.output);
+          out << std::format("[{}x{}]{}{}{}", r.input.extents.extent(2), r.input.extents.extent(1), r.input, sep, r.output);
 
       return std::ranges::copy(std::move(out).str(), ctx.out()).out;
   }

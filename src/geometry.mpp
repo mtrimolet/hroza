@@ -46,6 +46,15 @@ inline constexpr auto dot(const math::Vector<3, T>& a, const math::Vector<3, T>&
 
 // maybe implement partial/weak/string ordering(s)
 
+template <>
+struct std::hash<math::Vector3U> {
+  inline constexpr auto operator()(math::Vector3U u) const noexcept -> std::size_t {
+    auto h = std::hash<UInt32>{};
+    return h(u.x)
+         ^ h(u.y)
+         ^ h(u.z);
+  }
+};
 
 template <RangeExtent E, meta::IsArithmetic T>
 struct HyperRectangle {
@@ -64,102 +73,134 @@ struct HyperRectangle {
   inline constexpr HyperRectangle(const HyperRectangle<E, T2>& other) noexcept
     : HyperRectangle{other.u, other.size} {}
 
-  inline constexpr auto outerbound() const noexcept -> decltype(auto) {
+  inline constexpr auto shiftmax() const noexcept -> Position {
+    return size - (size / size);
+  }
+
+  inline constexpr auto outerbound() const noexcept -> Position {
     return u + static_cast<Position>(size);
   }
 
-  inline constexpr auto contains(const Position& v) const noexcept -> decltype(auto) {
+  inline constexpr auto contains(const Position& v) const noexcept -> bool {
     return math::all(math::lessThanEqual(u, v))
        and math::all(math::lessThan(v, outerbound()));
   }
 
-  inline constexpr auto operator+(const HyperRectangle& other) const noexcept -> decltype(auto) {
-    return HyperRectangle{u + other.u, size + other.size};
+  inline constexpr auto operator+(const HyperRectangle& other) const noexcept -> HyperRectangle {
+    return {u + other.u, size + other.size};
   }
 
-  inline constexpr auto operator-(const HyperRectangle& other) const noexcept -> decltype(auto) {
-    return HyperRectangle{u - other.u, size - other.size};
+  inline constexpr auto operator-(const HyperRectangle& other) const noexcept -> HyperRectangle {
+    return {u - other.u, size - other.size};
   }
 
-  inline constexpr auto operator+(const Position& shift) const noexcept -> decltype(auto) {
-    return HyperRectangle{u + shift, size};
+  inline constexpr auto operator+(const Position& shift) const noexcept -> HyperRectangle {
+    return {u + shift, size};
   }
 
-  inline constexpr auto operator-(const Position& shift) const noexcept -> decltype(auto) {
-    return HyperRectangle{u - shift, size};
+  inline constexpr auto operator-(const Position& shift) const noexcept -> HyperRectangle {
+    return {u - shift, size};
   }
 
-  inline constexpr auto operator*(T r) const noexcept -> decltype(auto) {
+  inline constexpr auto operator*(T r) const noexcept -> HyperRectangle {
     if constexpr (std::is_same_v<Position, Size>)
-      return HyperRectangle{u * r, size * r};
+      return {u * r, size * r};
     else
-      return HyperRectangle{u * r, size * std::abs(r)};
+      return {u * r, size * std::abs(r)};
   }
 
-  inline constexpr auto operator/(T r) const noexcept -> decltype(auto) {
+  inline constexpr auto operator/(T r) const noexcept -> HyperRectangle {
     if constexpr (std::is_same_v<Position, Size>)
-      return HyperRectangle{u / r, size / r};
+      return {u / r, size / r};
     else
-      return HyperRectangle{u / r, size / std::abs(r)};
+      return {u / r, size / std::abs(r)};
   }
 
   inline constexpr auto center() const noexcept -> decltype(auto) {
     return operator/(2u).outerbound();
   }
 
-  inline constexpr auto overlaps(const HyperRectangle& other) const noexcept -> decltype(auto) {
+  inline constexpr auto overlaps(const HyperRectangle& other) const noexcept -> bool {
     return math::all(math::lessThan(      u, other.outerbound()))
        and math::all(math::lessThan(other.u,       outerbound()));
   }
 
-  inline constexpr auto meet(const HyperRectangle& other) const noexcept -> decltype(auto) {
-    if (not overlaps(other)) return HyperRectangle{};
+  inline constexpr auto meet(const HyperRectangle& other) const noexcept -> HyperRectangle {
+    if (not overlaps(other)) return {};
     auto&& u    = max(this->u, other.u);
     auto&& size = min(outerbound(), other.outerbound()) - u;
-    return HyperRectangle{std::move(u), std::move(size)};
+    return {std::move(u), std::move(size)};
   }
 
-  inline constexpr auto umeet(const HyperRectangle<E, std::make_unsigned_t<T>>& other) const noexcept -> decltype(auto) 
+  inline constexpr auto umeet(const HyperRectangle<E, std::make_unsigned_t<T>>& other) const noexcept -> HyperRectangle<E, std::make_unsigned_t<T>> 
   requires (not std::is_same_v<Position, Size>) {
-    return static_cast<HyperRectangle<E, std::make_unsigned_t<T>>>(
-      meet(static_cast<HyperRectangle<E, T>>(other))
-    );
+    return meet(other);
   }
 
-  inline constexpr auto join(const HyperRectangle& other) const noexcept -> decltype(auto) {
+  inline constexpr auto join(const HyperRectangle& other) const noexcept -> HyperRectangle {
     auto&& u    = min(this->u, other.u);
     auto&& size = max(outerbound(), other.outerbound()) - u;
-    return HyperRectangle{std::move(u), std::move(size)};
+    return {std::move(u), std::move(size)};
   }
 };
 
 using Area3U = HyperRectangle<3, UInt32>;
 using Area3I = HyperRectangle<3, Int32>;
 
-inline constexpr auto xreflected(const Area3U& a) noexcept -> decltype(auto) {
-  auto&& size = auto{a.size};
+inline constexpr auto xreflected(const Area3U& a) noexcept -> Area3U {
   /* u -> { size.x - u.x - 1u, u.y, u.z } */
-  return Area3U{a.u, std::move(size)};
+  return {a.u, a.size};
 }
 
-inline constexpr auto xyrotated(const Area3U& a) noexcept -> decltype(auto) {
-  auto&& size = math::Vector3U{
+inline constexpr auto xyrotated(const Area3U& a) noexcept -> Area3U {
+  /* u -> { u.y, size.x - u.x - 1, u.z } */
+  return {a.u, {
     a.size.y,
     a.size.x,
     a.size.z
-  };
-  /* u -> { u.y, size.x - u.x - 1, u.z } */
-  return Area3U{a.u, std::move(size)};
+  }};
 }
 
-inline constexpr auto zyrotated(const Area3U& a) noexcept -> decltype(auto) {
-  auto&& size = math::Vector3U{
+inline constexpr auto zyrotated(const Area3U& a) noexcept -> Area3U {
+  /* u -> { u.x, size.z - u.z - 1, u.y } */
+  return {a.u, {
     a.size.x,
     a.size.z,
     a.size.y
-  };
-  /* u -> { u.x, size.z - u.z - 1, u.y } */
-  return Area3U{a.u, std::move(size)};
+  }};
 }
+
+template <RangeExtent E, class T>
+struct std::formatter<HyperRectangle<E, T>> {
+  template<class ParseContext>
+  constexpr ParseContext::iterator parse(ParseContext& ctx)
+  {
+      auto it = ctx.begin();
+      if (it == ctx.end())
+          return it;
+
+      // if (*it == '#')
+      // {
+      //     quoted = true;
+      //     ++it;
+      // }
+      if (it != ctx.end() && *it != '}')
+          throw std::format_error("Invalid format args for Grid.");
+
+      return it;
+  }
+
+  template<class FmtContext>
+  FmtContext::iterator format(const HyperRectangle<E, T>& r, FmtContext& ctx) const
+  {
+      std::ostringstream out;
+      // if (quoted)
+      //     out << std::quoted(s);
+      // else
+          out << std::format("box[u = {}, size = {}] ", r.u, r.size);
+
+      return std::ranges::copy(std::move(out).str(), ctx.out()).out;
+  }
+};
 
 }

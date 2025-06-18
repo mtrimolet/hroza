@@ -1,0 +1,17 @@
+export module observes;
+
+import std;
+
+import grid;
+import potentials;
+
+export {
+struct Observe {
+  std::optional<char>      from;
+  std::unordered_set<char> to;
+};
+
+using Observes = std::unordered_map<char, Observe>;
+
+using Future = Grid<char>;
+}

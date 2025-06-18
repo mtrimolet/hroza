@@ -1,87 +1,76 @@
 export module rulenode;
 
 import std;
+import glm;
 import stormkit.core;
+import utils;
 
 import grid;
 import rewriterule;
-import rewriteengine;
-import dijkstraengine;
-import observationengine;
-import searchengine;
+import match;
+
+import potentials;
+import fields;
+import observes;
+import search;
 
 using namespace stormkit;
 
-/*
-if node contains a "<observe>"
--> if node has "search=True"
-----> bidirectional search inference {limit, depthCoefficient}       <-- produces trajectory
--> else
-----> next-step backward inference {temperature}                     <-- produces potential
-else if node contains a "<field>"
--> distance inference (aka dijkstra map) {temperature}               <-- produces potential
-else
--> random
-*/
+// TODO: CRTP / deducing-this ?
 
-export {
+export
+struct RuleNode {
+  enum struct Mode { ONE, ALL, PRL };
+  Mode mode;
 
-struct InferenceEngine : RewriteEngine {
-  DijkstraEngine    dijkstra;
-  ObservationEngine observe;
-  SearchEngine      search;
+  std::vector<RewriteRule> rules;
+  RewriteRule::Unions unions;
 
-  using RewriteEngine::RewriteEngine;
+  enum struct Inference { RANDOM, DISTANCE, OBSERVE, SEARCH };
+  Inference inference = Inference::RANDOM;
 
-  inline constexpr InferenceEngine(
-    double temperature,
-    DijkstraFields&& fields,
-    RewriteRule::Unions&& unions,
-    std::vector<RewriteRule>&& rules
-  ) noexcept
-  : RewriteEngine{std::move(unions), std::move(rules)},
-    dijkstra{temperature, std::move(fields)}
+  double temperature = 0.0;
+
+  UInt   limit = 0;
+  double depthCoefficient = 0.5;
+
+  Fields   fields = {};
+  Observes observes = {};
+
+  Potentials potentials = {};
+  Future     future = {};
+  Trajectory trajectory = {};
+
+  inline constexpr RuleNode(Mode _mode, std::vector<RewriteRule>&& _rules, RewriteRule::Unions&& _unions) noexcept 
+  : mode{_mode}, rules{std::move(_rules)}, unions{std::move(_unions)}
   {}
 
-  inline constexpr InferenceEngine(
-    double temperature,
-    Observations&& observations,
-    RewriteRule::Unions&& unions,
-    std::vector<RewriteRule>&& rules
-  ) noexcept
-  : RewriteEngine{std::move(unions), std::move(rules)},
-    observe{temperature, std::move(observations)}
+  inline constexpr RuleNode(Mode _mode, std::vector<RewriteRule>&& _rules, RewriteRule::Unions&& _unions, Fields&& _fields, double _temperature = 0.0) noexcept 
+  : mode{_mode}, rules{std::move(_rules)}, unions{std::move(_unions)},
+    inference{Inference::DISTANCE}, temperature{_temperature}, fields{std::move(_fields)}
   {}
 
-  inline constexpr InferenceEngine(
-    std::optional<UInt>&& limit, double depthCoefficient,
-    Observations&& observations,
-    RewriteRule::Unions&& unions,
-    std::vector<RewriteRule>&& rules
-  ) noexcept
-  : RewriteEngine{std::move(unions), std::move(rules)},
-    search{std::move(limit), depthCoefficient, std::move(observations)}
+  inline constexpr RuleNode(Mode _mode, std::vector<RewriteRule>&& _rules, RewriteRule::Unions&& _unions, Observes&& _observes, double _temperature = 0.0) noexcept 
+  : mode{_mode}, rules{std::move(_rules)}, unions{std::move(_unions)},
+    inference{Inference::OBSERVE}, temperature{_temperature}, observes{std::move(_observes)}
   {}
 
-  auto infer(const TracedGrid<char>& grid) noexcept -> std::vector<Change<char>>;
-};
-
-struct One : InferenceEngine {
-  using InferenceEngine::InferenceEngine;
-
-  auto operator()(const TracedGrid<char>& grid) noexcept -> std::vector<Change<char>>;
-};
-
-struct Prl : RewriteEngine {
-  using RewriteEngine::RewriteEngine;
+  inline constexpr RuleNode(Mode _mode, std::vector<RewriteRule>&& _rules, RewriteRule::Unions&& _unions, Observes&& _observes, UInt _limit = 0, double _depthCoefficient = 0.0) noexcept 
+  : mode{_mode}, rules{std::move(_rules)}, unions{std::move(_unions)},
+    inference{Inference::SEARCH}, limit{_limit}, depthCoefficient{_depthCoefficient}, observes{std::move(_observes)}
+  {}
 
   auto operator()(const TracedGrid<char>& grid) noexcept -> std::vector<Change<char>>;
+
+private:
+  std::vector<Match> matches = {};
+
+  std::optional<RangeOffset> prev = {};
+  auto newMatches(const TracedGrid<char>& grid) noexcept -> std::vector<Match>;
+
+  std::ranges::iterator_t<decltype(matches)> active = std::ranges::begin(matches);
+
+  std::mt19937 rng = {};
+
+  auto infer(const Grid<char>& grid) noexcept -> std::vector<Change<char>>;
 };
-
-struct All : InferenceEngine {
-  using InferenceEngine::InferenceEngine;
-
-  auto operator()(const TracedGrid<char>& grid) noexcept -> std::vector<Change<char>>;
-};
-
-}
