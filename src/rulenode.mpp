@@ -66,11 +66,12 @@ private:
   std::vector<Match> matches = {};
 
   std::optional<RangeOffset> prev = {};
-  auto newMatches(const TracedGrid<char>& grid) noexcept -> std::vector<Match>;
+  auto scan(const TracedGrid<char>& grid) noexcept -> std::vector<Match>;
 
   std::ranges::iterator_t<decltype(matches)> active = std::ranges::begin(matches);
 
   std::mt19937 rng = {};
 
   auto infer(const Grid<char>& grid) noexcept -> std::vector<Change<char>>;
+  auto delta(const Grid<char>& grid, const Match& match) noexcept -> double;
 };

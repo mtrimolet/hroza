@@ -20,19 +20,7 @@ struct Match {
   math::Vector3U u;
   RangeOffset    r;
 
-  // inline constexpr Match(math::Vector3U _u, RewriteRule& _rule) noexcept
-  // : u{_u}, rule{_rule} {}
-
-  // inline constexpr Match(const Match& other) noexcept
-  // : rules{other.rules}, u{other.u}, r{other.r} {}
-  // inline constexpr auto operator=(Match&& other) noexcept -> Match& {
-  //   u = other.u; rule = other.rule;
-  //   return *this;
-  // }
-
-  // inline constexpr auto operator==(const Match& other) const noexcept -> bool {
-  //   return rules == other.rules u == other.u and rules[r] == other.rules[other.r];
-  // }
+  double score = 0.0;
 
   inline constexpr auto area() const noexcept -> Area3U {
     return rules[r].area() + u;

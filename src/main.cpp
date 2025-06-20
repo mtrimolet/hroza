@@ -22,9 +22,9 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
   // [tmpfix] remove when xmake target properly handles workdir on macos
   chdir("/Users/mtrimolet/Desktop/mtrimolet/hroza");
 
-  auto&& tui = std::ranges::find(args, "--tui") != std::ranges::end(args);
+  auto&& gui = std::ranges::find(args, "--gui") != std::ranges::end(args);
   
   auto _ = log::Logger::create_logger_instance<log::ConsoleLogger>();
-  if (tui) return run_consoleapp(args);
-  else     return run_windowapp(args);
+  if (gui) return run_windowapp(args);
+  else     return run_consoleapp(args);
 }

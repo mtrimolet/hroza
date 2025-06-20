@@ -34,15 +34,15 @@ constexpr auto square_subgroups =
     {"(xy)",   {true,  true,  true,  true,  true,  true,  true,  true}}
   });
 
-template <>
-struct std::hash<std::dims<3, std::size_t>> {
-  inline constexpr auto operator()(std::dims<3, std::size_t> u) const noexcept -> std::size_t {
-    auto h = std::hash<std::dims<3>::index_type>{};
-    return h(u.extent(0))
-         ^ h(u.extent(1))
-         ^ h(u.extent(2));
-  }
-};
+// template <>
+// struct std::hash<std::dims<3, std::size_t>> {
+//   inline constexpr auto operator()(std::dims<3, std::size_t> u) const noexcept -> std::size_t {
+//     auto h = std::hash<std::dims<3>::index_type>{};
+//     return h(u.extent(0))
+//          ^ h(u.extent(1))
+//          ^ h(u.extent(2));
+//   }
+// };
 
 // template <class T>
 // struct std::hash<std::unordered_set<T>> {
@@ -55,26 +55,47 @@ struct std::hash<std::dims<3, std::size_t>> {
 //   }
 // };
 
-template <>
-struct std::hash<RewriteRule> {
-  inline constexpr auto operator()(const RewriteRule& rule) const noexcept -> std::size_t {
-    auto seed = std::hash<std::dims<3>>{}(rule.input.extents);
-    auto h = std::hash<char>{};
-    for (auto v : rule.input) {
-      seed ^= h(v);
-    }
-    for (auto v : rule.output) {
-      seed ^= h(v);
-    }
-    return seed;
-  }
-};
+// template <>
+// struct std::hash<RewriteRule> {
+//   inline constexpr auto operator()(const RewriteRule& rule) const noexcept -> std::size_t {
+//     auto seed = std::hash<std::dims<3>>{}(rule.input.extents);
+//     auto h = std::hash<char>{};
+//     for (auto v : rule.input) {
+//       seed ^= h(v);
+//     }
+//     for (auto v : rule.output) {
+//       seed ^= h(v);
+//     }
+//     return seed;
+//   }
+// };
+
+// auto a = std::ranges::distance(active, std::ranges::end(matches));
+// auto conflicts = std::ranges::remove_if(
+//   active, std::ranges::end(matches),
+//   [this](auto&& m) noexcept {
+//     return std::ranges::any_of(
+//       active, std::ranges::end(matches),
+//       bindBack(&Match::conflict, m)
+//     );
+//   }
+// );
+// auto c = std::ranges::size(conflicts);
+// matches.erase(std::ranges::begin(conflicts), std::ranges::end(conflicts));
+// active = std::ranges::prev(std::ranges::end(matches), a - c);
 
 auto RewriteRule::symmetries(std::string_view subgroup) const noexcept -> std::vector<RewriteRule> {
-  return std::views::zip(square_groups, square_subgroups.at(std::empty(subgroup) ? "(xy)" : subgroup))
+  return std::ranges::fold_left(
+    std::views::zip(square_groups, square_subgroups.at(std::empty(subgroup) ? "(xy)" : subgroup))
       | std::views::filter(monadic::get<1>())
       | std::views::transform([this](const auto& action) noexcept {
           return std::get<0>(action)(*this);
-      })
-      | std::ranges::to<std::vector>();
+      }),
+    std::vector<RewriteRule>{},
+    [](auto&& acc, auto&& r) static noexcept {
+      if (not std::ranges::contains(acc, r))
+        acc.push_back(std::move(r));
+      return acc;
+    }
+  );
 }

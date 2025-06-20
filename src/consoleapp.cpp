@@ -12,7 +12,7 @@ using namespace std::string_literals;
 static const auto DEFAULT_PALETTE_FILE = "resources/palette.xml"s;
 static const auto DEFAULT_MODEL_FILE   = "models/GoToGradient.xml"s;
 
-static constexpr auto DEFAULT_GRID_EXTENT = std::dims<3>{1u, 50u, 100u};
+static constexpr auto DEFAULT_GRID_EXTENT = std::dims<3>{1u, 40u, 80u};
 
 auto ConsoleApp::operator()(std::span<const std::string_view> args) noexcept -> int {
   auto palettefile = DEFAULT_PALETTE_FILE;

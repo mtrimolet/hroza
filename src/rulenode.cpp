@@ -13,7 +13,7 @@ auto RuleNode::operator()(const TracedGrid<char>& grid) noexcept -> std::vector<
     matches.erase(std::ranges::begin(obsolete), std::ranges::end(obsolete));
   }
 
-  auto n = newMatches(grid);
+  auto n = scan(grid);
   // ilog("{} new matches", std::ranges::size(n));
   matches.append_range(n
     | std::views::filter(bindBack(&Match::match, grid, unions)));
@@ -83,7 +83,7 @@ struct std::hash<std::tuple<math::Vector3U, UInt>> {
   }
 };
 
-auto RuleNode::newMatches(const TracedGrid<char>& grid) noexcept -> std::vector<Match> {
+auto RuleNode::scan(const TracedGrid<char>& grid) noexcept -> std::vector<Match> {
   auto now = std::ranges::cend(grid.history);
   auto since = prev
     .transform(bindFront(std::ranges::next, std::ranges::cbegin(grid.history)))
@@ -103,7 +103,7 @@ auto RuleNode::newMatches(const TracedGrid<char>& grid) noexcept -> std::vector<
                 return std::views::zip(mdiota((neigh + c.u).umeet(zone)), std::views::repeat(r))
                   | std::ranges::to<std::unordered_set>();
             })
-            // | std::views::transform([&size = r_area.size](const auto& c) noexcept {
+            // | std::views::transform([size = r_area.size](const auto& c) noexcept {
             //     return c.u - (c.u % size);
             // })
             // | std::ranges::to<std::unordered_set>()
@@ -162,48 +162,10 @@ auto RuleNode::newMatches(const TracedGrid<char>& grid) noexcept -> std::vector<
     | std::ranges::to<std::vector>();
 }
 
-// auto score_projection(const Grid<char>& grid, std::span<const Match> matches) noexcept -> std::function<double(const Match&)> {
-//   static auto rg = std::mt19937{std::random_device{}()};
-//   static auto prob = std::uniform_real_distribution<>{};
-
-//   if (std::ranges::empty(potentials)) {
-//     // std::ranges::shuffle(matches, rg);
-//     return [](auto&&) static noexcept { return prob(rg); };
-//   }
-
-//   auto&& weights = matches
-//       | std::views::transform(bindFront(&ForceEngine::weight, this, grid));
-
-//   auto&& scores = std::views::zip(
-//     matches,
-//     std::move(weights) | std::views::transform([&](auto&& w) noexcept {
-//       auto&& u = prob(rg);
-
-//       return temperature > 0.0
-//         /** Boltzmann distribution: `p(r) ~ exp(-w(r)/t)` */
-//         ? std::pow(u, std::exp(w / temperature))   
-//         /** frozen config */
-//         : -w + 0.001 * u;
-//     }))
-//     | std::ranges::to<std::unordered_map<Match, double>>();
-
-//   return [scores = std::move(scores)](auto&& m) noexcept {
-//     return scores.at(m);
-//   };
-// }
-
 auto RuleNode::infer(const Grid<char>& grid) noexcept -> std::vector<Change<char>> {
   auto changes = std::vector<Change<char>>{};
 
   switch (inference) {
-    case Inference::RANDOM:
-      {
-        // shuffle matches
-        const auto a = std::ranges::distance(active, std::ranges::end(matches));
-        std::ranges::shuffle(std::ranges::subrange(active, std::ranges::end(matches)), rng);
-        active = std::ranges::prev(std::ranges::end(matches), a);
-      }
-      break;
     case Inference::DISTANCE:
       {
         // update potentials
@@ -232,19 +194,64 @@ auto RuleNode::infer(const Grid<char>& grid) noexcept -> std::vector<Change<char
           return f.essential and not potentials.contains(c);
         }))
           active = std::ranges::begin(matches);
+
         // compute score projection
-        // auto proj = score_projection(grid, matches);
-        auto P = std::uniform_real_distribution{};
-        auto proj = [&rng = rng, &P](auto) noexcept { return P(rng); };
+        std::ranges::for_each(
+          active, std::ranges::end(matches),
+          [this, &grid, U = std::uniform_real_distribution{}](auto& m) mutable noexcept {
+            auto w = delta(grid, m);
+            auto u = U(rng);
+
+            m.score = 
+              /** Boltzmann distribution: `p(r) ~ exp(-w(r)/t)` */
+              temperature > 0.0 ? std::pow(u, std::exp(w / temperature))   
+                                : -w + 0.001 * u;
+          }
+        );
+
         // sort matches using score projection
-        ::sort(matches, {}, proj);
+        std::ranges::sort(matches, {}, &Match::score);
       }
       break;
     case Inference::OBSERVE:
-      break;
+      // break;
     case Inference::SEARCH:
+      // break;
+    case Inference::RANDOM:
+      {
+        // shuffle matches
+        const auto a = std::ranges::distance(active, std::ranges::end(matches));
+        std::ranges::shuffle(std::ranges::subrange(active, std::ranges::end(matches)), rng);
+        active = std::ranges::prev(std::ranges::end(matches), a);
+      }
       break;
   }
 
   return changes;
+}
+
+auto RuleNode::delta(const Grid<char>& grid, const Match& match) noexcept -> double {
+  return std::ranges::fold_left(
+    std::views::zip(
+      mdiota(match.area()),
+      match.rules[match.r].output
+    )
+    | std::views::filter([&](auto&& _o) noexcept {
+        auto&& [u, o] = _o;
+        // locations where value is preserved, their difference is 0
+        return o != Match::IGNORED_SYMBOL and o != grid[u];
+    })
+    | std::views::transform([&] (auto&& _o) noexcept {
+        auto&& [u, o] = _o;
+
+        auto&& new_value = o;
+        auto&& old_value = grid[u];
+
+        auto&& new_p = potentials.contains(new_value) ? potentials.at(new_value)[u] : std::numeric_limits<double>::signaling_NaN();
+        auto&& old_p = potentials.contains(old_value) ? potentials.at(old_value)[u] : -1.0;
+
+        return new_p - old_p;
+    }),
+    0.0, std::plus{}
+  );
 }

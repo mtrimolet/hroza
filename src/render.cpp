@@ -1,7 +1,7 @@
 module render;
 
 import grid;
-import forceengine;
+import potentials;
 import log;
 
 using namespace ftxui;
@@ -80,25 +80,34 @@ Element potential_grid(const ::Potential& g) noexcept {
     static_cast<int>(g.extents.extent(2)),
     static_cast<int>(g.extents.extent(1))
   };
-  auto [min_g, max_g] = std::ranges::fold_left(g, std::make_pair(0.0, 0.0), [](auto&& a, auto&& p) static noexcept {
-    return std::make_pair(
-      std::min(std::get<0>(a), p),
-      std::max(std::get<1>(a), p)
-    );
-  });
+  auto [min_g, max_g] = std::ranges::fold_left(
+    g, std::make_pair(0.0, 0.0),
+    [](auto&& a, const auto& p) static noexcept {
+      return std::make_pair(
+        std::min(std::get<0>(a), p),
+        std::max(std::get<1>(a), p)
+      );
+    }
+  );
 
   auto normalize = [&min_g, &max_g](double t) noexcept {
-    t /= t > 0.0 ? max_g : t < 0.0 ? min_g : 1.0; // go to [-1, 1]
-    t += 1.0;                                       // go to [0, 2]
-    t /= 2.0;                                       // go to [0, 1]
+    t /= t > 0.0 ? max_g : t < 0.0 ? min_g : 1.0;   // go to [-1, 1]
+    t += 1.0;                                       // go to [ 0, 2]
+    t /= 2.0;                                       // go to [ 0, 1]
     return t;
   };
   std::ranges::for_each(std::views::zip(mdiota(g.area()), g), [&](auto&& u_val) noexcept {
     auto&& [u, value] = u_val;
     auto&& pixel = texture.PixelAt(u.x, u.y);
     auto&& normal = value == 0.0 or std::isnormal(value);
-    pixel.character = value == 0.0 ? "•" : value == std::numeric_limits<double>::signaling_NaN() ? "*" : " ";
-    pixel.background_color = normal ? Color::Interpolate(normalize(value), Color::Blue, Color::Red) : Color::Default;
+    pixel.character =
+        value == 0.0             ? "•"
+      : not std::isnormal(value) ? "*"
+                                 : " ";
+    pixel.background_color = Color::Interpolate(
+      not normal ? 0.5 : normalize(value),
+      Color::Blue, Color::Red
+    );
   });
   auto&& w = texture.dimx(), h = texture.dimy();
   return canvasFromImage(std::move(texture))
