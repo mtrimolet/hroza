@@ -59,6 +59,7 @@ auto ConsoleApp::operator()(std::span<const std::string_view> args) noexcept -> 
       // TODO find how to handle bottom-up signal using custom Component or whatever
       screen.RequestAnimationFrame(); 
     }
+    model.halted = true;
   }};
 
   screen.Loop(view);

@@ -12,4 +12,5 @@ struct Model {
   RewriteRule::Unions unions;
   bool origin;
   NodeRunner program;
+  bool halted = false;
 };

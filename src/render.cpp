@@ -212,7 +212,7 @@ Element symbols(std::string_view values, const Palette& palette) noexcept {
 Element model(const ::Model& model, const Palette& palette) noexcept {
   return vbox({
     window(text("symbols"), symbols(model.symbols, palette)),
-    window(text("program"), nodeRunner(model.program, palette)),
+    window(text(model.halted ? "program (H)" : "program"), nodeRunner(model.program, palette)),
   });
 }
 
