@@ -6,7 +6,7 @@ using namespace stormkit;
 
 auto RuleRunner::operator()(TracedGrid<char>& grid) noexcept -> std::generator<std::vector<Change<char>>> {
   for (
-    step = 0;
+    ;
     steps == 0 or step < steps;
     step++
   ) {
@@ -15,6 +15,7 @@ auto RuleRunner::operator()(TracedGrid<char>& grid) noexcept -> std::generator<s
     if (std::ranges::empty(changes)) co_return;
     co_yield std::move(changes);
   }
+  co_return;
 }
 
 auto TreeRunner::operator()(TracedGrid<char>& grid) noexcept -> std::generator<std::vector<Change<char>>> {
