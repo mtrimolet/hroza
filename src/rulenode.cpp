@@ -13,13 +13,9 @@ auto RuleNode::operator()(const TracedGrid<char>& grid) noexcept -> std::vector<
     matches.erase(std::ranges::begin(obsolete), std::ranges::end(obsolete));
   }
 
-  auto n = scan(grid);
-  // ilog("{} new matches", std::ranges::size(n));
-  matches.append_range(n
+  matches.append_range(scan(grid)
     | std::views::filter(bindBack(&Match::match, grid, unions)));
   active = std::ranges::begin(matches);
-
-  // ilog("found {} matches", std::ranges::distance(active, std::ranges::cend(matches)));
 
   auto changes = std::vector<Change<char>>{};
 
@@ -54,18 +50,16 @@ auto RuleNode::operator()(const TracedGrid<char>& grid) noexcept -> std::vector<
 
     case Mode::PRL:
       {
-        auto _active = std::ranges::partition(
+        auto sampled = std::ranges::partition(
           active, std::ranges::end(matches),
           std::not_fn([this](auto&& match) noexcept {
             return rules[match.r].draw(rng);
           })
         );
-        active = std::ranges::begin(_active);
+        active = std::ranges::begin(sampled);
       }
       break;
   }
-
-  // ilog("trigger {} matches", std::ranges::distance(active, std::ranges::cend(matches)));
 
   changes.append_range(std::ranges::subrange(active, std::ranges::cend(matches))
     | std::views::transform(bindBack(&Match::changes, grid))
@@ -90,11 +84,9 @@ auto RuleNode::scan(const TracedGrid<char>& grid) noexcept -> std::vector<Match>
     .value_or(now);
   prev = std::ranges::size(grid.history);
 
-  const auto g_area = grid.area();
-
   if (since != now) {
     return std::views::zip(rules, std::views::iota(0u))
-      | std::views::transform([g_area, changes = std::ranges::subrange(since, now)](const auto& v) noexcept {
+      | std::views::transform([g_area = grid.area(), changes = std::ranges::subrange(since, now)](const auto& v) noexcept {
           const auto& [rule, r] = v;
           auto r_area = rule.area();
           auto zone = Area3U{g_area.u, g_area.size - r_area.shiftmax()};
@@ -131,29 +123,34 @@ auto RuleNode::scan(const TracedGrid<char>& grid) noexcept -> std::vector<Match>
   }
 
   return std::views::zip(rules, std::views::iota(0u))
-    | std::views::transform([&grid, g_area](const auto& v) noexcept {
+    | std::views::transform([&grid, &unions = unions](const auto& v) noexcept {
         const auto& [rule, r] = v;
-        auto r_area = rule.area();
-        auto zone = Area3U{g_area.u, g_area.size - r_area.shiftmax()};
-        return mdiota(zone)
-          | std::views::filter([size = r_area.size](auto&& u) noexcept {
-              return u % size == math::Vector3U{};
+        return mdiota(grid.area() - Area3U{{}, rule.area().shiftmax()})
+          | std::views::filter([r_area = rule.area()](auto u) noexcept {
+             return u % r_area.size == math::Vector3U{};
           })
-          | std::views::transform([&grid, &ishifts = rule.ishifts, zone, r](auto u) noexcept {
-              auto c = grid[u];
-              auto bucket = ishifts.bucket(c);
-              return std::views::zip(
-                std::ranges::subrange(ishifts.cbegin(bucket), ishifts.cend(bucket))
-                  | std::views::transform([u] (const auto& v) noexcept {
-                      return u + std::get<1>(v);
+          | std::views::transform([&grid, &unions, &rule](auto u) noexcept {
+              return unions
+                | std::views::filter([c = grid[u]](const auto& cs) noexcept {
+                    return std::get<1>(cs).contains(c);
                   })
-                  | std::views::filter([zone](auto&& v) noexcept {
-                      return zone.contains(v);
-                  }),
-                std::views::repeat(r)
-              );
+                | std::views::transform([&rule](const auto& cs) noexcept {
+                    auto bucket = rule.ishifts.bucket(std::get<0>(cs));
+                    return std::ranges::subrange(
+                      rule.ishifts.cbegin(bucket),
+                      rule.ishifts.cend(bucket)
+                    ) | std::views::transform(monadic::get<1>());
+                })
+                | std::views::join
+                | std::views::transform([u] (const auto& shift) noexcept {
+                    return u + shift;
+                });
           })
-          | std::views::join;
+          | std::views::join
+          | std::views::filter(bindFront(&Area3U::contains, grid.area() - Area3U{{}, rule.area().shiftmax()}))
+          | std::views::transform([r](auto u) noexcept {
+              return std::make_pair(u, r);
+          });
     })
     | std::views::join
     | std::views::transform([this](auto&& ur) noexcept {
@@ -188,14 +185,17 @@ auto RuleNode::infer(const Grid<char>& grid) noexcept -> std::vector<Change<char
             potentials.insert_or_assign(c, std::move(p));
           }
         );
+
         // if essential missing : invalidate all matches
         if (std::ranges::any_of(fields, [this](auto&& _f) noexcept {
           auto&& [c, f] = _f;
           return f.essential and not potentials.contains(c);
-        }))
-          active = std::ranges::begin(matches);
+        })) {
+          ilog("essential missing");
+          active = std::ranges::end(matches);
+        }
 
-        // compute score projection
+        // compute scores
         std::ranges::for_each(
           active, std::ranges::end(matches),
           [this, &grid, U = std::uniform_real_distribution{}](auto& m) mutable noexcept {
@@ -208,9 +208,6 @@ auto RuleNode::infer(const Grid<char>& grid) noexcept -> std::vector<Change<char
                                 : -w + 0.001 * u;
           }
         );
-
-        // sort matches using score projection
-        std::ranges::sort(matches, {}, &Match::score);
       }
       break;
     case Inference::OBSERVE:
@@ -220,12 +217,34 @@ auto RuleNode::infer(const Grid<char>& grid) noexcept -> std::vector<Change<char
     case Inference::RANDOM:
       {
         // shuffle matches
-        const auto a = std::ranges::distance(active, std::ranges::end(matches));
-        std::ranges::shuffle(std::ranges::subrange(active, std::ranges::end(matches)), rng);
-        active = std::ranges::prev(std::ranges::end(matches), a);
+        std::ranges::for_each(
+          active, std::ranges::end(matches),
+          [this, U = std::uniform_real_distribution{}](auto& m) mutable noexcept {
+            m.score = U(rng);
+          }
+        );
       }
       break;
   }
+
+  static constexpr auto is_normal = [](double value) static noexcept {
+    return value == 0.0 or std::isnormal(value);
+  };
+
+  auto normal = std::ranges::partition(
+    active, std::ranges::end(matches),
+    std::not_fn(is_normal),
+    &Match::score
+  );
+  active = std::ranges::begin(normal);
+
+  const auto a = std::ranges::distance(active, std::ranges::end(matches));
+  std::ranges::sort(
+    active, std::ranges::end(matches),
+    {},
+    &Match::score
+  );
+  active = std::ranges::prev(std::ranges::end(matches), a);
 
   return changes;
 }
