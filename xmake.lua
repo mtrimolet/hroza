@@ -44,7 +44,7 @@ add_defines("PUGIXML_USE_STD_MODULE")
 -- add_defines("PUGIXML_NO_EXCEPTIONS")
 add_requires(
     "pugixml",
-    "ftxui"
+    "ftxui main"
 )
 
 add_requireconfs(
