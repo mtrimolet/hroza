@@ -16,10 +16,10 @@ struct RuleRunner {
   UInt steps;
   UInt step = 0;
 
-  auto operator()(TracedGrid<char>& grid) noexcept -> std::generator<std::vector<Change<char>>>;
+  auto operator()(TracedGrid<char>& grid) noexcept -> bool;
 };
 
-using NodeRunner = std::function<std::generator<std::vector<Change<char>>>(TracedGrid<char>&)>;
+using NodeRunner = std::function<bool(TracedGrid<char>&)>;
 
 struct TreeRunner {
   enum struct Mode { MARKOV, SEQUENCE };
@@ -36,7 +36,7 @@ struct TreeRunner {
     return std::ranges::distance(std::ranges::begin(nodes), current_node);
   }
 
-  auto operator()(TracedGrid<char>& grid) noexcept -> std::generator<std::vector<Change<char>>>;
+  auto operator()(TracedGrid<char>& grid) noexcept -> bool;
 };
 
 }

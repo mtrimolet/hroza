@@ -51,8 +51,8 @@ inline constexpr auto prev(math::Vector3U u, const std::dims<3>& extents) noexce
 template <meta::IsArithmetic T>
 inline constexpr auto mdiota(HyperRectangle<3, T> zone) noexcept -> decltype(auto) {
   return std::views::iota(static_cast<T>(0), static_cast<T>(zone.size.z * zone.size.y * zone.size.x))
-    | std::views::transform(bindBack(fromIndex, toExtents(zone.size)))
-    | std::views::transform(bindBack(std::plus<math::Vector<3, T>>{}, zone.u));
+    | std::views::transform(std::bind_back(fromIndex, toExtents(zone.size)))
+    | std::views::transform(std::bind_back(std::plus<math::Vector<3, T>>{}, zone.u));
 }
 
 template <meta::IsArithmetic T>
@@ -177,7 +177,7 @@ struct Grid {
       | std::views::transform([this, size = area.size](auto&& u) noexcept {
           return this->at({ size.x - u.x - 1u, u.y, u.z });
       })
-      // | std::views::transform(bindFront(&Grid<T>::at, this))
+      // | std::views::transform(std::bind_front(&Grid<T>::at, this))
       | std::ranges::to<Grid<T>>(toExtents(area.size));
   }
 
@@ -187,7 +187,7 @@ struct Grid {
       | std::views::transform([this, size = area.size](auto&& u) noexcept {
           return this->at({ u.y, size.x - u.x - 1u, u.z });
       })
-      // | std::views::transform(bindFront(&Grid<T>::at, this))
+      // | std::views::transform(std::bind_front(&Grid<T>::at, this))
       | std::ranges::to<Grid<T>>(toExtents(area.size));
   }
 
@@ -197,7 +197,7 @@ struct Grid {
       | std::views::transform([this, size = area.size](auto&& u) noexcept {
           return this->at({ u.x, size.z - u.z - 1u, u.y });
       })
-      // | std::views::transform(bindFront(&Grid<T>::at, this))
+      // | std::views::transform(std::bind_front(&Grid<T>::at, this))
       | std::ranges::to<Grid<T>>(toExtents(area.size));
   }
 };

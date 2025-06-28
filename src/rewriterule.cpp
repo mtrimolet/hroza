@@ -76,7 +76,7 @@ constexpr auto square_subgroups =
 //   [this](auto&& m) noexcept {
 //     return std::ranges::any_of(
 //       active, std::ranges::end(matches),
-//       bindBack(&Match::conflict, m)
+//       std::bind_back(&Match::conflict, m)
 //     );
 //   }
 // );

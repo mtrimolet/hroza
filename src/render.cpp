@@ -10,12 +10,12 @@ using namespace stormkit;
 namespace render {
 
 Element canvasFromImage(const Image& img) noexcept {
-  return canvas(img.dimx(), img.dimy(), bindBack(&Canvas::DrawImage, 0, 0, img));
+  return canvas(img.dimx(), img.dimy(), std::bind_back(&Canvas::DrawImage, 0, 0, img));
 }
 
 // TODO canvas don't get sized properly
 Element canvasFromImage(Image&& img) noexcept {
-  return canvas(img.dimx(), img.dimy(), bindBack(&Canvas::DrawImage, 0, 0, std::move(img)));
+  return canvas(img.dimx(), img.dimy(), std::bind_back(&Canvas::DrawImage, 0, 0, std::move(img)));
 }
 
 Element grid(const ::TracedGrid<char>& g, const Palette& palette) noexcept {
@@ -151,7 +151,7 @@ Element ruleRunner(const RuleRunner& node, const Palette& palette) noexcept {
   }
   // elements.append_range(rulenode->rules
   //   | std::views::filter(&RewriteRule::original)
-  //   | std::views::transform(bindBack(rule, palette)));
+  //   | std::views::transform(std::bind_back(rule, palette)));
   elements.push_back(hbox(rulenode->potentials
     | std::views::transform([&palette](auto&& p) noexcept {
         return potential(std::get<0>(p), std::get<1>(p), palette);

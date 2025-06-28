@@ -79,7 +79,7 @@ auto NodeRunner(
       mode,
       xnode.children()
         | std::views::filter(std::not_fn(is_tag("union")))
-        | std::views::transform(bindBack(NodeRunner, unions, symmetry))
+        | std::views::transform(std::bind_back(NodeRunner, unions, symmetry))
         | std::ranges::to<std::vector>()
     };
   }
@@ -172,7 +172,7 @@ auto Rules(
   if (std::ranges::empty(xrules)) xrules.push_back(xnode);
   auto rs = std::move(xrules)
      | std::views::transform(Rule)
-     | std::views::transform(bindBack(&RewriteRule::symmetries, symmetry))
+     | std::views::transform(std::bind_back(&RewriteRule::symmetries, symmetry))
      | std::views::join
      | std::ranges::to<std::vector>();
   return rs;

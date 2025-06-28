@@ -64,14 +64,15 @@ struct RuleNode {
 
 private:
   std::vector<Match> matches = {};
+  using MatchIterator = std::ranges::iterator_t<decltype(matches)>;
 
   std::optional<RangeOffset> prev = {};
   auto scan(const TracedGrid<char>& grid) noexcept -> std::vector<Match>;
 
-  std::ranges::iterator_t<decltype(matches)> active = std::ranges::begin(matches);
+  MatchIterator active = std::ranges::begin(matches);
 
   std::mt19937 rng = {};
 
+  auto pick(MatchIterator begin, MatchIterator end) noexcept -> MatchIterator;
   auto infer(const Grid<char>& grid) noexcept -> std::vector<Change<char>>;
-  auto delta(const Grid<char>& grid, const Match& match) noexcept -> double;
 };

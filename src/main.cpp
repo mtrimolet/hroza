@@ -24,7 +24,7 @@ auto main(std::span<const std::string_view> args) noexcept -> int {
 
   auto&& gui = std::ranges::find(args, "--gui") != std::ranges::end(args);
   
-  auto _ = log::Logger::create_logger_instance<log::ConsoleLogger>();
+  auto _ = log::Logger::create_logger_instance<log::FileLogger>(".");
   if (gui) return run_windowapp(args);
   else     return run_consoleapp(args);
 }
