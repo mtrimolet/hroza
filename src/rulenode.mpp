@@ -71,7 +71,7 @@ private:
 
   MatchIterator active = std::ranges::begin(matches);
 
-  std::mt19937 rng = {};
+  std::mt19937 rng = std::mt19937{std::random_device{}()};
 
   auto pick(MatchIterator begin, MatchIterator end) noexcept -> MatchIterator;
   auto infer(const Grid<char>& grid) noexcept -> std::vector<Change<char>>;
