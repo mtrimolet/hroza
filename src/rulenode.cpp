@@ -25,14 +25,15 @@ auto RuleNode::operator()(const TracedGrid<char>& grid) noexcept -> std::vector<
     case Mode::ONE:
       {
         changes.append_range(infer(grid));
-        if (active == std::ranges::end(matches)) {
-          break;
+        if (auto picked = pick(active, std::ranges::end(matches));
+                 picked != std::ranges::end(matches)
+        ) {
+          active = std::ranges::prev(std::ranges::end(matches));
+          std::iter_swap(picked, active);
         }
-        std::iter_swap(
-          pick(active, std::ranges::end(matches)),
-          std::ranges::prev(std::ranges::end(matches))
-        );
-        active = std::ranges::prev(std::ranges::end(matches));
+        else {
+          active = std::ranges::end(matches);
+        }
       }
       break;
 
@@ -43,6 +44,10 @@ auto RuleNode::operator()(const TracedGrid<char>& grid) noexcept -> std::vector<
                   __i != active;
         ) {
           auto picked = pick(active, __i);
+          if (picked == std::ranges::end(matches)){
+            active = __i;
+            continue;
+          }
           auto conflict = std::ranges::any_of(
             __i, std::ranges::end(matches),
             std::bind_back(&Match::conflict, *picked)
@@ -68,6 +73,9 @@ auto RuleNode::operator()(const TracedGrid<char>& grid) noexcept -> std::vector<
       break;
   }
 
+  if (active != std::ranges::cend(matches))
+    prev = std::ranges::size(grid.history);
+
   changes.append_range(std::ranges::subrange(active, std::ranges::cend(matches))
     | std::views::transform(std::bind_back(&Match::changes, grid))
     | std::views::join);
@@ -89,7 +97,6 @@ auto RuleNode::scan(const TracedGrid<char>& grid) noexcept -> std::vector<Match>
   auto since = prev
     .transform(std::bind_front(std::ranges::next, std::ranges::cbegin(grid.history)))
     .value_or(now);
-  prev = std::ranges::size(grid.history);
 
   if (since != now) {
     return std::views::zip(rules, std::views::iota(0u))
@@ -140,32 +147,32 @@ auto RuleNode::scan(const TracedGrid<char>& grid) noexcept -> std::vector<Match>
   }
 
   return std::views::zip(rules, std::views::iota(0u))
-    | std::views::transform([&grid, &unions = unions](const auto& v) noexcept {
+    | std::views::transform([&grid](const auto& v) noexcept {
         const auto& [rule, r] = v;
         auto zone = grid.area() - Area3U{{}, rule.area().shiftmax()};
         return mdiota(zone)
-          | std::views::filter([r_area = rule.area()](auto u) noexcept {
-             return u % r_area.size == math::Vector3U{};
-          })
-          | std::views::transform([&grid, &unions, &rule](auto u) noexcept {
-              return unions
-                | std::views::filter([c = grid[u]](const auto& cs) noexcept {
-                    return std::get<1>(cs).contains(c);
-                  })
-                | std::views::transform([&rule](const auto& cs) noexcept {
-                    auto bucket = rule.ishifts.bucket(std::get<0>(cs));
-                    return std::ranges::subrange(
-                      rule.ishifts.cbegin(bucket),
-                      rule.ishifts.cend(bucket)
-                    ) | std::views::transform(monadic::get<1>());
-                })
-                | std::views::join
-                | std::views::transform([u] (const auto& shift) noexcept {
-                    return u + shift;
-                });
-          })
-          | std::views::join
-          | std::views::filter(std::bind_front(&Area3U::contains, zone))
+          // | std::views::filter([r_area = rule.area()](auto u) noexcept {
+          //    return u % r_area.size == math::Vector3U{};
+          // })
+          // | std::views::transform([&grid, &unions, &rule](auto u) noexcept {
+          //     return unions
+          //       | std::views::filter([c = grid[u]](const auto& cs) noexcept {
+          //           return std::get<1>(cs).contains(c);
+          //         })
+          //       | std::views::transform([&rule](const auto& cs) noexcept {
+          //           auto bucket = rule.ishifts.bucket(std::get<0>(cs));
+          //           return std::ranges::subrange(
+          //             rule.ishifts.cbegin(bucket),
+          //             rule.ishifts.cend(bucket)
+          //           ) | std::views::transform(monadic::get<1>());
+          //       })
+          //       | std::views::join
+          //       | std::views::transform([u] (const auto& shift) noexcept {
+          //           return u + shift;
+          //       });
+          // })
+          // | std::views::join
+          // | std::views::filter(std::bind_front(&Area3U::contains, zone))
           | std::views::transform([r](auto u) noexcept {
               return std::make_pair(u, r);
           });
@@ -180,6 +187,10 @@ auto RuleNode::scan(const TracedGrid<char>& grid) noexcept -> std::vector<Match>
 auto RuleNode::pick(MatchIterator begin, MatchIterator end) noexcept -> MatchIterator {
   auto weights = std::ranges::subrange(begin, end)
                | std::views::transform(&Match::w);
+
+  if (std::ranges::fold_left(weights, 0.0, std::plus{}) == 0.0) {
+    return end;
+  }
   auto picker = std::discrete_distribution{std::ranges::begin(weights), std::ranges::end(weights)};
   auto picked = picker(rng);
   // ilog("{} picked {}", picker.probabilities(), picked);
@@ -197,40 +208,30 @@ auto RuleNode::infer(const Grid<char>& grid) noexcept -> std::vector<Change<char
     case Inference::DISTANCE:
       {
         // update potentials
-        std::ranges::for_each(
-          fields
-            | std::views::filter([&](auto&& _tuple) noexcept {
-              auto&& [c, f] = _tuple;
-              return not potentials.contains(c)
-                  or f.recompute;
-            }),
-          [this, &grid](auto&& _tuple) noexcept {
-            auto&& [c, f] = _tuple;
-            auto&& p = f.potential(grid);
-            if (std::ranges::none_of(p, is_normal)) {
-              potentials.erase(c);
-              return;
-            }
+        for (auto& [c, f] : fields) {
+          if (potentials.contains(c) and not f.recompute) {
+            continue;
+          }
+
+          if (auto p = f.potential(grid); std::ranges::any_of(p, is_normal)) {
             potentials.insert_or_assign(c, std::move(p));
           }
-        );
 
-        // if essential missing : invalidate all matches
-        if (std::ranges::any_of(fields, [this](auto&& _f) noexcept {
-          auto&& [c, f] = _f;
-          return f.essential and not potentials.contains(c);
-        })) {
-          ilog("essential missing");
-          active = std::ranges::end(matches);
+          if (not potentials.contains(c) and f.essential) {
+            active = std::ranges::end(matches);
+            break;
+          }
         }
-
         // compute weights
         std::ranges::for_each(
           active, std::ranges::end(matches),
           [this, &grid](auto& m) noexcept {
-            m.w = -m.delta(grid, potentials);
+            auto d = m.delta(grid, potentials);
+            m.w = std::isnormal(d) ? -d : 0.0;
             /** Boltzmann distribution: `p(r) ~ exp(-w(r)/t)` */
             if (temperature > 0.0) m.w = std::exp(m.w / temperature);
+            // exp(0) == 1 ... this might be a problem, or this might be of interest :
+            // heating makes you consider discarded matches, like quantum teleportation y'know
           }
         );
       }
