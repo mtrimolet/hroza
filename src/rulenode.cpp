@@ -43,19 +43,21 @@ auto RuleNode::operator()(const TracedGrid<char>& grid) noexcept -> std::vector<
         for (auto __i = std::ranges::end(matches);
                   __i != active;
         ) {
-          auto picked = pick(active, __i);
-          if (picked == std::ranges::end(matches)){
-            active = __i;
-            continue;
+          if (auto picked = pick(active, __i);
+                   picked != __i
+          ) {
+            auto conflict = std::ranges::any_of(
+              __i, std::ranges::end(matches),
+              std::bind_back(&Match::conflict, *picked)
+            );
+            std::iter_swap(
+              picked,
+              conflict ? active++ : --__i
+            );
           }
-          auto conflict = std::ranges::any_of(
-            __i, std::ranges::end(matches),
-            std::bind_back(&Match::conflict, *picked)
-          );
-          std::iter_swap(
-            picked,
-            conflict ? active++ : --__i
-          );
+          else {
+            active = __i;
+          }
         }
       }
       break;
@@ -64,7 +66,7 @@ auto RuleNode::operator()(const TracedGrid<char>& grid) noexcept -> std::vector<
       {
         auto sampled = std::ranges::partition(
           active, std::ranges::end(matches),
-          std::not_fn([this](auto&& match) noexcept {
+          std::not_fn([this](auto& match) noexcept {
             return rules[match.r].draw(rng);
           })
         );
@@ -73,7 +75,7 @@ auto RuleNode::operator()(const TracedGrid<char>& grid) noexcept -> std::vector<
       break;
   }
 
-  if (active != std::ranges::cend(matches))
+  if (active != std::ranges::end(matches))
     prev = std::ranges::size(grid.history);
 
   changes.append_range(std::ranges::subrange(active, std::ranges::cend(matches))
