@@ -64,6 +64,7 @@ end
 
 add_requireconfs("**", { configs = { modules = true, std_import = true, cpp = "latest" }})
 add_cxxflags("-fexperimental-library")
+add_ldflags("-fexperimental-library")
 
 option("compile_commands", { default = true, category = "root menu/support" })
 

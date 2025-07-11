@@ -8,11 +8,15 @@ import log;
 using namespace stormkit;
 
 auto RuleNode::operator()(const TracedGrid<char>& grid) noexcept -> std::vector<Change<char>> {
-  {
-    auto obsolete = std::ranges::remove_if(matches, std::not_fn(std::bind_back(&Match::match, grid, unions)));
-    // ilog("obsoletes {}", std::ranges::size(obsolete));
-    matches.erase(std::ranges::begin(obsolete), std::ranges::end(obsolete));
-  }
+  matches.erase(
+    std::remove_if(
+      // std::execution::par,
+      std::ranges::begin(matches),
+      std::ranges::end(matches),
+      std::not_fn(std::bind_back(&Match::match, grid, unions))
+    ),
+    std::ranges::end(matches)
+  );
 
   matches.append_range(scan(grid)
     | std::views::filter(std::bind_back(&Match::match, grid, unions)));
@@ -23,55 +27,50 @@ auto RuleNode::operator()(const TracedGrid<char>& grid) noexcept -> std::vector<
 
   switch (mode) {
     case Mode::ONE:
-      {
-        changes.append_range(infer(grid));
-        if (auto picked = pick(active, std::ranges::end(matches));
-                 picked != std::ranges::end(matches)
-        ) {
-          active = std::ranges::prev(std::ranges::end(matches));
-          std::iter_swap(picked, active);
-        }
-        else {
-          active = std::ranges::end(matches);
-        }
+      changes.append_range(infer(grid));
+      if (auto picked = pick(active, std::ranges::end(matches));
+               picked != std::ranges::end(matches)
+      ) {
+        active = std::ranges::prev(std::ranges::end(matches));
+        std::iter_swap(picked, active);
+      }
+      else {
+        active = std::ranges::end(matches);
       }
       break;
 
     case Mode::ALL:
-      {
-        changes.append_range(infer(grid));
-        for (auto __i = std::ranges::end(matches);
-                  __i != active;
+      changes.append_range(infer(grid));
+      for (auto __i = std::ranges::end(matches);
+                __i != active;
+      ) {
+        if (auto picked = pick(active, __i);
+                 picked != __i
         ) {
-          if (auto picked = pick(active, __i);
-                   picked != __i
-          ) {
-            auto conflict = std::ranges::any_of(
-              __i, std::ranges::end(matches),
-              std::bind_back(&Match::conflict, *picked)
-            );
-            std::iter_swap(
-              picked,
-              conflict ? active++ : --__i
-            );
-          }
-          else {
-            active = __i;
-          }
+          auto conflict = std::any_of(
+            std::execution::par,
+            __i, std::ranges::end(matches),
+            std::bind_back(&Match::conflict, *picked)
+          );
+          std::iter_swap(
+            picked,
+            conflict ? active++ : --__i
+          );
+        }
+        else {
+          active = __i;
         }
       }
       break;
 
     case Mode::PRL:
-      {
-        auto sampled = std::ranges::partition(
-          active, std::ranges::end(matches),
-          std::not_fn([this](auto& match) noexcept {
-            return rules[match.r].draw(rng);
-          })
-        );
-        active = std::ranges::begin(sampled);
-      }
+      active = std::partition(
+        // std::execution::par,
+        active, std::ranges::end(matches),
+        std::not_fn([this](const auto& match) noexcept {
+          return rules[match.r].draw(rng);
+        })
+      );
       break;
   }
 
@@ -190,7 +189,11 @@ auto RuleNode::pick(MatchIterator begin, MatchIterator end) noexcept -> MatchIte
   auto weights = std::ranges::subrange(begin, end)
                | std::views::transform(&Match::w);
 
-  if (std::ranges::fold_left(weights, 0.0, std::plus{}) == 0.0) {
+  if (std::reduce(
+    std::execution::par,
+    std::ranges::begin(weights),
+    std::ranges::end(weights)
+  ) == 0.0) {
     return end;
   }
   auto picker = std::discrete_distribution{std::ranges::begin(weights), std::ranges::end(weights)};
@@ -208,35 +211,39 @@ auto RuleNode::infer(const Grid<char>& grid) noexcept -> std::vector<Change<char
 
   switch (inference) {
     case Inference::DISTANCE:
-      {
-        // update potentials
-        for (auto& [c, f] : fields) {
-          if (potentials.contains(c) and not f.recompute) {
-            continue;
-          }
-
-          if (auto p = f.potential(grid); std::ranges::any_of(p, is_normal)) {
-            potentials.insert_or_assign(c, std::move(p));
-          }
-
-          if (not potentials.contains(c) and f.essential) {
-            active = std::ranges::end(matches);
-            break;
-          }
+      // update potentials
+      for (auto& [c, f] : fields) {
+        if (potentials.contains(c) and not f.recompute) {
+          continue;
         }
-        // compute weights
-        std::ranges::for_each(
-          active, std::ranges::end(matches),
-          [this, &grid](auto& m) noexcept {
-            auto d = m.delta(grid, potentials);
-            m.w = std::isnormal(d) ? -d : 0.0;
-            /** Boltzmann distribution: `p(r) ~ exp(-w(r)/t)` */
-            if (temperature > 0.0) m.w = std::exp(m.w / temperature);
-            // exp(0) == 1 ... this might be a problem, or this might be of interest :
-            // heating makes you consider discarded matches, like quantum teleportation y'know
-          }
-        );
+
+        if (auto p = f.potential(grid); std::any_of(
+              std::execution::par,
+              std::ranges::begin(p),
+              std::ranges::end(p),
+              is_normal)
+        ) {
+          potentials.insert_or_assign(c, std::move(p));
+        }
+
+        if (not potentials.contains(c) and f.essential) {
+          active = std::ranges::end(matches);
+          break;
+        }
       }
+      // compute weights
+      std::for_each(
+        std::execution::par,
+        active, std::ranges::end(matches),
+        [this, &grid](auto& m) noexcept {
+          auto d = m.delta(grid, potentials);
+          m.w = std::isnormal(d) ? -d : 0.0;
+          /** Boltzmann distribution: `p(r) ~ exp(-w(r)/t)` */
+          if (temperature > 0.0) m.w = std::exp(m.w / temperature);
+          // exp(0) == 1 ... this might be a problem, or this might be of interest :
+          // heating makes you consider discarded matches, like quantum teleportation y'know
+        }
+      );
       break;
     case Inference::OBSERVE:
       // break;

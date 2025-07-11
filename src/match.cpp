@@ -3,35 +3,37 @@ module match;
 import log;
 
 auto Match::conflict(const Match& other) const noexcept -> bool {
-  auto&& overlap = area().meet(other.area());
-  return std::ranges::any_of(
-    mdiota(overlap),
+  auto overlap = mdiota(area().meet(other.area()))
+    | std::views::transform([&a = *this, &b = other](auto u) noexcept {
+        return std::tie(
+          a.rules[a.r].output.at(u - a.u),
+          b.rules[b.r].output.at(u - b.u)
+        );
+      });
+  return std::any_of(
+    std::execution::par,
+    std::ranges::begin(overlap),
+    std::ranges::end(overlap),
     [](const auto& p) static noexcept {
       return std::get<0>(p) != IGNORED_SYMBOL
          and std::get<1>(p) != IGNORED_SYMBOL;
-    },
-    [&a = *this, &b = other](auto u) noexcept {
-      return std::tie(
-        a.rules[a.r].output.at(u - a.u),
-        b.rules[b.r].output.at(u - b.u)
-      );
     }
   );
 }
 
 auto Match::match(const Grid<char>& grid, const RewriteRule::Unions& unions) const noexcept -> bool {
-  auto m = std::ranges::all_of(
-    std::views::zip(mdiota(area()), rules[r].input),
+  auto zone = std::views::zip(mdiota(area()), rules[r].input);
+  return std::all_of(
+    std::execution::par,
+    std::ranges::begin(zone),
+    std::ranges::end(zone),
     [&grid, &unions](const auto& input) noexcept {
       auto [u, i] = input;
-      auto m = i == IGNORED_SYMBOL
+      return i == IGNORED_SYMBOL
           or (unions.contains(i)
           and unions.at(i).contains(grid[u]));
-      return m;
     }
   );
-
-  return m;
 }
 
 auto Match::changes(const Grid<char>& grid) const noexcept -> std::vector<Change<char>> {
@@ -49,8 +51,7 @@ auto Match::changes(const Grid<char>& grid) const noexcept -> std::vector<Change
 }
 
 auto Match::delta(const Grid<char>& grid, const Potentials& potentials) noexcept -> double {
-  return std::ranges::fold_left(
-    std::views::zip(mdiota(area()), rules[r].output)
+  auto vals = std::views::zip(mdiota(area()), rules[r].output)
     | std::views::filter([&grid](auto&& _o) noexcept {
         auto&& [u, o] = _o;
         return o != IGNORED_SYMBOL
@@ -66,7 +67,10 @@ auto Match::delta(const Grid<char>& grid, const Potentials& potentials) noexcept
         auto old_p = potentials.contains(old_value) ? potentials.at(old_value)[u] : -1.0;
 
         return new_p - old_p;
-    }),
-    0.0, std::plus{}
+    });
+  return std::reduce(
+    std::execution::par,
+    std::ranges::begin(vals),
+    std::ranges::end(vals)
   );
 }

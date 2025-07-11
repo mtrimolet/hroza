@@ -10,7 +10,12 @@ auto RuleRunner::operator()(TracedGrid<char>& grid) noexcept -> bool {
   auto changes = rulenode(grid);
   if (std::ranges::empty(changes)) return false;
 
-  std::ranges::for_each(changes, std::bind_front(&TracedGrid<char>::apply, &grid));
+  std::for_each(
+    std::execution::par,
+    std::ranges::begin(changes),
+    std::ranges::end(changes),
+    std::bind_front(&TracedGrid<char>::apply, &grid)
+  );
   step++;
   return true;
 }
@@ -27,20 +32,23 @@ auto reset(NodeRunner& n) noexcept -> void {
 }
 
 auto TreeRunner::operator()(TracedGrid<char>& grid) noexcept -> bool {
-  if (mode == Mode::SEQUENCE and current_node != std::ranges::end(nodes)) {
-    current_node = std::ranges::find_if(
-      current_node, std::ranges::end(nodes),
-      [&grid](NodeRunner& n) noexcept { return n(grid); }
-    );
-    if (current_node != std::ranges::end(nodes)) {
-      return true;
-    }
-    std::ranges::for_each(nodes, reset);
-  }
+  auto begin_node = 
+    mode == Mode::MARKOV or current_node == std::ranges::end(nodes)
+      ? std::ranges::begin(nodes)
+      : current_node;
 
   current_node = std::ranges::find_if(
-    nodes,
+    begin_node,
+    std::ranges::end(nodes),
     [&grid](NodeRunner& n) noexcept { return n(grid); }
   );
-  return current_node != std::ranges::end(nodes);
+
+  if (  current_node != std::ranges::end(nodes)
+    and (mode != Mode::SEQUENCE or begin_node != std::ranges::begin(nodes))
+  ) {
+    return true;
+  }
+
+  std::ranges::for_each(nodes, reset);
+  return false;
 }
