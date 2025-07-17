@@ -13,16 +13,18 @@ RewriteRule::RewriteRule(Grid<char>&& _input, Grid<char>&& _output, double p, bo
   ishifts{std::views::zip(input, mdiota(input.area())) | std::ranges::to<Shifts>()}
 {}
 
-auto&& square_groups = into_array<std::function<RewriteRule(const RewriteRule&)>>(
-  [](auto&& rule) static noexcept { return auto{rule}; },
-  [](auto&& rule) static noexcept { return rule.xreflected(); },
-  [](auto&& rule) static noexcept { return rule.xyrotated(); },
-  [](auto&& rule) static noexcept { return rule.xyrotated().xreflected(); },
-  [](auto&& rule) static noexcept { return rule.xyrotated().xyrotated(); },
-  [](auto&& rule) static noexcept { return rule.xyrotated().xyrotated().xreflected(); },
-  [](auto&& rule) static noexcept { return rule.xyrotated().xyrotated().xyrotated(); },
-  [](auto&& rule) static noexcept { return rule.xyrotated().xyrotated().xyrotated().xreflected(); }
-);
+template <class T>
+const auto square_groups =
+  std::array<std::function<T(const T&)>, 8> {
+    [](const auto& x) static noexcept { return auto{ x }                                          ; },
+    [](const auto& x) static noexcept { return x                                     .xreflected(); },
+    [](const auto& x) static noexcept { return x.xyrotated()                                      ; },
+    [](const auto& x) static noexcept { return x.xyrotated()                         .xreflected(); },
+    [](const auto& x) static noexcept { return x.xyrotated().xyrotated()                          ; },
+    [](const auto& x) static noexcept { return x.xyrotated().xyrotated()             .xreflected(); },
+    [](const auto& x) static noexcept { return x.xyrotated().xyrotated().xyrotated()              ; },
+    [](const auto& x) static noexcept { return x.xyrotated().xyrotated().xyrotated() .xreflected(); }
+  };
 
 constexpr auto square_subgroups =
   frozen::make_unordered_map<frozen::string, std::array<bool, 8>, 6>({
@@ -34,63 +36,12 @@ constexpr auto square_subgroups =
     {"(xy)",   {true,  true,  true,  true,  true,  true,  true,  true}}
   });
 
-// template <>
-// struct std::hash<std::dims<3, std::size_t>> {
-//   inline constexpr auto operator()(std::dims<3, std::size_t> u) const noexcept -> std::size_t {
-//     auto h = std::hash<std::dims<3>::index_type>{};
-//     return h(u.extent(0))
-//          ^ h(u.extent(1))
-//          ^ h(u.extent(2));
-//   }
-// };
-
-// template <class T>
-// struct std::hash<std::unordered_set<T>> {
-//   inline constexpr auto operator()(const std::unordered_set<T>& set) const noexcept -> std::size_t {
-//     auto&& seed = std::hash<std::size_t>{}(set.size());
-//     for (auto&& i : set) {
-//       seed ^= std::hash<T>{}(i);
-//     }
-//     return seed;
-//   }
-// };
-
-// template <>
-// struct std::hash<RewriteRule> {
-//   inline constexpr auto operator()(const RewriteRule& rule) const noexcept -> std::size_t {
-//     auto seed = std::hash<std::dims<3>>{}(rule.input.extents);
-//     auto h = std::hash<char>{};
-//     for (auto v : rule.input) {
-//       seed ^= h(v);
-//     }
-//     for (auto v : rule.output) {
-//       seed ^= h(v);
-//     }
-//     return seed;
-//   }
-// };
-
-// auto a = std::ranges::distance(active, std::ranges::end(matches));
-// auto conflicts = std::ranges::remove_if(
-//   active, std::ranges::end(matches),
-//   [this](auto&& m) noexcept {
-//     return std::ranges::any_of(
-//       active, std::ranges::end(matches),
-//       std::bind_back(&Match::conflict, m)
-//     );
-//   }
-// );
-// auto c = std::ranges::size(conflicts);
-// matches.erase(std::ranges::begin(conflicts), std::ranges::end(conflicts));
-// active = std::ranges::prev(std::ranges::end(matches), a - c);
-
 auto RewriteRule::symmetries(std::string_view subgroup) const noexcept -> std::vector<RewriteRule> {
   return std::ranges::fold_left(
-    std::views::zip(square_groups, square_subgroups.at(std::empty(subgroup) ? "(xy)" : subgroup))
+    std::views::zip(square_groups<RewriteRule>, square_subgroups.at(std::empty(subgroup) ? "(xy)" : subgroup))
       | std::views::filter(monadic::get<1>())
-      | std::views::transform([this](const auto& action) noexcept {
-          return std::get<0>(action)(*this);
-      }),
+      | std::views::transform(monadic::get<0>())
+      | std::views::transform([this](const auto& s) noexcept { return s(*this); }),
     std::vector<RewriteRule>{},
     [](auto&& acc, auto&& r) static noexcept {
       if (not std::ranges::contains(acc, r))

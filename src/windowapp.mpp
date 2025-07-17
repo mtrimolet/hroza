@@ -17,7 +17,7 @@ export
 struct WindowApp {
 public:
   static constexpr auto WINDOW_TITLE = "Hroza";
-  static constexpr auto WINDOW_SIZE  = math::ExtentU{800u, 600u};
+  static constexpr auto WINDOW_SIZE  = math::Extent2<u32>{800, 600};
 
   static constexpr auto DEFAULT_PALETTE_FILE = "resources/palette.xml";
   static constexpr auto DEFAULT_MODEL_FILE   = "models/GoToGradient.xml";

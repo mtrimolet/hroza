@@ -22,6 +22,7 @@ auto WindowApp::run(std::span<const std::string_view> args) noexcept -> int {
       if (stop.stop_requested()) return;
       // std::ranges::for_each(changes, update);
     }
+    model.halted = true;
   });
 
   while (window.is_open()) {

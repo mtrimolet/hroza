@@ -49,7 +49,7 @@ auto Fields(const pugi::xml_node& xnode) noexcept -> ::Fields;
 auto Observe(const pugi::xml_node& xnode) noexcept -> std::pair<char, ::Observe>;
 auto Observes(const pugi::xml_node& xnode) noexcept -> ::Observes;
 
-using Color32 = stormkit::UInt32;
+using Color32 = stormkit::u32;
 using ColorPalette = std::unordered_map<char, Color32>;
 
 auto Palette(const pugi::xml_document& xpalette) noexcept -> ColorPalette;

@@ -37,6 +37,8 @@ auto TreeRunner::operator()(TracedGrid<char>& grid) noexcept -> bool {
       ? std::ranges::begin(nodes)
       : current_node;
 
+  auto first_run = begin_node == current_node and current_node == std::ranges::begin(nodes);
+
   current_node = std::ranges::find_if(
     begin_node,
     std::ranges::end(nodes),
@@ -44,7 +46,7 @@ auto TreeRunner::operator()(TracedGrid<char>& grid) noexcept -> bool {
   );
 
   if (  current_node != std::ranges::end(nodes)
-    and (mode != Mode::SEQUENCE or begin_node != std::ranges::begin(nodes))
+    or (mode == Mode::SEQUENCE and not first_run)
   ) {
     return true;
   }

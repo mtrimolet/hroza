@@ -86,10 +86,10 @@ auto RuleNode::operator()(const TracedGrid<char>& grid) noexcept -> std::vector<
 }
 
 template <>
-struct std::hash<std::tuple<math::Vector3U, UInt>> {
-  inline constexpr auto operator()(std::tuple<math::Vector3U, UInt> t) const noexcept -> std::size_t {
+struct std::hash<std::tuple<math::Vector3U, cpp::UInt>> {
+  inline constexpr auto operator()(std::tuple<math::Vector3U, cpp::UInt> t) const noexcept -> std::size_t {
     return std::hash<math::Vector3U>{}(std::get<0>(t))
-         ^ std::hash<UInt>{}(std::get<1>(t));
+         ^ std::hash<cpp::UInt>{}(std::get<1>(t));
   }
 };
 

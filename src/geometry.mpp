@@ -37,7 +37,7 @@ inline constexpr auto dot(const math::Vector<3, T>& a, const math::Vector<3, T>&
 // Comparators of math::Vector3U //
 ///////////////////////////////////
 
-// template <RangeExtent E, meta::IsArithmetic T>
+// template <usize E, meta::IsArithmetic T>
 // struct std::equal_to<math::Vector<E, T>> {
 //   inline constexpr auto operator()(const math::Vector<E, T>& a, const math::Vector<E, T>& b) const noexcept -> bool {
 //     return math::all(math::equal(a, b));
@@ -49,14 +49,14 @@ inline constexpr auto dot(const math::Vector<3, T>& a, const math::Vector<3, T>&
 template <>
 struct std::hash<math::Vector3U> {
   inline constexpr auto operator()(math::Vector3U u) const noexcept -> std::size_t {
-    auto h = std::hash<UInt32>{};
+    auto h = std::hash<u32>{};
     return h(u.x)
          ^ h(u.y)
          ^ h(u.z);
   }
 };
 
-template <RangeExtent E, meta::IsArithmetic T>
+template <usize E, meta::IsArithmetic T>
 struct HyperRectangle {
   using Position = math::Vector<E, T>;
   using Size = math::Vector<E, std::make_unsigned_t<T>>;
@@ -144,8 +144,8 @@ struct HyperRectangle {
   }
 };
 
-using Area3U = HyperRectangle<3, UInt32>;
-using Area3I = HyperRectangle<3, Int32>;
+using Area3U = HyperRectangle<3, u32>;
+using Area3I = HyperRectangle<3, i32>;
 
 inline constexpr auto xreflected(const Area3U& a) noexcept -> Area3U {
   /* u -> { size.x - u.x - 1u, u.y, u.z } */
@@ -170,7 +170,7 @@ inline constexpr auto zyrotated(const Area3U& a) noexcept -> Area3U {
   }};
 }
 
-template <RangeExtent E, class T>
+template <usize E, class T>
 struct std::formatter<HyperRectangle<E, T>> {
   template<class ParseContext>
   constexpr ParseContext::iterator parse(ParseContext& ctx)

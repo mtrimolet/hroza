@@ -262,7 +262,7 @@ auto Palette(const pugi::xml_document& xpalette) noexcept -> ColorPalette {
         ensures(!std::ranges::empty(value),
                 std::format("empty '{}' attribute in '{}' node [:{}]", "value", "color", xcolor.offset_debug()));
         
-        return std::make_pair(symbol_str[0], (255u << 24u) + fromBase<UInt32>(value, 16));
+        return std::make_pair(symbol_str[0], (255u << 24u) + fromBase<u32>(value, 16));
     })
     | std::ranges::to<ColorPalette>();
 }

@@ -13,8 +13,8 @@ export {
 struct RuleRunner {
   using RuleNode = std::function<std::vector<Change<char>>(TracedGrid<char>&)>;
   RuleNode rulenode;
-  UInt steps;
-  UInt step = 0;
+  cpp::UInt steps;
+  cpp::UInt step = 0;
 
   auto operator()(TracedGrid<char>& grid) noexcept -> bool;
 };
@@ -32,7 +32,7 @@ struct TreeRunner {
   :  mode{_mode}, nodes{std::move(_nodes)}
   {}
 
-  inline constexpr auto current_index() const noexcept -> RangeOffset {
+  inline constexpr auto current_index() const noexcept -> ioffset {
     return std::ranges::distance(std::ranges::begin(nodes), current_node);
   }
 

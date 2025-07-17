@@ -29,7 +29,7 @@ std::function<ReturnType (Args...)> memoize(std::function<ReturnType (Args...)> 
 }
 
 template <meta::IsArithmetic T>
-inline constexpr auto fromBase(std::string_view x, UInt8 base) noexcept -> T {
+inline constexpr auto fromBase(std::string_view x, u8 base) noexcept -> T {
   auto&& out = T{};
   auto&& result =
       std::from_chars(std::ranges::cbegin(x), std::ranges::cend(x), out, base);
@@ -52,7 +52,7 @@ inline constexpr auto cartesian_product(A&& a, B&& b) noexcept -> decltype(auto)
 }
 
 template <std::ranges::sized_range A>
-inline constexpr auto chunk(A&& a, RangeExtent extent) noexcept -> decltype(auto) {
+inline constexpr auto chunk(A&& a, usize extent) noexcept -> decltype(auto) {
   return std::views::iota(0u, std::ranges::size(a))
     | std::views::stride(extent)
     | std::views::transform([&a, extent](auto i) noexcept {

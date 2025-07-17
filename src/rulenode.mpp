@@ -31,7 +31,7 @@ struct RuleNode {
 
   double temperature = 0.0;
 
-  UInt   limit = 0;
+  cpp::UInt   limit = 0;
   double depthCoefficient = 0.5;
 
   Fields   fields = {};
@@ -55,7 +55,7 @@ struct RuleNode {
     inference{Inference::OBSERVE}, temperature{_temperature}, observes{std::move(_observes)}
   {}
 
-  inline constexpr RuleNode(Mode _mode, std::vector<RewriteRule>&& _rules, RewriteRule::Unions&& _unions, Observes&& _observes, UInt _limit = 0, double _depthCoefficient = 0.0) noexcept 
+  inline constexpr RuleNode(Mode _mode, std::vector<RewriteRule>&& _rules, RewriteRule::Unions&& _unions, Observes&& _observes, cpp::UInt _limit = 0, double _depthCoefficient = 0.0) noexcept 
   : mode{_mode}, rules{std::move(_rules)}, unions{std::move(_unions)},
     inference{Inference::SEARCH}, limit{_limit}, depthCoefficient{_depthCoefficient}, observes{std::move(_observes)}
   {}
@@ -66,7 +66,7 @@ private:
   std::vector<Match> matches = {};
   using MatchIterator = std::ranges::iterator_t<decltype(matches)>;
 
-  std::optional<RangeOffset> prev = {};
+  std::optional<ioffset> prev = {};
   auto scan(const TracedGrid<char>& grid) noexcept -> std::vector<Match>;
 
   MatchIterator active = std::ranges::begin(matches);

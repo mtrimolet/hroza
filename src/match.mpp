@@ -17,7 +17,7 @@ struct Match {
   
   std::span<const RewriteRule> rules;
   math::Vector3U u;
-  RangeOffset    r;
+  ioffset        r;
 
   double w = 1.0;
 

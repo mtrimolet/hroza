@@ -35,7 +35,7 @@ Element grid(const ::TracedGrid<char>& g, const Palette& palette) noexcept {
     | size(HEIGHT, EQUAL, h);
 }
 
-Element rule(const ::RewriteRule& rule, const Palette& palette, UInt count = 1) noexcept {
+Element rule(const ::RewriteRule& rule, const Palette& palette, cpp::UInt count = 1) noexcept {
   auto input = Image{
     static_cast<int>(rule.input.extents.extent(2)),
     static_cast<int>(rule.input.extents.extent(1))
@@ -167,7 +167,7 @@ Element treeRunner(const TreeRunner& node, const Palette& palette, bool selected
     :                                           "markov";
   elements.push_back(text(tag));
 
-  elements.append_range(std::views::zip(node.nodes, std::views::iota(0))
+  elements.append_range(std::views::zip(node.nodes, std::views::iota(ioffset{ 0 }))
     | std::views::transform([&palette, &selected, current_index = node.current_index()](auto&& ni) noexcept {
         auto&& [n, i] = ni;
         return nodeRunner(n, palette, selected and current_index == i);
