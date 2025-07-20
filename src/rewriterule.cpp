@@ -2,6 +2,7 @@ module rewriterule;
 
 import frozen;
 import log;
+import utils;
 
 using namespace stormkit;
 
@@ -14,20 +15,19 @@ RewriteRule::RewriteRule(Grid<char>&& _input, Grid<char>&& _output, double p, bo
 {}
 
 template <class T>
-const auto square_groups =
-  std::array<std::function<T(const T&)>, 8> {
-    [](const auto& x) static noexcept { return auto{ x }                                          ; },
-    [](const auto& x) static noexcept { return x                                     .xreflected(); },
-    [](const auto& x) static noexcept { return x.xyrotated()                                      ; },
-    [](const auto& x) static noexcept { return x.xyrotated()                         .xreflected(); },
-    [](const auto& x) static noexcept { return x.xyrotated().xyrotated()                          ; },
-    [](const auto& x) static noexcept { return x.xyrotated().xyrotated()             .xreflected(); },
-    [](const auto& x) static noexcept { return x.xyrotated().xyrotated().xyrotated()              ; },
-    [](const auto& x) static noexcept { return x.xyrotated().xyrotated().xyrotated() .xreflected(); }
+const auto square_groups = std::array<function<T(const T&)>, 8> {
+    [](const T& x) static noexcept { return T{ x }                                            ; },
+    [](const T& x) static noexcept { return x                                    .xreflected(); },
+    [](const T& x) static noexcept { return x.xyrotated()                                     ; },
+    [](const T& x) static noexcept { return x.xyrotated()                        .xreflected(); },
+    [](const T& x) static noexcept { return x.xyrotated().xyrotated()                         ; },
+    [](const T& x) static noexcept { return x.xyrotated().xyrotated()            .xreflected(); },
+    [](const T& x) static noexcept { return x.xyrotated().xyrotated().xyrotated()             ; },
+    [](const T& x) static noexcept { return x.xyrotated().xyrotated().xyrotated().xreflected(); }
   };
 
 constexpr auto square_subgroups =
-  frozen::make_unordered_map<frozen::string, std::array<bool, 8>, 6>({
+  frozen::make_unordered_map<frozen::string, const std::array<bool, 8>, 6>({
     {"()",     {true, false, false, false, false, false, false, false}},
     {"(x)",    {true,  true, false, false, false, false, false, false}},
     {"(y)",    {true, false, false, false,  true, false, false, false}},
