@@ -53,8 +53,8 @@ auto ConsoleApp::operator()(std::span<const std::string_view> args) noexcept -> 
   screen.TrackMouse(false);
 
   auto program_thread = std::jthread{[&grid, &model, &screen](std::stop_token stop) mutable noexcept {
-    while (model.program(grid) and not stop.stop_requested()) {
-      // TODO find how to handle bottom-up signal using custom Component or whatever
+    for (auto _ : model.program(grid)) {
+      if (stop.stop_requested()) break;
       screen.RequestAnimationFrame();
     }
     model.halted = true;

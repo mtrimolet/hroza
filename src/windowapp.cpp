@@ -18,9 +18,8 @@ auto WindowApp::run(std::span<const std::string_view> args) noexcept -> int {
   // std::ranges::for_each(std::views::zip(mdiota(grid.area()), grid), update);
 
   auto&& program_thread = std::jthread([this](std::stop_token stop) mutable noexcept {
-    while (model.program(grid)) {
-      if (stop.stop_requested()) return;
-      // std::ranges::for_each(changes, update);
+    for (auto _ : model.program(grid)) {
+      if (stop.stop_requested()) break;
     }
     model.halted = true;
   });

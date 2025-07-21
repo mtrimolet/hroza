@@ -4,11 +4,11 @@ import log;
 
 using namespace stormkit;
 
-auto RuleRunner::operator()(TracedGrid<char>& grid) noexcept -> bool {
-  if (steps != 0 and step >= steps) return false;
-  // ilog("step {}", step);
+auto RuleRunner::operator()(TracedGrid<char>& grid) noexcept -> std::generator<bool> {
+  if (steps != 0 and step >= steps) co_return;
+
   auto changes = rulenode(grid);
-  if (std::ranges::empty(changes)) return false;
+  if (std::ranges::empty(changes)) co_return;
 
   std::for_each(
     std::execution::par,
@@ -17,7 +17,7 @@ auto RuleRunner::operator()(TracedGrid<char>& grid) noexcept -> bool {
     std::bind_front(&TracedGrid<char>::apply, &grid)
   );
   step++;
-  return true;
+  co_yield true;
 }
 
 // TODO this is problematically not extensible, but the other options I think of are about inheritance and I would prefer to avoid that
@@ -31,26 +31,20 @@ auto reset(NodeRunner& n) noexcept -> void {
   }
 }
 
-auto TreeRunner::operator()(TracedGrid<char>& grid) noexcept -> bool {
-  auto begin_node = 
-    mode == Mode::MARKOV or current_node == std::ranges::end(nodes)
-      ? std::ranges::begin(nodes)
-      : current_node;
-
-  auto first_run = begin_node == current_node and current_node == std::ranges::begin(nodes);
-
-  current_node = std::ranges::find_if(
-    begin_node,
-    std::ranges::end(nodes),
-    [&grid](NodeRunner& n) noexcept { return n(grid); }
-  );
-
-  if (  current_node != std::ranges::end(nodes)
-    or (mode == Mode::SEQUENCE and not first_run)
+auto TreeRunner::operator()(TracedGrid<char>& grid) noexcept -> std::generator<bool> {
+  for (current_node = std::ranges::begin(nodes);
+       current_node != std::ranges::end(nodes);
   ) {
-    return true;
+    auto found = false;
+    for (auto s : (*current_node)(grid)) {
+      found = true;
+      co_yield s;
+    }
+
+    if (not found) current_node++;
+
+    else if (mode == Mode::MARKOV) co_return;
   }
 
   std::ranges::for_each(nodes, reset);
-  return false;
 }
