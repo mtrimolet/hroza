@@ -11,7 +11,7 @@ auto Match::conflict(const Match& other) const noexcept -> bool {
         );
       });
   return std::any_of(
-    std::execution::par,
+    // std::execution::par,
     std::ranges::begin(overlap),
     std::ranges::end(overlap),
     [](const auto& p) static noexcept {
@@ -24,7 +24,7 @@ auto Match::conflict(const Match& other) const noexcept -> bool {
 auto Match::match(const Grid<char>& grid, const RewriteRule::Unions& unions) const noexcept -> bool {
   auto zone = std::views::zip(mdiota(area()), rules[r].input);
   return std::all_of(
-    std::execution::par,
+    // std::execution::par,
     std::ranges::begin(zone),
     std::ranges::end(zone),
     [&grid, &unions](const auto& input) noexcept {
@@ -69,7 +69,7 @@ auto Match::delta(const Grid<char>& grid, const Potentials& potentials) noexcept
         return new_p - old_p;
     });
   return std::reduce(
-    std::execution::par,
+    // std::execution::par,
     std::ranges::begin(vals),
     std::ranges::end(vals)
   );

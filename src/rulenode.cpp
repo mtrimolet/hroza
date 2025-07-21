@@ -48,7 +48,7 @@ auto RuleNode::operator()(const TracedGrid<char>& grid) noexcept -> std::vector<
                  picked != __i
         ) {
           auto conflict = std::any_of(
-            std::execution::par,
+            // std::execution::par,
             __i, std::ranges::end(matches),
             std::bind_back(&Match::conflict, *picked)
           );
@@ -190,7 +190,7 @@ auto RuleNode::pick(MatchIterator begin, MatchIterator end) noexcept -> MatchIte
                | std::views::transform(&Match::w);
 
   if (std::reduce(
-    std::execution::par,
+    // std::execution::par,
     std::ranges::begin(weights),
     std::ranges::end(weights)
   ) == 0.0) {
@@ -218,7 +218,7 @@ auto RuleNode::infer(const Grid<char>& grid) noexcept -> std::vector<Change<char
         }
 
         if (auto p = f.potential(grid); std::any_of(
-              std::execution::par,
+              // std::execution::par,
               std::ranges::begin(p),
               std::ranges::end(p),
               is_normal)
@@ -233,7 +233,7 @@ auto RuleNode::infer(const Grid<char>& grid) noexcept -> std::vector<Change<char
       }
       // compute weights
       std::for_each(
-        std::execution::par,
+        // std::execution::par,
         active, std::ranges::end(matches),
         [this, &grid](auto& m) noexcept {
           auto d = m.delta(grid, potentials);

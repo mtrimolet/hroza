@@ -11,7 +11,7 @@ auto RuleRunner::operator()(TracedGrid<char>& grid) noexcept -> std::generator<b
   if (std::ranges::empty(changes)) co_return;
 
   std::for_each(
-    std::execution::par,
+    // std::execution::par,
     std::ranges::begin(changes),
     std::ranges::end(changes),
     std::bind_front(&TracedGrid<char>::apply, &grid)
