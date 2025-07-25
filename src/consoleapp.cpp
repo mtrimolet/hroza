@@ -45,16 +45,16 @@ auto ConsoleApp::operator()(std::span<const std::string_view> args) noexcept -> 
   if (model.origin) grid[grid.area().center()] = model.symbols[1];
 
   auto view = Container::Horizontal({
-    Renderer([&grid, &palette]() noexcept { return render::grid(grid, palette); }),
+    Renderer([&grid,  &palette]() noexcept { return render::grid (grid, palette); }),
     Renderer([&model, &palette]() noexcept { return render::model(model, palette); }),
   });
 
-  auto screen = ScreenInteractive::TerminalOutput();
+  auto screen = ScreenInteractive::Fullscreen();
   screen.TrackMouse(false);
 
   auto program_thread = std::jthread{[&grid, &model, &screen](std::stop_token stop) mutable noexcept {
     for (auto _ : model.program(grid)) {
-      if (stop.stop_requested()) break;
+      if (model.halted or stop.stop_requested()) break;
       screen.RequestAnimationFrame();
     }
     model.halted = true;
