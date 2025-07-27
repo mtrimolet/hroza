@@ -15,7 +15,7 @@ RewriteRule::RewriteRule(Grid<char>&& _input, Grid<char>&& _output, double p, bo
 {}
 
 template <class T>
-const auto square_groups = std::array<function<T(const T&)>, 8> {
+const auto square_groups = std::array<std::function<T(const T&)>, 8> {
     [](const T& x) static noexcept { return T{ x }                                            ; },
     [](const T& x) static noexcept { return x                                    .xreflected(); },
     [](const T& x) static noexcept { return x.xyrotated()                                     ; },
