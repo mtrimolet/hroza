@@ -63,11 +63,14 @@ auto Match::delta(const Grid<char>& grid, const Potentials& potentials) noexcept
         auto new_value = o;
         auto old_value = grid[u];
 
-        auto new_p = potentials.contains(new_value) ? potentials.at(new_value)[u] : std::numeric_limits<double>::signaling_NaN();
-        auto old_p = potentials.contains(old_value) ? potentials.at(old_value)[u] : -1.0;
+        auto new_p = potentials.contains(new_value) ? potentials.at(new_value)[u] : 0.0;
+        auto old_p = potentials.contains(old_value) ? potentials.at(old_value)[u] : 0.0;
+        if (old_p != 0.0 and not std::isnormal(old_p))
+          old_p = -1.0;
 
         return new_p - old_p;
     });
+  ilog("delta vals: {}", vals | std::ranges::to<std::vector>());
   return std::reduce(
     // std::execution::par,
     std::ranges::begin(vals),

@@ -217,33 +217,60 @@ auto RuleNode::infer(const Grid<char>& grid) noexcept -> std::vector<Change<char
           continue;
         }
 
-        if (auto p = f.potential(grid); std::any_of(
-              // std::execution::par,
-              std::ranges::begin(p),
-              std::ranges::end(p),
-              is_normal)
-        ) {
-          potentials.insert_or_assign(c, std::move(p));
-        }
+        potentials.insert_or_assign(c, f.potential(grid));
 
-        if (not potentials.contains(c) and f.essential) {
+        if (f.essential and std::none_of(
+          // std::execution::par,
+          std::ranges::begin(potentials.at(c)),
+          std::ranges::end(potentials.at(c)),
+          is_normal
+        )) {
           active = std::ranges::end(matches);
           break;
         }
       }
-      // compute weights
+
+      // compute sum of pointwise differences in potential
       std::for_each(
         // std::execution::par,
         active, std::ranges::end(matches),
-        [this, &grid](auto& m) noexcept {
-          auto d = m.delta(grid, potentials);
-          m.w = std::isnormal(d) ? -d : 0.0;
-          /** Boltzmann distribution: `p(r) ~ exp(-w(r)/t)` */
-          if (temperature > 0.0) m.w = std::exp(m.w / temperature);
-          // exp(0) == 1 ... this might be a problem, or this might be of interest :
-          // heating makes you consider discarded matches, like quantum teleportation y'know
+        [&potentials = potentials, &grid](auto& m) noexcept {
+          m.w = m.delta(grid, potentials);
+      });
+
+      ilog("computed deltas: {}", std::ranges::subrange(active, std::ranges::end(matches))
+                                     | std::views::transform(&Match::w)
+                                     | std::ranges::to<std::vector>());
+
+      active = std::partition(
+        // std::execution::par,
+        active, std::ranges::end(matches),
+        [](auto& m) noexcept {
+          return not is_normal(m.w);
         }
       );
+
+      if (active == std::ranges::end(matches)) break;
+      
+      if (temperature > 0.0) std::for_each(
+        // std::execution::par,
+        active, std::ranges::end(matches),
+        [temperature = temperature, first_w = active->w](auto& m) noexcept {
+          /** Boltzmann distribution: `p(r) ~ exp(-w(r)/t)` */
+          m.w = std::exp((m.w - first_w) / temperature);
+        }
+      );
+      else std::for_each(
+        // std::execution::par,
+        active, std::ranges::end(matches),
+        [](auto& m) noexcept {
+          m.w = (-m.w) + 0.001;
+        }
+      );
+    
+      ilog("computed weights: {}", std::ranges::subrange(active, std::ranges::end(matches))
+                                     | std::views::transform(&Match::w)
+                                     | std::ranges::to<std::vector>());
       break;
     case Inference::OBSERVE:
       // break;
