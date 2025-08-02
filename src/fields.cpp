@@ -18,8 +18,8 @@ auto Field::potential(const Grid<char>& grid) const noexcept -> Potential {
           return std::make_pair(u, 0.0);
       }),
     [this, &grid, &potential](auto&& front) noexcept {
-      static constexpr auto neigh_size = 3u * math::Vector3U{1, 1, 1};
-      static constexpr auto neigh_shift = -static_cast<math::Vector3I>(neigh_size) / 2;
+      static constexpr auto neigh_size = 3u * glm::vec<3, u32>{1, 1, 1};
+      static constexpr auto neigh_shift = -static_cast<glm::vec<3, i32>>(neigh_size) / 2;
       static constexpr auto neigh = Area3I{neigh_shift, neigh_size};
 
       auto [u, p] = front;

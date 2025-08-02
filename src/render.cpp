@@ -23,7 +23,7 @@ Element grid(const ::TracedGrid<char>& g, const Palette& palette) noexcept {
     static_cast<int>(g.extents.extent(2)),
     static_cast<int>(g.extents.extent(1))
   };
-  std::ranges::for_each(std::views::zip(mdiota(g.area()), g), [&](auto&& u_char) noexcept {
+  std::ranges::for_each(std::views::zip(mdiota(g.area()), g), [&](auto u_char) noexcept {
     auto [u, character] = u_char;
     auto& pixel = texture.PixelAt(u.x, u.y);
     pixel.character = /* character; */ " ";

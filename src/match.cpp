@@ -70,7 +70,7 @@ auto Match::delta(const Grid<char>& grid, const Potentials& potentials) noexcept
 
         return new_p - old_p;
     });
-  ilog("delta vals: {}", vals | std::ranges::to<std::vector>());
+  // ilog("delta vals: {}", vals | std::ranges::to<std::vector>());
   return std::reduce(
     // std::execution::par,
     std::ranges::begin(vals),

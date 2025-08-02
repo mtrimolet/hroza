@@ -20,7 +20,7 @@ struct RewriteRule {
   std::bernoulli_distribution draw = std::bernoulli_distribution{1.0};
   bool original;
 
-  using Shifts = std::unordered_multimap<char, math::Vector3U>;
+  using Shifts = std::unordered_multimap<char, glm::vec<3, u32>>;
   Shifts ishifts;
 
   RewriteRule() = delete;
@@ -84,8 +84,8 @@ struct RewriteRule {
 
   /** Provides the relative area from inside which this rule would update the origin */
   inline constexpr auto backward_neighborhood() const noexcept -> Area3I {
-    auto&& a = forward_neighborhood();
-    auto&& shift = math::Vector3I{1, 1, 1} - static_cast<math::Vector3I>(a.size);
+    const auto a = forward_neighborhood();
+    const auto shift = glm::vec<3, i32>{1, 1, 1} - static_cast<glm::vec<3, i32>>(a.size);
     return a + shift;
   }
 };

@@ -41,6 +41,10 @@ auto RuleNode::operator()(const TracedGrid<char>& grid) noexcept -> std::vector<
 
     case Mode::ALL:
       changes.append_range(infer(grid));
+      // ilog("weights: {}", std::ranges::subrange(active, std::ranges::end(matches))
+      //                       | std::views::transform(&Match::w)
+      //                       | std::ranges::to<std::vector>()
+      // );
       for (auto selection = std::ranges::end(matches);
                 selection != active;
       ) {
@@ -86,10 +90,10 @@ auto RuleNode::operator()(const TracedGrid<char>& grid) noexcept -> std::vector<
 }
 
 template <>
-struct std::hash<std::tuple<math::Vector3U, cpp::UInt>> {
-  inline constexpr auto operator()(std::tuple<math::Vector3U, cpp::UInt> t) const noexcept -> std::size_t {
-    return std::hash<math::Vector3U>{}(std::get<0>(t))
-         ^ std::hash<cpp::UInt>{}(std::get<1>(t));
+struct std::hash<std::tuple<glm::vec<3, u32>, u32>> {
+  inline constexpr auto operator()(std::tuple<glm::vec<3, u32>, u32> t) const noexcept -> std::size_t {
+    return std::hash<glm::vec<3, u32>>{}(std::get<0>(t))
+         ^ std::hash<u32>{}(std::get<1>(t));
   }
 };
 
@@ -110,7 +114,7 @@ auto RuleNode::scan(const TracedGrid<char>& grid) noexcept -> std::vector<Match>
             })
             | std::views::join
             // | std::views::filter([r_area = rule.area()](auto u) noexcept {
-            //    return u % r_area.size == math::Vector3U{};
+            //    return u % r_area.size == glm::vec<3, u32>{};
             // })
             // // | std::views::transform([r_area = rule.area()](const auto& c) noexcept {
             // //     // ilog("cu [{}] - (c.u % r_area.size [{}]) = {}", c.u, r_area.size, c.u - (c.u % r_area.size));
@@ -153,7 +157,7 @@ auto RuleNode::scan(const TracedGrid<char>& grid) noexcept -> std::vector<Match>
         auto zone = grid.area() - Area3U{{}, rule.area().shiftmax()};
         return mdiota(zone)
           // | std::views::filter([r_area = rule.area()](auto u) noexcept {
-          //    return u % r_area.size == math::Vector3U{};
+          //    return u % r_area.size == glm::vec<3, u32>{};
           // })
           // | std::views::transform([&grid, &unions, &rule](auto u) noexcept {
           //     return unions
@@ -259,7 +263,7 @@ auto RuleNode::infer(const Grid<char>& grid) noexcept -> std::vector<Change<char
       else std::for_each(
         // std::execution::par,
         active, std::ranges::end(matches),
-        [](auto& m) static noexcept {
+        [](auto& m) noexcept {
           /** pre-Softmax */
           m.w = std::exp(-m.w);
         }

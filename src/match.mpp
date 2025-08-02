@@ -16,8 +16,8 @@ struct Match {
   static constexpr auto IGNORED_SYMBOL = '*';
   
   std::span<const RewriteRule> rules;
-  math::Vector3U u;
-  ioffset        r;
+  glm::vec<3, u32> u;
+  ioffset          r;
 
   double w = 1.0;
 
@@ -40,11 +40,6 @@ struct std::formatter<Match> {
       if (it == ctx.end())
           return it;
 
-      // if (*it == '#')
-      // {
-      //     quoted = true;
-      //     ++it;
-      // }
       if (it != ctx.end() && *it != '}')
           throw std::format_error("Invalid format args for RewriteRule.");
 
@@ -55,10 +50,7 @@ struct std::formatter<Match> {
   FmtContext::iterator format(const Match& m, FmtContext& ctx) const
   {
       std::ostringstream out;
-      // if (quoted)
-      //     out << std::quoted(s);
-      // else
-          out << std::format("{} {}", m.u, m.rules[m.r]);
+      out << std::format("{} {}", m.u, m.rules[m.r]);
 
       return std::ranges::copy(std::move(out).str(), ctx.out()).out;
   }

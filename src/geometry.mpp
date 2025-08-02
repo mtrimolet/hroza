@@ -16,15 +16,42 @@ using glm::operator%;
 using glm::operator==;
 using glm::operator!=;
 
-//////////////////////////////////
-// Enrichment of math::Vector3U //
-//////////////////////////////////
+template <usize E, meta::IsArithmetic T>
+struct std::formatter<glm::vec<E, T>> {
+  template<class ParseContext>
+  constexpr ParseContext::iterator parse(ParseContext& ctx)
+  {
+      auto it = ctx.begin();
+      if (it == ctx.end())
+          return it;
+
+      if (it != ctx.end() && *it != '}')
+          throw std::format_error("Invalid format args for glm::vec.");
+
+      return it;
+  }
+
+  template<class FmtContext>
+  FmtContext::iterator format(const glm::vec<E, T>& m, FmtContext& ctx) const
+  {
+      std::ostringstream out;
+      out << "[";
+      for (auto i = 0; i < E; i++) {
+        out << std::format("{}", std::get<i>(m));
+        if (i < E - 1) out << " ";
+      }
+      out << "]";
+
+      return std::ranges::copy(std::move(out).str(), ctx.out()).out;
+  }
+};
+
 namespace geometry {
 
 // glm only provides geometry functions for vectors of floating-point number types
 
 template <meta::IsArithmetic T>
-inline constexpr auto dot(const math::Vector<3, T>& a, const math::Vector<3, T>& b) noexcept -> decltype(auto) {
+inline constexpr auto dot(const glm::vec<3, T>& a, const glm::vec<3, T>& b) noexcept -> decltype(auto) {
   // this will silently overflow
   return a.x * b.x
        + a.y * b.y
@@ -33,22 +60,9 @@ inline constexpr auto dot(const math::Vector<3, T>& a, const math::Vector<3, T>&
 
 }
 
-///////////////////////////////////
-// Comparators of math::Vector3U //
-///////////////////////////////////
-
-// template <usize E, meta::IsArithmetic T>
-// struct std::equal_to<math::Vector<E, T>> {
-//   inline constexpr auto operator()(const math::Vector<E, T>& a, const math::Vector<E, T>& b) const noexcept -> bool {
-//     return math::all(math::equal(a, b));
-//   }
-// };
-
-// maybe implement partial/weak/string ordering(s)
-
 template <>
-struct std::hash<math::Vector3U> {
-  inline constexpr auto operator()(math::Vector3U u) const noexcept -> std::size_t {
+struct std::hash<glm::vec<3, u32>> {
+  inline constexpr auto operator()(glm::vec<3, u32> u) const noexcept -> std::size_t {
     auto h = std::hash<u32>{};
     return h(u.x)
          ^ h(u.y)
@@ -58,8 +72,8 @@ struct std::hash<math::Vector3U> {
 
 template <usize E, meta::IsArithmetic T>
 struct HyperRectangle {
-  using Position = math::Vector<E, T>;
-  using Size = math::Vector<E, std::make_unsigned_t<T>>;
+  using Position = glm::vec<E, T>;
+  using Size = glm::vec<E, std::make_unsigned_t<T>>;
 
   Position u;
   Size size;
@@ -82,8 +96,8 @@ struct HyperRectangle {
   }
 
   inline constexpr auto contains(const Position& v) const noexcept -> bool {
-    return math::all(math::lessThanEqual(u, v))
-       and math::all(math::lessThan(v, outerbound()));
+    return glm::all(glm::lessThanEqual(u, v))
+       and glm::all(glm::lessThan(v, outerbound()));
   }
 
   inline constexpr auto operator+(const HyperRectangle& other) const noexcept -> HyperRectangle {
@@ -121,8 +135,8 @@ struct HyperRectangle {
   }
 
   inline constexpr auto overlaps(const HyperRectangle& other) const noexcept -> bool {
-    return math::all(math::lessThan(      u, other.outerbound()))
-       and math::all(math::lessThan(other.u,       outerbound()));
+    return glm::all(glm::lessThan(      u, other.outerbound()))
+       and glm::all(glm::lessThan(other.u,       outerbound()));
   }
 
   inline constexpr auto meet(const HyperRectangle& other) const noexcept -> HyperRectangle {
