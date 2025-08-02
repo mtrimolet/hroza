@@ -31,8 +31,8 @@ auto Model(const pugi::xml_document& xmodel) noexcept -> ::Model {
     }));
 
   auto program = NodeRunner(xnode, unions);
-  // if (const auto p = program.target<TreeRunner>(); p == nullptr)
-  //   program = TreeRunner{TreeRunner::Mode::MARKOV, {std::move(program)}};
+  if (const auto p = program.target<TreeRunner>(); p == nullptr)
+    program = TreeRunner{TreeRunner::Mode::MARKOV, {std::move(program)}};
 
   return ::Model{
     // title,

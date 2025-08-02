@@ -32,7 +32,7 @@ auto reset(NodeRunner& n) noexcept -> void {
 }
 
 auto TreeRunner::operator()(TracedGrid<char>& grid) noexcept -> std::generator<bool> {
-  for (current_node = std::ranges::begin(nodes);
+  for (current_node  = std::ranges::begin(nodes);
        current_node != std::ranges::end(nodes);
   ) {
     auto found = false;
@@ -43,7 +43,7 @@ auto TreeRunner::operator()(TracedGrid<char>& grid) noexcept -> std::generator<b
 
     if (not found) current_node++;
 
-    else if (mode == Mode::MARKOV) co_return;
+    else if (mode == Mode::MARKOV) current_node = std::ranges::begin(nodes);
   }
 
   std::ranges::for_each(nodes, reset);
