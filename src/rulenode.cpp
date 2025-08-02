@@ -247,20 +247,21 @@ auto RuleNode::infer(const Grid<char>& grid) noexcept -> std::vector<Change<char
       );
 
       if (active == std::ranges::end(matches)) break;
-      
+
       if (temperature > 0.0) std::for_each(
         // std::execution::par,
         active, std::ranges::end(matches),
         [temperature = temperature, first_w = active->w](auto& m) noexcept {
-          /** Boltzmann distribution: `p(r) ~ exp(-w(r)/t)` */
+          /** pre-Boltzmann distribution */
           m.w = std::exp((m.w - first_w) / temperature);
         }
       );
       else std::for_each(
         // std::execution::par,
         active, std::ranges::end(matches),
-        [](auto& m) noexcept {
-          m.w = (-m.w) + 0.001;
+        [](auto& m) static noexcept {
+          /** pre-Softmax */
+          m.w = std::exp(-m.w);
         }
       );
 
