@@ -24,12 +24,12 @@ Element grid(const ::TracedGrid<char>& g, const Palette& palette) noexcept {
     static_cast<int>(g.extents.extent(1))
   };
   std::ranges::for_each(std::views::zip(mdiota(g.area()), g), [&](auto&& u_char) noexcept {
-    auto&& [u, character] = u_char;
-    auto&& pixel = texture.PixelAt(u.x, u.y);
+    auto [u, character] = u_char;
+    auto& pixel = texture.PixelAt(u.x, u.y);
     pixel.character = /* character; */ " ";
     pixel.background_color = palette.contains(character) ? palette.at(character) : Color::Default;
   });
-  auto&& w = texture.dimx(), h = texture.dimy();
+  auto w = texture.dimx(), h = texture.dimy();
   return canvasFromImage(std::move(texture))
     | size(WIDTH, EQUAL, w)
     | size(HEIGHT, EQUAL, h);
@@ -48,13 +48,13 @@ Element rule(const ::RewriteRule& rule, const Palette& palette, cpp::UInt count 
   std::ranges::for_each(
     std::views::zip(mdiota(rule.input.area()), rule.input, rule.output),
     [&input, &output, &palette](auto&& uio) noexcept {
-      auto&& [u, i, o] = uio;
+      auto [u, i, o] = uio;
 
-      auto&& ip = input.PixelAt(u.x, u.y);
+      auto& ip = input.PixelAt(u.x, u.y);
       ip.character = palette.contains(i) ? ' ' : i;
       ip.background_color = palette.contains(i) ? palette.at(i) : Color::Default;
 
-      auto&& op = output.PixelAt(u.x, u.y);
+      auto& op = output.PixelAt(u.x, u.y);
       op.character = palette.contains(i) ? ' ' : i;
       op.background_color = palette.contains(o) ? palette.at(o) : Color::Default;
     }
@@ -97,9 +97,9 @@ Element potential_grid(const ::Potential& g) noexcept {
     return t;
   };
   std::ranges::for_each(std::views::zip(mdiota(g.area()), g), [&](auto&& u_val) noexcept {
-    auto&& [u, value] = u_val;
-    auto&& pixel = texture.PixelAt(u.x, u.y);
-    auto&& normal = value == 0.0 or std::isnormal(value);
+    auto [u, value] = u_val;
+    auto& pixel = texture.PixelAt(u.x, u.y);
+    auto normal = value == 0.0 or std::isnormal(value);
     pixel.character =
         value == 0.0             ? "•"
       : not std::isnormal(value) ? "*"
@@ -109,7 +109,7 @@ Element potential_grid(const ::Potential& g) noexcept {
       Color::Blue, Color::Red
     );
   });
-  auto&& w = texture.dimx(), h = texture.dimy();
+  auto w = texture.dimx(), h = texture.dimy();
   return canvasFromImage(std::move(texture))
     | size(WIDTH, EQUAL, w)
     | size(HEIGHT, EQUAL, h);
@@ -169,7 +169,7 @@ Element treeRunner(const TreeRunner& node, const Palette& palette, bool selected
 
   elements.append_range(std::views::zip(node.nodes, std::views::iota(ioffset{ 0 }))
     | std::views::transform([&palette, &selected, current_index = node.current_index()](auto&& ni) noexcept {
-        auto&& [n, i] = ni;
+        const auto& [n, i] = ni;
         return nodeRunner(n, palette, selected and current_index == i);
       }));
 
@@ -196,14 +196,14 @@ Element symbols(std::string_view values, const Palette& palette) noexcept {
       mdiota(std::dims<3>{1, texture.dimy(), texture.dimx()})
     ),
     [&](auto&& cu) noexcept {
-      auto&& [character, u] = cu;
-      auto&& pixel = texture.PixelAt(u.x, u.y);
+      auto [character, u] = cu;
+      auto& pixel = texture.PixelAt(u.x, u.y);
       pixel.character = character;
       pixel.background_color = palette.at(character);
     }
   );
 
-  auto&& w = texture.dimx(), h = texture.dimy();
+  auto w = texture.dimx(), h = texture.dimy();
   return canvasFromImage(std::move(texture))
       | size(WIDTH, EQUAL, w)
       | size(HEIGHT, EQUAL, h);
