@@ -41,24 +41,24 @@ auto RuleNode::operator()(const TracedGrid<char>& grid) noexcept -> std::vector<
 
     case Mode::ALL:
       changes.append_range(infer(grid));
-      for (auto __i = std::ranges::end(matches);
-                __i != active;
+      for (auto selection = std::ranges::end(matches);
+                selection != active;
       ) {
-        if (auto picked = pick(active, __i);
-                 picked != __i
+        if (auto picked = pick(active, selection);
+                 picked != selection
         ) {
           auto conflict = std::any_of(
             // std::execution::par,
-            __i, std::ranges::end(matches),
+            selection, std::ranges::end(matches),
             std::bind_back(&Match::conflict, *picked)
           );
           std::iter_swap(
             picked,
-            conflict ? active++ : --__i
+            conflict ? active++ : --selection
           );
         }
         else {
-          active = __i;
+          active = selection;
         }
       }
       break;
@@ -238,10 +238,6 @@ auto RuleNode::infer(const Grid<char>& grid) noexcept -> std::vector<Change<char
           m.w = m.delta(grid, potentials);
       });
 
-      ilog("computed deltas: {}", std::ranges::subrange(active, std::ranges::end(matches))
-                                     | std::views::transform(&Match::w)
-                                     | std::ranges::to<std::vector>());
-
       active = std::partition(
         // std::execution::par,
         active, std::ranges::end(matches),
@@ -267,10 +263,7 @@ auto RuleNode::infer(const Grid<char>& grid) noexcept -> std::vector<Change<char
           m.w = (-m.w) + 0.001;
         }
       );
-    
-      ilog("computed weights: {}", std::ranges::subrange(active, std::ranges::end(matches))
-                                     | std::views::transform(&Match::w)
-                                     | std::ranges::to<std::vector>());
+
       break;
     case Inference::OBSERVE:
       // break;
