@@ -257,7 +257,7 @@ auto RuleNode::infer(const Grid<char>& grid) noexcept -> std::vector<Change<char
         active, std::ranges::end(matches),
         [temperature = temperature, first_w = active->w](auto& m) noexcept {
           /** pre-Boltzmann distribution */
-          m.w = std::exp((m.w - first_w) / temperature);
+          m.w = std::exp(-m.w / temperature);
         }
       );
       else std::for_each(
