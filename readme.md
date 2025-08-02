@@ -12,7 +12,7 @@ Maybe it works with your default compiler toolchain, I can't guarantee anything 
 
 On `macos`, this should look like this
 ```sh
-xmake f --toolchain=llvm --sdk=/usr/local/opt/llvm --runtimes=c++_shared --ldflags="-L/usr/local/opt/llvm/lib/c++"
+xmake f --toolchain=llvm --sdk=/usr/local/opt/llvm --runtimes=c++_shared
 ```
 
 On `linux`, this should look like this
