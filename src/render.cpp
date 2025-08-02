@@ -32,7 +32,10 @@ Element grid(const ::TracedGrid<char>& g, const Palette& palette) noexcept {
   auto w = texture.dimx(), h = texture.dimy();
   return canvasFromImage(std::move(texture))
     | size(WIDTH, EQUAL, w)
-    | size(HEIGHT, EQUAL, h);
+    | size(HEIGHT, EQUAL, h)
+    | vscroll_indicator
+    | hscroll_indicator
+    | frame;
 }
 
 Element rule(const ::RewriteRule& rule, const Palette& palette, cpp::UInt count = 1) noexcept {
@@ -47,7 +50,7 @@ Element rule(const ::RewriteRule& rule, const Palette& palette, cpp::UInt count 
 
   std::ranges::for_each(
     std::views::zip(mdiota(rule.input.area()), rule.input, rule.output),
-    [&input, &output, &palette](auto&& uio) noexcept {
+    [&input, &output, &palette](auto uio) noexcept {
       auto [u, i, o] = uio;
 
       auto& ip = input.PixelAt(u.x, u.y);
@@ -82,7 +85,7 @@ Element potential_grid(const ::Potential& g) noexcept {
   };
   auto [min_g, max_g] = std::ranges::fold_left(
     g, std::make_pair(0.0, 0.0),
-    [](auto&& a, const auto& p) static noexcept {
+    [](auto&& a, auto p) static noexcept {
       return std::make_pair(
         std::min(std::get<0>(a), p),
         std::max(std::get<1>(a), p)
@@ -96,7 +99,7 @@ Element potential_grid(const ::Potential& g) noexcept {
     t /= 2.0;                                       // go to [ 0, 1]
     return t;
   };
-  std::ranges::for_each(std::views::zip(mdiota(g.area()), g), [&](auto&& u_val) noexcept {
+  std::ranges::for_each(std::views::zip(mdiota(g.area()), g), [&](auto u_val) noexcept {
     auto [u, value] = u_val;
     auto& pixel = texture.PixelAt(u.x, u.y);
     auto normal = value == 0.0 or std::isnormal(value);
@@ -116,7 +119,7 @@ Element potential_grid(const ::Potential& g) noexcept {
 }
 
 Element potential(char c, const Potential& pot, const Palette& palette) noexcept {
-  auto&& col = palette.contains(c) ? palette.at(c) : Color::Default;
+  auto col = palette.contains(c) ? palette.at(c) : Color::Default;
   return window(
     text(std::string{c}) | color(col) | inverted,
     potential_grid(pot)
@@ -153,7 +156,7 @@ Element ruleRunner(const RuleRunner& node, const Palette& palette) noexcept {
   //   | std::views::filter(&RewriteRule::original)
   //   | std::views::transform(std::bind_back(rule, palette)));
   elements.push_back(hbox(rulenode->potentials
-    | std::views::transform([&palette](auto&& p) noexcept {
+    | std::views::transform([&palette](const auto& p) noexcept {
         return potential(std::get<0>(p), std::get<1>(p), palette);
       })
     | std::ranges::to<Elements>()));
@@ -212,7 +215,10 @@ Element symbols(std::string_view values, const Palette& palette) noexcept {
 Element model(const ::Model& model, const Palette& palette) noexcept {
   return vbox({
     window(text("symbols"), symbols(model.symbols, palette)),
-    window(text(model.halted ? "program (H)" : "program"), nodeRunner(model.program, palette)),
+    window(text(model.halted ? "program (H)" : "program"),
+           nodeRunner(model.program, palette)
+             | vscroll_indicator | frame
+    ),
   });
 }
 
