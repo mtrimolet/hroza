@@ -6,12 +6,28 @@ import utils;
 
 using namespace stormkit;
 
-RewriteRule::RewriteRule(Grid<char>&& _input, Grid<char>&& _output, double p, bool _original) noexcept
+RewriteRule::RewriteRule(Grid<Input>&& _input, Grid<Output>&& _output, double p, bool _original) noexcept
 : input{std::move(_input)},
   output{std::move(_output)},
   draw{p},
   original{_original},
-  ishifts{std::views::zip(input, mdiota(input.area())) | std::ranges::to<Shifts>()}
+  ishifts{
+    std::views::zip(
+      input,
+      mdiota(input.area())
+        | std::views::transform([m = input.area().shiftmax()](auto u) noexcept {
+            return m - u;
+        })
+    )
+    | std::views::transform([](auto&& p) noexcept {
+        // TODO this must change when fixing size of state representation
+        return std::get<0>(p).value_or(std::set{ IGNORED_SYMBOL }) 
+          | std::views::transform([u = std::get<1>(p)](auto c) noexcept {
+              return std::tuple{ c, u };
+          });
+    })
+    | std::views::join
+    | std::ranges::to<Shifts>()}
 {}
 
 template <class T>

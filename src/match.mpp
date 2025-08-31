@@ -13,8 +13,6 @@ using namespace stormkit;
 
 export
 struct Match {
-  static constexpr auto IGNORED_SYMBOL = '*';
-  
   std::span<const RewriteRule> rules;
   glm::vec<3, u32> u;
   ioffset          r;
@@ -26,7 +24,7 @@ struct Match {
   }
 
   auto conflict(const Match& other) const noexcept -> bool;
-  auto match(const Grid<char>& grid, const RewriteRule::Unions& unions) const noexcept -> bool;
+  auto match(const Grid<char>& grid) const noexcept -> bool;
   auto changes(const Grid<char>& grid) const noexcept -> std::vector<Change<char>>;
   auto delta(const Grid<char>& grid, const Potentials& potentials) noexcept -> double;
 };

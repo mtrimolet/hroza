@@ -15,37 +15,35 @@ auto Match::conflict(const Match& other) const noexcept -> bool {
     std::ranges::begin(overlap),
     std::ranges::end(overlap),
     [](const auto& p) static noexcept {
-      return std::get<0>(p) != IGNORED_SYMBOL
-         and std::get<1>(p) != IGNORED_SYMBOL;
+      return std::get<0>(p)
+         and std::get<1>(p);
     }
   );
 }
 
-auto Match::match(const Grid<char>& grid, const RewriteRule::Unions& unions) const noexcept -> bool {
+auto Match::match(const Grid<char>& grid) const noexcept -> bool {
   auto zone = std::views::zip(mdiota(area()), rules[r].input);
   return std::all_of(
     // std::execution::par,
     std::ranges::begin(zone),
     std::ranges::end(zone),
-    [&grid, &unions](const auto& input) noexcept {
+    [&grid](const auto& input) noexcept {
       auto [u, i] = input;
-      return i == IGNORED_SYMBOL
-          or (unions.contains(i)
-          and unions.at(i).contains(grid[u]));
+      return not i
+          or i->contains(grid[u]);
     }
   );
 }
 
 auto Match::changes(const Grid<char>& grid) const noexcept -> std::vector<Change<char>> {
-  // ilog("r = {}, u = {}", r, u);
   return std::views::zip(mdiota(area()), rules[r].output)
     | std::views::filter([&grid](const auto& output) noexcept {
-        auto [u, value] = output;
-        return value != IGNORED_SYMBOL
-           and value != grid[u];
+        auto [u, o] = output;
+        return  o
+           and *o != grid[u];
     })
     | std::views::transform([](auto&& output) static noexcept {
-        return Change{std::get<0>(output), std::get<1>(output)};
+        return Change{std::get<0>(output), *std::get<1>(output)};
     })
     | std::ranges::to<std::vector>();
 }
@@ -53,14 +51,14 @@ auto Match::changes(const Grid<char>& grid) const noexcept -> std::vector<Change
 auto Match::delta(const Grid<char>& grid, const Potentials& potentials) noexcept -> double {
   auto vals = std::views::zip(mdiota(area()), rules[r].output)
     | std::views::filter([&grid](auto&& _o) noexcept {
-        auto&& [u, o] = _o;
-        return o != IGNORED_SYMBOL
-           and o != grid[u];
+        auto [u, o] = _o;
+        return  o
+           and *o != grid[u];
     })
     | std::views::transform([&grid, &potentials] (const auto& _o) noexcept {
         auto [u, o] = _o;
 
-        auto new_value = o;
+        auto new_value = *o;
         auto old_value = grid[u];
 
         auto new_p = potentials.contains(new_value) ? potentials.at(new_value)[u] : 0.0;

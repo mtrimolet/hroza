@@ -24,10 +24,10 @@ auto Model(const pugi::xml_document& xmodel) noexcept -> ::Model {
   // ensure no duplicate
   auto&& origin = xnode.attribute("origin").as_bool(false);
 
-  auto unions = RewriteRule::Unions{{'*', auto{symbols}}};
+  auto unions = RewriteRule::Unions{ { '*', symbols | std::ranges::to<std::set>() } };
   unions.insert_range(symbols
     | std::views::transform([](auto&& c) static noexcept { 
-        return std::make_pair(c, std::string{c});
+        return std::make_pair(c, std::set{ c });
     }));
 
   auto program = NodeRunner(xnode, unions);
@@ -57,7 +57,7 @@ auto Union(const pugi::xml_node& xnode) noexcept -> decltype(auto) {
   ensures(!std::ranges::empty(values),
           std::format("empty '{}' attribute in '{}' node [:{}]", "values", "union", xnode.offset_debug()));
 
-  return std::make_pair(symbol_str[0], std::move(values));
+  return std::tuple{ symbol_str[0], std::move(values) | std::ranges::to<std::set>() };
 }
 
 auto NodeRunner(
@@ -110,7 +110,7 @@ auto RuleNode(
 
   if (xnode.attribute("search").as_bool(false)) {
     return ::RuleNode{
-      mode, Rules(xnode, symmetry),
+      mode, Rules(xnode, unions, symmetry),
       std::move(unions),
       Observes(xnode),
       xnode.attribute("limit").as_uint(0),
@@ -120,7 +120,7 @@ auto RuleNode(
 
   if (not std::ranges::empty(xnode.children("observe"))) {
     return ::RuleNode{
-      mode, Rules(xnode, symmetry),
+      mode, Rules(xnode, unions, symmetry),
       std::move(unions),
       Observes(xnode),
       xnode.attribute("temperature").as_double(0.0)
@@ -129,7 +129,7 @@ auto RuleNode(
 
   if (not std::ranges::empty(xnode.children("field"))) {
     return ::RuleNode{
-      mode, Rules(xnode, symmetry),
+      mode, Rules(xnode, unions, symmetry),
       std::move(unions),
       Fields(xnode),
       xnode.attribute("temperature").as_double(0.0)
@@ -137,12 +137,15 @@ auto RuleNode(
   }
 
   return ::RuleNode{
-    mode, Rules(xnode, symmetry),
+    mode, Rules(xnode, unions, symmetry),
     std::move(unions)
   };
 }
 
-auto Rule(const pugi::xml_node& xnode) noexcept -> ::RewriteRule {
+auto Rule(
+  const pugi::xml_node& xnode,
+  const RewriteRule::Unions& unions
+) noexcept -> ::RewriteRule {
   ensures(xnode.attribute("in"),
           std::format("missing '{}' attribute in '{}' node [:{}]", "in", "[rule]", xnode.offset_debug()));
   auto&& input = std::string{xnode.attribute("in").as_string()};
@@ -159,6 +162,7 @@ auto Rule(const pugi::xml_node& xnode) noexcept -> ::RewriteRule {
           std::format("attributes '{}' and '{}' of '{}' node must be of same shape [:{}]", "in", "out", "[rule]", xnode.offset_debug()));
 
   return RewriteRule::parse(
+    unions,
     input, output,
     xnode.attribute("p").as_double(1.0)
   );
@@ -166,12 +170,13 @@ auto Rule(const pugi::xml_node& xnode) noexcept -> ::RewriteRule {
 
 auto Rules(
   const pugi::xml_node& xnode,
+  const RewriteRule::Unions& unions,
   std::string_view symmetry
 ) noexcept -> std::vector<RewriteRule> {
   auto xrules = xnode.children("rule") | std::ranges::to<std::vector>();
   if (std::ranges::empty(xrules)) xrules.push_back(xnode);
   auto rs = std::move(xrules)
-     | std::views::transform(Rule)
+     | std::views::transform(std::bind_back(Rule, unions))
      | std::views::transform(std::bind_back(&RewriteRule::symmetries, symmetry))
      | std::views::join
      | std::ranges::to<std::vector>();

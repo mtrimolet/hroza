@@ -11,20 +11,25 @@ using namespace stormkit;
 
 export 
 struct RewriteRule {
-  using Unions = std::unordered_map<char, std::string>;
-  using Union  = Unions::node_type;
+  static constexpr auto IGNORED_SYMBOL = char { '*' };
+  
+  using Unions = std::unordered_map<char, std::set<char>>;
+  // using Union  = Unions::node_type;
 
-  Grid<char> input;
-  Grid<char> output;
+  using Input  = std::optional<std::set<char>>;
+  Grid<Input>  input;
 
-  std::bernoulli_distribution draw = std::bernoulli_distribution{1.0};
+  using Output = std::optional<char>;
+  Grid<Output> output;
+
+  std::bernoulli_distribution draw = std::bernoulli_distribution { 1.0 };
   bool original;
 
   using Shifts = std::unordered_multimap<char, glm::vec<3, u32>>;
   Shifts ishifts;
 
   RewriteRule() = delete;
-  RewriteRule(Grid<char>&& input, Grid<char>&& output, double p = 1.0, bool original = true) noexcept;
+  RewriteRule(Grid<Input>&& input, Grid<Output>&& output, double p = 1.0, bool original = true) noexcept;
 
   auto symmetries(std::string_view subgroup = "") const noexcept -> std::vector<RewriteRule>;
 
@@ -35,13 +40,18 @@ struct RewriteRule {
   };
 
   static inline constexpr auto parse(
+    const Unions& unions,
     std::string_view input,
     std::string_view output,
     double p = 1.0
   ) noexcept -> RewriteRule {
     return {
-      Grid<char>::parse(input),
-      Grid<char>::parse(output),
+      Grid<Input>::parse(input, [&unions](auto raw) noexcept -> Input {
+        return raw == IGNORED_SYMBOL ? Input {} : Input { unions.contains(raw) ? unions.at(raw) : std::set{ raw } };
+      }),
+      Grid<std::optional<char>>::parse(output, [](auto raw) noexcept -> Output {
+        return raw == IGNORED_SYMBOL ? Output {} : Output { raw };
+      }),
       p
     };
   }

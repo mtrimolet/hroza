@@ -13,13 +13,13 @@ auto RuleNode::operator()(const TracedGrid<char>& grid) noexcept -> std::vector<
       // std::execution::par,
       std::ranges::begin(matches),
       std::ranges::end(matches),
-      std::not_fn(std::bind_back(&Match::match, grid, unions))
+      std::not_fn(std::bind_back(&Match::match, grid))
     ),
     std::ranges::end(matches)
   );
 
   matches.append_range(scan(grid)
-    | std::views::filter(std::bind_back(&Match::match, grid, unions)));
+    | std::views::filter(std::bind_back(&Match::match, grid)));
   active = std::ranges::begin(matches);
   // ilog("working on {}", std::ranges::distance(active, std::ranges::end(matches)));
 
@@ -107,7 +107,7 @@ auto RuleNode::scan(const TracedGrid<char>& grid) noexcept -> std::vector<Match>
     return std::views::zip(rules, std::views::iota(0u))
       | std::views::transform([&grid, changes = std::ranges::subrange(since, now)](const auto& v) noexcept {
           const auto& [rule, r] = v;
-          auto zone = grid.area() - Area3U{{}, rule.area().shiftmax()};
+          auto zone = grid.area() - Area3U{ {}, rule.area().shiftmax() };
           return changes
             | std::views::transform([neigh = rule.backward_neighborhood(), zone](const auto& c) noexcept {
                 return mdiota((neigh + c.u).umeet(zone));
@@ -141,12 +141,12 @@ auto RuleNode::scan(const TracedGrid<char>& grid) noexcept -> std::vector<Match>
             // | std::views::filter(std::bind_front(&Area3U::contains, zone))
             | std::ranges::to<std::unordered_set>()
             | std::views::transform([r](auto u) noexcept {
-                return std::make_pair(u, r);
+                return std::tuple{ u, r };
             });
       })
       | std::views::join
       | std::views::transform([this](auto&& ur) noexcept {
-          return Match{rules, std::get<0>(ur), std::get<1>(ur)};
+          return Match{ rules, std::get<0>(ur), std::get<1>(ur) };
       })
       | std::ranges::to<std::vector>();
   }
@@ -154,37 +154,30 @@ auto RuleNode::scan(const TracedGrid<char>& grid) noexcept -> std::vector<Match>
   return std::views::zip(rules, std::views::iota(0u))
     | std::views::transform([&grid](const auto& v) noexcept {
         const auto& [rule, r] = v;
-        auto zone = grid.area() - Area3U{{}, rule.area().shiftmax()};
-        return mdiota(zone)
+        // auto zone = grid.area() - Area3U{ {}, rule.area().shiftmax() };
+        return mdiota(grid.area())
           // | std::views::filter([r_area = rule.area()](auto u) noexcept {
-          //    return u % r_area.size == glm::vec<3, u32>{};
+          //    return u % r_area.size == r_area.shiftmax();
           // })
-          // | std::views::transform([&grid, &unions, &rule](auto u) noexcept {
-          //     return unions
-          //       | std::views::filter([c = grid[u]](const auto& cs) noexcept {
-          //           return std::get<1>(cs).contains(c);
-          //         })
-          //       | std::views::transform([&rule](const auto& cs) noexcept {
-          //           auto bucket = rule.ishifts.bucket(std::get<0>(cs));
-          //           return std::ranges::subrange(
-          //             rule.ishifts.cbegin(bucket),
-          //             rule.ishifts.cend(bucket)
-          //           ) | std::views::transform(monadic::get<1>());
-          //       })
-          //       | std::views::join
-          //       | std::views::transform([u] (const auto& shift) noexcept {
-          //           return u + shift;
-          //       });
-          // })
-          // | std::views::join
-          // | std::views::filter(std::bind_front(&Area3U::contains, zone))
+          | std::views::transform([&grid, &rule](auto u) noexcept {
+              auto bucket = rule.ishifts.bucket(grid[u]);
+              return std::ranges::subrange(
+                rule.ishifts.cbegin(bucket),
+                rule.ishifts.cend(bucket)
+              )
+                | std::views::transform([u](const auto& v) noexcept {
+                    return u + std::get<1>(v);
+                });
+          })
+          | std::views::join
+          | std::views::filter(std::bind_front(&Area3U::contains, grid.area()))
           | std::views::transform([r](auto u) noexcept {
-              return std::make_pair(u, r);
+              return std::tuple{ u, r };
           });
     })
     | std::views::join
-    | std::views::transform([this](auto&& ur) noexcept {
-        return Match{rules, std::get<0>(ur), std::get<1>(ur)};
+    | std::views::transform([&rules = rules](auto&& ur) noexcept {
+        return Match{ rules, std::get<0>(ur), std::get<1>(ur) };
     })
     | std::ranges::to<std::vector>();
 }

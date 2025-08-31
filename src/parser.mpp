@@ -37,9 +37,13 @@ auto RuleNode(
   std::string_view symmetry = ""
 ) noexcept -> ::RuleNode;
 
-auto Rule(const pugi::xml_node& xnode) noexcept -> RewriteRule;
+auto Rule(
+  const pugi::xml_node& xnode,
+  const RewriteRule::Unions& unions
+) noexcept -> RewriteRule;
 auto Rules(
   const pugi::xml_node& xnode,
+  const RewriteRule::Unions& unions,
   std::string_view symmetry = ""
 ) noexcept -> std::vector<RewriteRule>;
 

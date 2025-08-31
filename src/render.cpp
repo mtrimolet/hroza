@@ -52,14 +52,14 @@ Element rule(const ::RewriteRule& rule, const Palette& palette, cpp::UInt count 
     std::views::zip(mdiota(rule.input.area()), rule.input, rule.output),
     [&input, &output, &palette](auto uio) noexcept {
       auto [u, i, o] = uio;
-
+      // TODO this is using only one of the values
       auto& ip = input.PixelAt(u.x, u.y);
-      ip.character = palette.contains(i) ? ' ' : i;
-      ip.background_color = palette.contains(i) ? palette.at(i) : Color::Default;
+      ip.character = not i ? RewriteRule::IGNORED_SYMBOL : palette.contains(*i->begin()) ? ' ' : '?';
+      ip.background_color = i and palette.contains(*i->begin()) ? palette.at(*i->begin()) : Color::Default;
 
       auto& op = output.PixelAt(u.x, u.y);
-      op.character = palette.contains(i) ? ' ' : i;
-      op.background_color = palette.contains(o) ? palette.at(o) : Color::Default;
+      op.character = not o ? RewriteRule::IGNORED_SYMBOL : palette.contains(*o) ? ' ' : *o;
+      op.background_color = o and palette.contains(*o) ? palette.at(*o) : Color::Default;
     }
   );
 
