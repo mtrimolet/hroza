@@ -14,7 +14,7 @@ inline constexpr auto is_tag(std::string_view tag) noexcept -> decltype(auto) {
 }
 
 auto Model(const pugi::xml_document& xmodel) noexcept -> ::Model {
-  auto&& xnode = xmodel.first_child();
+  const auto& xnode = xmodel.first_child();
 
   ensures(xnode.attribute("values"),
           std::format("missing '{}' attribute in '{}' node [:{}]", "values", "[root]", xnode.offset_debug()));
@@ -22,11 +22,11 @@ auto Model(const pugi::xml_document& xmodel) noexcept -> ::Model {
   ensures(!std::ranges::empty(symbols),
           std::format("empty '{}' attribute in '{}' node [:{}]", "values", "[root]", xnode.offset_debug()));
   // ensure no duplicate
-  auto&& origin = xnode.attribute("origin").as_bool(false);
+  auto origin = xnode.attribute("origin").as_bool(false);
 
   auto unions = RewriteRule::Unions{ { '*', symbols | std::ranges::to<std::set>() } };
   unions.insert_range(symbols
-    | std::views::transform([](auto&& c) static noexcept { 
+    | std::views::transform([](auto c) static noexcept { 
         return std::make_pair(c, std::set{ c });
     }));
 
@@ -45,7 +45,7 @@ auto Model(const pugi::xml_document& xmodel) noexcept -> ::Model {
 auto Union(const pugi::xml_node& xnode) noexcept -> decltype(auto) {
   ensures(xnode.attribute("symbol"),
           std::format("missing '{}' attribute in '{}' node [:{}]", "symbol", "union", xnode.offset_debug()));
-  auto&& symbol_str = std::string{xnode.attribute("symbol").as_string()};
+  auto symbol_str = std::string{xnode.attribute("symbol").as_string()};
   ensures(!std::ranges::empty(symbol_str),
           std::format("empty '{}' attribute in '{}' node [:{}]", "symbol", "union", xnode.offset_debug()));
   ensures(std::ranges::size(symbol_str) == 1,
@@ -53,7 +53,7 @@ auto Union(const pugi::xml_node& xnode) noexcept -> decltype(auto) {
 
   ensures(xnode.attribute("values"),
           std::format("missing '{}' attribute in '{}' node [:{}]", "values", "union", xnode.offset_debug()));
-  auto&& values = std::string{xnode.attribute("values").as_string()};
+  auto values = std::string{xnode.attribute("values").as_string()};
   ensures(!std::ranges::empty(values),
           std::format("empty '{}' attribute in '{}' node [:{}]", "values", "union", xnode.offset_debug()));
 
@@ -70,7 +70,7 @@ auto NodeRunner(
   unions.insert_range(xnode.children("union") 
     | std::views::transform(Union));
 
-  auto&& tag = xnode.name();
+  const auto& tag = xnode.name();
   if (tag == "sequence"s
    or tag == "markov"s
   ) {
@@ -102,7 +102,7 @@ auto RuleNode(
   RewriteRule::Unions unions,
   std::string_view symmetry
 ) noexcept -> ::RuleNode {
-  auto&& tag = xnode.name();
+  const auto& tag = xnode.name();
   auto mode =
       tag == "one"s ? ::RuleNode::Mode::ONE
     : tag == "all"s ? ::RuleNode::Mode::ALL
@@ -148,13 +148,13 @@ auto Rule(
 ) noexcept -> ::RewriteRule {
   ensures(xnode.attribute("in"),
           std::format("missing '{}' attribute in '{}' node [:{}]", "in", "[rule]", xnode.offset_debug()));
-  auto&& input = std::string{xnode.attribute("in").as_string()};
+  auto input = std::string{xnode.attribute("in").as_string()};
   ensures(!std::ranges::empty(input),
           std::format("empty '{}' attribute in '{}' node [:{}]", "in", "[rule]", xnode.offset_debug()));
 
   ensures(xnode.attribute("out"),
           std::format("missing '{}' attribute in '{}' node [:{}]", "out", "[rule]", xnode.offset_debug()));
-  auto&& output = std::string{xnode.attribute("out").as_string()};
+  auto output = std::string{xnode.attribute("out").as_string()};
   ensures(!std::ranges::empty(output),
           std::format("empty '{}' attribute in '{}' node [:{}]", "out", "[rule]", xnode.offset_debug()));
 
@@ -186,7 +186,7 @@ auto Rules(
 auto Field(const pugi::xml_node& xnode) noexcept -> std::pair<char, ::Field> {
   ensures(xnode.attribute("for"),
           std::format("missing '{}' attribute in '{}' node [:{}]", "for", "field", xnode.offset_debug()));
-  auto&& _for = std::string{xnode.attribute("for").as_string()};
+  auto _for = std::string{xnode.attribute("for").as_string()};
   ensures(!std::ranges::empty(_for),
           std::format("empty '{}' attribute in '{}' node [:{}]", "for", "field", xnode.offset_debug()));
   ensures(std::ranges::size(_for) == 1,
@@ -194,7 +194,7 @@ auto Field(const pugi::xml_node& xnode) noexcept -> std::pair<char, ::Field> {
 
   ensures(xnode.attribute("on"),
           std::format("missing '{}' attribute in '{}' node [:{}]", "on", "field", xnode.offset_debug()));
-  auto&& substrate = std::string{xnode.attribute("on").as_string()};
+  auto substrate = std::string{xnode.attribute("on").as_string()};
   ensures(!std::ranges::empty(substrate),
           std::format("empty '{}' attribute in '{}' node [:{}]", "on", "field", xnode.offset_debug()));
 
@@ -203,8 +203,8 @@ auto Field(const pugi::xml_node& xnode) noexcept -> std::pair<char, ::Field> {
   ensures(not (xnode.attribute("from") and xnode.attribute("to")),
           std::format("only one of '{}' or '{}' attributes allowed in '{}' node [:{}]", "from", "to", "field", xnode.offset_debug()));
 
-  auto&& inversed = not xnode.attribute("to");
-  auto&& zero = std::string{xnode.attribute("from").as_string(xnode.attribute("to").as_string())};
+  auto inversed = not xnode.attribute("to");
+  auto zero = std::string{xnode.attribute("from").as_string(xnode.attribute("to").as_string())};
   ensures(!std::ranges::empty(zero),
           std::format("empty '{}' attribute in '{}' node [:{}]", inversed ? "from" : "to", "field", xnode.offset_debug()));
 
@@ -226,7 +226,7 @@ auto Fields(const pugi::xml_node& xnode) noexcept -> ::Fields {
 auto Observe(const pugi::xml_node& xnode) noexcept -> std::pair<char, ::Observe> {
   ensures(xnode.attribute("value"),
           std::format("missing '{}' attribute in '{}' node [:{}]", "value", "observe", xnode.offset_debug()));
-  auto&& value = std::string{xnode.attribute("value").as_string()};
+  auto value = std::string{xnode.attribute("value").as_string()};
   ensures(!std::ranges::empty(value),
           std::format("empty '{}' attribute in '{}' node [:{}]", "value", "observe", xnode.offset_debug()));
   ensures(std::ranges::size(value) == 1,
@@ -252,10 +252,10 @@ auto Observes(const pugi::xml_node& xnode) noexcept -> ::Observes {
 
 auto Palette(const pugi::xml_document& xpalette) noexcept -> ColorPalette {
   return xpalette.child("colors").children("color")
-    | std::views::transform([](auto&& xcolor) static noexcept {
+    | std::views::transform([](const auto& xcolor) static noexcept {
       ensures(xcolor.attribute("symbol"),
               std::format("missing '{}' attribute in '{}' node [:{}]", "symbol", "color", xcolor.offset_debug()));
-        auto&& symbol_str = std::string{xcolor.attribute("symbol").as_string()};
+        auto symbol_str = std::string{xcolor.attribute("symbol").as_string()};
         ensures(!std::ranges::empty(symbol_str),
                 std::format("empty '{}' attribute in '{}' node [:{}]", "symbol", "color", xcolor.offset_debug()));
         ensures(std::ranges::size(symbol_str) == 1,
@@ -263,7 +263,7 @@ auto Palette(const pugi::xml_document& xpalette) noexcept -> ColorPalette {
         
         ensures(xcolor.attribute("value"),
                 std::format("missing '{}' attribute in '{}' node [:{}]", "value", "color", xcolor.offset_debug()));
-        auto&& value = std::string{xcolor.attribute("value").as_string()};
+        auto value = std::string{xcolor.attribute("value").as_string()};
         ensures(!std::ranges::empty(value),
                 std::format("empty '{}' attribute in '{}' node [:{}]", "value", "color", xcolor.offset_debug()));
         
@@ -274,14 +274,14 @@ auto Palette(const pugi::xml_document& xpalette) noexcept -> ColorPalette {
 
 auto document(std::span<const std::byte> buffer) noexcept -> pugi::xml_document {
   auto xdocument = pugi::xml_document{};
-  auto&& result = xdocument.load_buffer(std::data(buffer), std::size(buffer));
+  auto result = xdocument.load_buffer(std::data(buffer), std::size(buffer));
   ensures(result, std::format("Error while parsing xml (<buffer>:{}) : {}", result.offset, result.description()));
   return xdocument;
 }
 
 auto document(const std::filesystem::path& filepath) noexcept -> pugi::xml_document {
   auto xdocument = pugi::xml_document{};
-  auto&& result = xdocument.load_file(filepath.c_str());
+  auto result = xdocument.load_file(filepath.c_str());
   ensures(result, std::format("Error while parsing xml ({}:{}) : {}", filepath.generic_string(), result.offset, result.description()));
   return xdocument;
 }

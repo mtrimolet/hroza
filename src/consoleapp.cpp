@@ -28,7 +28,7 @@ auto ConsoleApp::operator()(std::span<const std::string_view> args) noexcept -> 
 
   auto model = parser::Model(parser::document(modelfile));
   auto palette = model.symbols
-    | std::views::transform([&](auto&& character) noexcept {
+    | std::views::transform([&](auto character) noexcept {
         return std::make_pair(
           character,
           default_palette.contains(character)
