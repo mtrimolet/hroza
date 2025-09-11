@@ -8,6 +8,8 @@ import geometry;
 using namespace stormkit;
 using namespace ftxui;
 using namespace std::string_literals;
+using namespace std::chrono_literals;
+using clk = std::chrono::high_resolution_clock;
 
 static const auto DEFAULT_PALETTE_FILE = "resources/palette.xml"s;
 static const auto DEFAULT_MODEL_FILE   = "models/GoToGradient.xml"s;
@@ -53,9 +55,19 @@ auto ConsoleApp::operator()(std::span<const std::string_view> args) noexcept -> 
   screen.TrackMouse(false);
 
   auto program_thread = std::jthread{[&grid, &model, &screen](std::stop_token stop) mutable noexcept {
+    constexpr auto tickrate = 60; // ticks/s
+    constexpr auto tickperiod = std::chrono::duration_cast<clk::duration>( 1000ms / tickrate ); // ms/tick
+    auto last_time = clk::now();
+    // swap the two next lines
     for (auto _ : model.program(grid)) {
       if (model.halted or stop.stop_requested()) break;
+
+      auto elapsed = clk::now() - last_time;
+      auto missing = tickperiod - std::min(elapsed, tickperiod);
+      std::this_thread::sleep_for(missing);
+
       screen.RequestAnimationFrame();
+      last_time = clk::now();
     }
     model.halted = true;
     screen.RequestAnimationFrame(); 
