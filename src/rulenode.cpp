@@ -154,23 +154,23 @@ auto RuleNode::scan(const TracedGrid<char>& grid) noexcept -> std::vector<Match>
   return std::views::zip(rules, std::views::iota(0u))
     | std::views::transform([&grid](const auto& v) noexcept {
         const auto& [rule, r] = v;
-        // auto zone = grid.area() - Area3U{ {}, rule.area().shiftmax() };
-        return mdiota(grid.area())
+        auto zone = grid.area() - Area3U{ {}, rule.area().shiftmax() };
+        return mdiota(zone)
           // | std::views::filter([r_area = rule.area()](auto u) noexcept {
           //    return u % r_area.size == r_area.shiftmax();
           // })
-          | std::views::transform([&grid, &rule](auto u) noexcept {
-              auto bucket = rule.ishifts.bucket(grid[u]);
-              return std::ranges::subrange(
-                rule.ishifts.cbegin(bucket),
-                rule.ishifts.cend(bucket)
-              )
-                | std::views::transform([u](const auto& v) noexcept {
-                    return u + std::get<1>(v);
-                });
-          })
-          | std::views::join
-          | std::views::filter(std::bind_front(&Area3U::contains, grid.area()))
+          // | std::views::transform([&grid, &rule](auto u) noexcept {
+          //     auto bucket = rule.ishifts.bucket(grid[u]);
+          //     return std::ranges::subrange(
+          //       rule.ishifts.cbegin(bucket),
+          //       rule.ishifts.cend(bucket)
+          //     )
+          //       | std::views::transform([u](const auto& v) noexcept {
+          //           return u + std::get<1>(v);
+          //       });
+          // })
+          // | std::views::join
+          // | std::views::filter(std::bind_front(&Area3U::contains, zone))
           | std::views::transform([r](auto u) noexcept {
               return std::tuple{ u, r };
           });
