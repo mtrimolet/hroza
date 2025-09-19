@@ -21,6 +21,8 @@ struct RuleRunner {
 
 using NodeRunner = std::function<std::generator<bool>(TracedGrid<char>&)>;
 
+auto reset(NodeRunner& n) noexcept -> void;
+
 struct TreeRunner {
   enum struct Mode { MARKOV, SEQUENCE };
   Mode mode;

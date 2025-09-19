@@ -20,14 +20,17 @@ Element canvasFromImage(Image&& img) noexcept {
 
 Element grid(const ::TracedGrid<char>& g, const Palette& palette) noexcept {
   auto texture = Image{
-    static_cast<int>(g.extents.extent(2)),
+    static_cast<int>(g.extents.extent(2)) * 2,
     static_cast<int>(g.extents.extent(1))
   };
   std::ranges::for_each(std::views::zip(mdiota(g.area()), g), [&](auto u_char) noexcept {
     auto [u, character] = u_char;
-    auto& pixel = texture.PixelAt(u.x, u.y);
-    pixel.character = /* character; */ " ";
-    pixel.background_color = palette.contains(character) ? palette.at(character) : Color::Default;
+    auto& pixel0 = texture.PixelAt(u.x * 2, u.y);
+    pixel0.character = /* character; */ " ";
+    pixel0.background_color = palette.contains(character) ? palette.at(character) : Color::Default;
+    auto& pixel1 = texture.PixelAt(u.x * 2 + 1, u.y);
+    pixel1.character = /* character; */ " ";
+    pixel1.background_color = palette.contains(character) ? palette.at(character) : Color::Default;
   });
   auto w = texture.dimx(), h = texture.dimy();
   return canvasFromImage(std::move(texture))
@@ -37,11 +40,11 @@ Element grid(const ::TracedGrid<char>& g, const Palette& palette) noexcept {
 
 Element rule(const ::RewriteRule& rule, const Palette& palette, cpp::UInt count = 1) noexcept {
   auto input = Image{
-    static_cast<int>(rule.input.extents.extent(2)),
+    static_cast<int>(rule.input.extents.extent(2)) * 2,
     static_cast<int>(rule.input.extents.extent(1))
   };
   auto output = Image{
-    static_cast<int>(rule.output.extents.extent(2)),
+    static_cast<int>(rule.output.extents.extent(2)) * 2,
     static_cast<int>(rule.output.extents.extent(1))
   };
 
@@ -50,13 +53,19 @@ Element rule(const ::RewriteRule& rule, const Palette& palette, cpp::UInt count 
     [&input, &output, &palette](auto uio) noexcept {
       auto [u, i, o] = uio;
       // TODO this is using only one of the values
-      auto& ip = input.PixelAt(u.x, u.y);
-      ip.character = not i ? RewriteRule::IGNORED_SYMBOL : palette.contains(*i->begin()) ? ' ' : '?';
-      ip.background_color = i and palette.contains(*i->begin()) ? palette.at(*i->begin()) : Color::Default;
+      auto& ip0 = input.PixelAt(u.x * 2, u.y);
+      ip0.character = not i ? RewriteRule::IGNORED_SYMBOL : palette.contains(*i->begin()) ? ' ' : '?';
+      ip0.background_color = i and palette.contains(*i->begin()) ? palette.at(*i->begin()) : Color::Default;
+      auto& ip1 = input.PixelAt(u.x * 2 + 1, u.y);
+      ip1.character = not i ? RewriteRule::IGNORED_SYMBOL : palette.contains(*i->begin()) ? ' ' : '?';
+      ip1.background_color = i and palette.contains(*i->begin()) ? palette.at(*i->begin()) : Color::Default;
 
-      auto& op = output.PixelAt(u.x, u.y);
-      op.character = not o ? RewriteRule::IGNORED_SYMBOL : palette.contains(*o) ? ' ' : *o;
-      op.background_color = o and palette.contains(*o) ? palette.at(*o) : Color::Default;
+      auto& op0 = output.PixelAt(u.x * 2, u.y);
+      op0.character = not o ? RewriteRule::IGNORED_SYMBOL : palette.contains(*o) ? ' ' : *o;
+      op0.background_color = o and palette.contains(*o) ? palette.at(*o) : Color::Default;
+      auto& op1 = output.PixelAt(u.x * 2 + 1, u.y);
+      op1.character = not o ? RewriteRule::IGNORED_SYMBOL : palette.contains(*o) ? ' ' : *o;
+      op1.background_color = o and palette.contains(*o) ? palette.at(*o) : Color::Default;
     }
   );
 
@@ -77,7 +86,7 @@ Element rule(const ::RewriteRule& rule, const Palette& palette, cpp::UInt count 
 
 Element potential_grid(const ::Potential& g) noexcept {
   auto texture = Image{
-    static_cast<int>(g.extents.extent(2)),
+    static_cast<int>(g.extents.extent(2)) * 2,
     static_cast<int>(g.extents.extent(1))
   };
   auto [min_g, max_g] = std::ranges::fold_left(
@@ -98,13 +107,22 @@ Element potential_grid(const ::Potential& g) noexcept {
   };
   std::ranges::for_each(std::views::zip(mdiota(g.area()), g), [&](auto u_val) noexcept {
     auto [u, value] = u_val;
-    auto& pixel = texture.PixelAt(u.x, u.y);
     auto normal = value == 0.0 or std::isnormal(value);
-    pixel.character =
+    auto& pixel0 = texture.PixelAt(u.x * 2, u.y);
+    pixel0.character =
         value == 0.0             ? "•"
       : not std::isnormal(value) ? "*"
                                  : " ";
-    pixel.background_color = Color::Interpolate(
+    pixel0.background_color = Color::Interpolate(
+      not normal ? 0.5 : normalize(value),
+      Color::Blue, Color::Red
+    );
+    auto& pixel1 = texture.PixelAt(u.x * 2 + 1, u.y);
+    pixel1.character =
+        value == 0.0             ? "•"
+      : not std::isnormal(value) ? "*"
+                                 : " ";
+    pixel1.background_color = Color::Interpolate(
       not normal ? 0.5 : normalize(value),
       Color::Blue, Color::Red
     );
@@ -127,16 +145,14 @@ Element ruleRunner(const RuleRunner& node, const Palette& palette) noexcept {
   auto rulenode = node.rulenode.target<RuleNode>();
   if (rulenode == nullptr) return text("<unknown_rule_node>");
   
-  auto elements = Elements{};
-
   auto tag =
       rulenode->mode == RuleNode::Mode::ONE ? "one"
     : rulenode->mode == RuleNode::Mode::ALL ? "all"
     :                                         "prl";
 
   auto steps = node.steps != 0 ? std::format("{}", node.steps) : std::string{"∞"};
-  elements.push_back(text(std::format("{} ({}/{})", tag, node.step, steps)));
 
+  auto elements = Elements{};
   for(
     auto irule = std::ranges::cbegin(rulenode->rules);
     irule != std::ranges::cend(rulenode->rules);
@@ -149,31 +165,30 @@ Element ruleRunner(const RuleRunner& node, const Palette& palette) noexcept {
     elements.push_back(rule(*irule, palette, std::ranges::distance(irule, next_rule)));
     irule = next_rule;
   }
-  // elements.append_range(rulenode->rules
-  //   | std::views::filter(&RewriteRule::original)
-  //   | std::views::transform(std::bind_back(rule, palette)));
   // elements.push_back(hbox(rulenode->potentials
   //   | std::views::transform([&palette](const auto& p) noexcept {
   //       return potential(std::get<0>(p), std::get<1>(p), palette);
   //     })
   //   | std::ranges::to<Elements>()));
-  return vbox(elements);
+  return vbox({
+    text(std::format("{} ({}/{})", tag, node.step, steps)),
+    hbox({ separator(), vbox(elements) })
+  });
 }
 
 Element treeRunner(const TreeRunner& node, const Palette& palette, bool selected) noexcept {
-  auto elements = Elements{};
   auto tag =
       node.mode == TreeRunner::Mode::SEQUENCE ? "sequence"
     :                                           "markov";
-  elements.push_back(text(tag));
 
+  auto elements = Elements{};
   elements.append_range(std::views::zip(node.nodes, std::views::iota(ioffset{ 0 }))
     | std::views::transform([&palette, &selected, current_index = node.current_index()](auto&& ni) noexcept {
         const auto& [n, i] = ni;
         return nodeRunner(n, palette, selected and current_index == i);
       }));
 
-  auto element = vbox(std::move(elements));
+  auto element = vbox({ text(tag), hbox({ separator(), vbox(elements) }) });
   if (selected) element |= focus;
   return element;
 }
@@ -189,17 +204,20 @@ Element nodeRunner(const NodeRunner& node, const Palette& palette, bool selected
 }
 
 Element symbols(std::string_view values, const Palette& palette) noexcept {
-  auto texture = Image{8, 1 + static_cast<int>(std::ranges::size(values)) / 8};
+  auto texture = Image{8 * 2, 1 + static_cast<int>(std::ranges::size(values)) / 8};
   std::ranges::for_each(
     std::views::zip(
       values,
-      mdiota(std::dims<3>{1, texture.dimy(), texture.dimx()})
+      mdiota(std::dims<3>{1, texture.dimy(), texture.dimx() / 2})
     ),
     [&](auto&& cu) noexcept {
       auto [character, u] = cu;
-      auto& pixel = texture.PixelAt(u.x, u.y);
-      pixel.character = character;
-      pixel.background_color = palette.at(character);
+      auto& pixel0 = texture.PixelAt(u.x * 2, u.y);
+      pixel0.character = character;
+      pixel0.background_color = palette.at(character);
+      auto& pixel1 = texture.PixelAt(u.x * 2 + 1, u.y);
+      pixel1.character = character;
+      pixel1.background_color = palette.at(character);
     }
   );
 

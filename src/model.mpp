@@ -3,7 +3,7 @@ export module model;
 import std;
 
 import rewriterule;
-import runner;
+export import runner;
 
 export
 struct Model {
