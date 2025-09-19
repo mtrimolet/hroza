@@ -14,7 +14,20 @@ using clk = std::chrono::high_resolution_clock;
 static const auto DEFAULT_PALETTE_FILE = "resources/palette.xml"s;
 static const auto DEFAULT_MODEL_FILE   = "models/GoToGradient.xml"s;
 
-static constexpr auto DEFAULT_GRID_EXTENT = std::dims<3>{1u, 40u, 80u};
+static constexpr auto DEFAULT_GRID_EXTENT = std::dims<3>{1u, 59u, 119u};
+static constexpr auto DEFAULT_TICKRATE = 60;
+
+Decorator window_wrap(std::string title) {
+  return [title](Element inner) {
+    return window(text(title), inner);
+  };
+}
+
+template <typename T>
+struct GridScroll {
+  T x;
+  T y;
+};
 
 auto ConsoleApp::operator()(std::span<const std::string_view> args) noexcept -> int {
   auto palettefile = DEFAULT_PALETTE_FILE;
@@ -46,25 +59,95 @@ auto ConsoleApp::operator()(std::span<const std::string_view> args) noexcept -> 
   auto grid = TracedGrid{extent, model.symbols[0]};
   if (model.origin) grid[grid.area().center()] = model.symbols[1];
 
+  auto tabs = std::vector<std::tuple<std::string, Component>> {
+    { "World", Renderer([&grid, &palette]{ return render::grid(grid, palette); }) },
+    { "Potential 0", Renderer([]{ return text("<Potential 0>"); }) },
+    { "Potential 1", Renderer([]{ return text("<Potential 1>"); }) },
+  };
+
+  auto tabnames = std::views::keys(tabs) | std::ranges::to<std::vector>();
+  auto tabcomponents = std::views::values(tabs) | std::ranges::to<Components>();
+  auto tabselect = 0;
+
+  auto tickrate_enabled = true;
+  auto tickrate = DEFAULT_TICKRATE;
+
+  auto grid_scroll = GridScroll { 0, 0 };
+
   auto view = Container::Horizontal({
-    Renderer([&grid,  &palette]() noexcept { return render::grid (grid, palette); }),
-    Renderer([&model, &palette]() noexcept { return render::model(model, palette); }),
-  });
+    Container::Vertical({
+      Renderer([]{
+        return text("<Model Name>")
+          | hcenter | border | xflex_grow;
+      }),
+      Renderer([&model, &palette]{
+        return render::symbols(model.symbols, palette)
+          | window_wrap("symbols");
+      }),
+      Renderer([&model, &palette]{
+        return render::nodeRunner(model.program, palette)
+      // Renderer([]{
+      //   return text("<program>")
+          | vscroll_indicator
+          | window_wrap("program");
+      }),
+      Container::Vertical({
+        Container::Horizontal({
+          Button("play/pause", []{}),
+          Button("stop/reset", []{}),
+        }),
+          Slider<decltype(tickrate)>({
+            .value = &tickrate,
+            .direction = Direction::Right,
+            .on_change = nullptr,
+          })
+            | Renderer(border),
+        Container::Horizontal({
+          Renderer([&tickrate]{ return text(std::format("{} tick/s ", tickrate)); }),
+          Checkbox({
+            .label = "tickrate",
+            .checked = &tickrate_enabled,
+            .transform = nullptr,
+          })
+            | Renderer(vcenter),
+        }),
+        Container::Horizontal({
+          Button("previous", []{}),
+          Button("next", []{}),
+        })
+          | Renderer(hcenter),
+      })
+        | Renderer(window_wrap("controls")),
+    }),
+    Renderer([]{ return separator(); }),
+    Container::Vertical({
+      Toggle(&tabnames, &tabselect),
+      Container::Tab(tabcomponents, &tabselect)
+      | Renderer(
+          focusPosition(grid_scroll.x, grid_scroll.y)
+            | vscroll_indicator | hscroll_indicator | frame
+            | border | center | flex_grow
+      )
+    })
+      | Renderer(flex_grow),
+  })
+    | Renderer(flex_grow);
 
   auto screen = ScreenInteractive::Fullscreen();
-  screen.TrackMouse(false);
+  // screen.TrackMouse(false);
 
-  auto program_thread = std::jthread{[&grid, &model, &screen](std::stop_token stop) mutable noexcept {
-    constexpr auto tickrate = 60; // ticks/s
-    constexpr auto tickperiod = std::chrono::duration_cast<clk::duration>( 1000ms / tickrate ); // ms/tick
+  auto program_thread = std::jthread{[&grid, &model, &screen, &tickrate_enabled, &tickrate](std::stop_token stop) mutable noexcept {
     auto last_time = clk::now();
     // swap the two next lines
     for (auto _ : model.program(grid)) {
       if (model.halted or stop.stop_requested()) break;
 
-      auto elapsed = clk::now() - last_time;
-      auto missing = tickperiod - std::min(elapsed, tickperiod);
-      std::this_thread::sleep_for(missing);
+      if (tickrate_enabled and tickrate != 0) {
+        const auto tickperiod = std::chrono::duration_cast<clk::duration>( 1000ms / tickrate );
+        const auto elapsed = clk::now() - last_time;
+        const auto missing = tickperiod - std::min(elapsed, tickperiod);
+        std::this_thread::sleep_for(missing);
+      }
 
       screen.RequestAnimationFrame();
       last_time = clk::now();
@@ -74,20 +157,6 @@ auto ConsoleApp::operator()(std::span<const std::string_view> args) noexcept -> 
   }};
 
   screen.Loop(view);
-
-  // auto main_loop = Loop{&screen, view};
-  // while (not main_loop.HasQuitted()) {
-  //   main_loop.RunOnce();
-  // }
-
-  // main_loop.RunOnce();
-  // for (auto&& changes : model.program(grid)) {
-  //   // TODO find how to handle bottom-up signal using custom Component or whatever
-  //   screen.RequestAnimationFrame();
-
-  //   main_loop.RunOnce();
-  //   if (main_loop.HasQuitted()) break;
-  // }
 
   return 0;
 }

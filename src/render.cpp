@@ -32,10 +32,7 @@ Element grid(const ::TracedGrid<char>& g, const Palette& palette) noexcept {
   auto w = texture.dimx(), h = texture.dimy();
   return canvasFromImage(std::move(texture))
     | size(WIDTH, EQUAL, w)
-    | size(HEIGHT, EQUAL, h)
-    | vscroll_indicator
-    | hscroll_indicator
-    | frame;
+    | size(HEIGHT, EQUAL, h);
 }
 
 Element rule(const ::RewriteRule& rule, const Palette& palette, cpp::UInt count = 1) noexcept {
@@ -155,11 +152,11 @@ Element ruleRunner(const RuleRunner& node, const Palette& palette) noexcept {
   // elements.append_range(rulenode->rules
   //   | std::views::filter(&RewriteRule::original)
   //   | std::views::transform(std::bind_back(rule, palette)));
-  elements.push_back(hbox(rulenode->potentials
-    | std::views::transform([&palette](const auto& p) noexcept {
-        return potential(std::get<0>(p), std::get<1>(p), palette);
-      })
-    | std::ranges::to<Elements>()));
+  // elements.push_back(hbox(rulenode->potentials
+  //   | std::views::transform([&palette](const auto& p) noexcept {
+  //       return potential(std::get<0>(p), std::get<1>(p), palette);
+  //     })
+  //   | std::ranges::to<Elements>()));
   return vbox(elements);
 }
 
