@@ -98,6 +98,23 @@ struct RewriteRule {
     const auto shift = glm::vec<3, i32>{1, 1, 1} - static_cast<glm::vec<3, i32>>(a.size);
     return a + shift;
   }
+
+  constexpr auto get_ishifts(char c) const noexcept {
+    auto ignored_bucket = ishifts.bucket(IGNORED_SYMBOL);
+    auto shifts = std::ranges::subrange(
+      ishifts.cbegin(ignored_bucket),
+      ishifts.cend(ignored_bucket)
+    )
+      | std::views::transform(monadic::get<1>())
+      | std::ranges::to<std::vector>();
+    auto bucket = ishifts.bucket(c);
+    shifts.append_range(std::ranges::subrange(
+      ishifts.cbegin(bucket),
+      ishifts.cend(bucket)
+    )
+      | std::views::transform(monadic::get<1>()));
+    return shifts;
+  }
 };
 
 export template <>

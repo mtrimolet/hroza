@@ -107,38 +107,16 @@ auto RuleNode::scan(const TracedGrid<char>& grid) noexcept -> std::vector<Match>
     return std::views::zip(rules, std::views::iota(0u))
       | std::views::transform([&grid, changes = std::ranges::subrange(since, now)](const auto& v) noexcept {
           const auto& [rule, r] = v;
-          auto zone = grid.area() - Area3U{ {}, rule.area().shiftmax() };
+          auto zone = grid.area();
           return changes
-            | std::views::transform([neigh = rule.backward_neighborhood(), zone](const auto& c) noexcept {
-                return mdiota((neigh + c.u).umeet(zone));
+            | std::views::transform([&rule](auto change) noexcept {
+                return rule.get_ishifts(change.value)
+                  | std::views::transform([u = change.u] (const auto& shift) noexcept {
+                      return u - shift;
+                  });
             })
             | std::views::join
-            // | std::views::filter([r_area = rule.area()](auto u) noexcept {
-            //    return u % r_area.size == glm::vec<3, u32>{};
-            // })
-            // // | std::views::transform([r_area = rule.area()](const auto& c) noexcept {
-            // //     // ilog("cu [{}] - (c.u % r_area.size [{}]) = {}", c.u, r_area.size, c.u - (c.u % r_area.size));
-            // //     return c.u - (c.u % r_area.size);
-            // // })
-            // | std::views::transform([&grid, &unions, &rule](auto u) noexcept {
-            //     return unions
-            //       | std::views::filter([c = grid[u]](const auto& cs) noexcept {
-            //           return std::get<1>(cs).contains(c);
-            //         })
-            //       | std::views::transform([&rule](const auto& cs) noexcept {
-            //           auto bucket = rule.ishifts.bucket(std::get<0>(cs));
-            //           return std::ranges::subrange(
-            //             rule.ishifts.cbegin(bucket),
-            //             rule.ishifts.cend(bucket)
-            //           ) | std::views::transform(monadic::get<1>());
-            //       })
-            //       | std::views::join
-            //       | std::views::transform([u] (const auto& shift) noexcept {
-            //           return u + shift;
-            //       });
-            // })
-            // | std::views::join
-            // | std::views::filter(std::bind_front(&Area3U::contains, zone))
+            | std::views::filter(std::bind_front(&Area3U::contains, zone - Area3U{ {}, rule.area().shiftmax() }))
             | std::ranges::to<std::unordered_set>()
             | std::views::transform([r](auto u) noexcept {
                 return std::tuple{ u, r };
@@ -154,23 +132,22 @@ auto RuleNode::scan(const TracedGrid<char>& grid) noexcept -> std::vector<Match>
   return std::views::zip(rules, std::views::iota(0u))
     | std::views::transform([&grid](const auto& v) noexcept {
         const auto& [rule, r] = v;
-        auto zone = grid.area() - Area3U{ {}, rule.area().shiftmax() };
+        auto zone = grid.area();
         return mdiota(zone)
-          // | std::views::filter([r_area = rule.area()](auto u) noexcept {
-          //    return u % r_area.size == r_area.shiftmax();
-          // })
-          // | std::views::transform([&grid, &rule](auto u) noexcept {
-          //     auto bucket = rule.ishifts.bucket(grid[u]);
-          //     return std::ranges::subrange(
-          //       rule.ishifts.cbegin(bucket),
-          //       rule.ishifts.cend(bucket)
-          //     )
-          //       | std::views::transform([u](const auto& v) noexcept {
-          //           return u + std::get<1>(v);
-          //       });
-          // })
-          // | std::views::join
-          // | std::views::filter(std::bind_front(&Area3U::contains, zone))
+          | std::views::filter([r_area = rule.area(), z_m = zone.shiftmax()](auto u) noexcept {
+              auto r_m = r_area.shiftmax();
+              auto umod = u % r_area.size;
+              return (umod.x == r_m.x or u.x == z_m.x)
+                 and (umod.y == r_m.y or u.y == z_m.y);
+          })
+          | std::views::transform([&grid, &rule](auto u) noexcept {
+              return rule.get_ishifts(grid[u])
+                | std::views::transform([u](const auto& shift) noexcept {
+                    return u - shift;
+                });
+          })
+          | std::views::join
+          | std::views::filter(std::bind_front(&Area3U::contains, zone - Area3U{ {}, rule.area().shiftmax() }))
           | std::views::transform([r](auto u) noexcept {
               return std::tuple{ u, r };
           });

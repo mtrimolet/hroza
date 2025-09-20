@@ -15,9 +15,9 @@ RewriteRule::RewriteRule(Grid<Input>&& _input, Grid<Output>&& _output, double p,
     std::views::zip(
       input,
       mdiota(input.area())
-        | std::views::transform([m = input.area().shiftmax()](auto u) noexcept {
-            return m - u;
-        })
+        // | std::views::transform([m = input.area().shiftmax()](auto u) noexcept {
+        //     return m - u;
+        // })
     )
     | std::views::transform([](auto&& p) noexcept {
         // TODO this must change when fixing size of state representation
