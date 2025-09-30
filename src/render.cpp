@@ -1,7 +1,6 @@
 module render;
 
 import grid;
-import potentials;
 import log;
 
 using namespace ftxui;

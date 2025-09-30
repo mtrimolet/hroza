@@ -31,6 +31,18 @@ auto reset(NodeRunner& n) noexcept -> void {
   }
 }
 
+auto current(const NodeRunner& n) noexcept -> const RuleRunner::RuleNode& {
+  if (auto p = n.target<RuleRunner>(); p != nullptr) {
+    return p->rulenode;
+  }
+
+  if (auto p = n.target<TreeRunner>(); p != nullptr) {
+    return current(*p->current_node);
+  }
+
+  std::unreachable();
+}
+
 auto TreeRunner::operator()(TracedGrid<char>& grid) noexcept -> std::generator<bool> {
   for (current_node  = std::ranges::begin(nodes);
        current_node != std::ranges::end(nodes);

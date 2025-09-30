@@ -5,6 +5,7 @@ import stormkit.core;
 import ftxui;
 
 import grid;
+import potentials;
 import rewriterule;
 import rulenode;
 import runner;
@@ -19,6 +20,7 @@ export namespace render {
 using Palette = std::unordered_map<char, Color>;
 
 Element grid(const TracedGrid<char>& g, const Palette& palette) noexcept;
+Element potential_grid(const ::Potential& g) noexcept;
 
 Element rule(const RewriteRule& rule, const Palette& palette) noexcept;
 

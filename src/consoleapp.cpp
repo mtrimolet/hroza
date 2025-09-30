@@ -4,6 +4,7 @@ import log;
 import stormkit.core;
 
 import geometry;
+import rulenode;
 
 using namespace stormkit;
 using namespace ftxui;
@@ -57,10 +58,11 @@ struct Controls {
       const auto missing = tickperiod - std::min(elapsed, tickperiod);
       std::this_thread::sleep_for(missing);
     }
-    {
-      auto l = std::unique_lock{ pause_m };
-      pause_cv.wait(l, [&paused = model_paused]{ return not paused; });
-    }
+  }
+
+  void maybe_pause() {
+    auto l = std::unique_lock{ pause_m };
+    pause_cv.wait(l, [&paused = model_paused]{ return not paused; });
   }
 };
 
@@ -103,27 +105,22 @@ struct GridScroll {
 
 using namespace std::string_literals;
 
-Component WorldAndPotentials(const TracedGrid<char>& grid, const render::Palette& palette) {
+Component WorldAndPotentials(const TracedGrid<char>& grid, const Model& model, const render::Palette& palette) {
   struct Impl : ComponentBase {
+    const Model& model;
+
     std::vector<std::string> tabnames = {};
     Components tabcomponents = {};
     int tabselect = 0;
     GridScroll<int> grid_scroll = { 0, 0 };
 
-    Impl(const TracedGrid<char>& grid, const render::Palette& palette) {
-      auto tabs = std::vector {
-        std::tuple { "World"s, Renderer([&grid, &palette]{ return render::grid(grid, palette); }) },
-      };
-
-      for (auto i : std::views::iota(0, 2)) {
-        tabs.push_back({
-          std::format("Potential {}", i),
-          Renderer([i]{ return text(std::format("<Potential {}>", i)); })
-        });
-      }
-
-      tabnames = std::views::keys(tabs) | std::ranges::to<std::vector>();
-      tabcomponents = std::views::values(tabs) | std::ranges::to<Components>();
+    Impl(const TracedGrid<char>& grid, const Model& _model, const render::Palette& palette)
+    : model(_model)
+    {
+      tabnames = { "World" };
+      tabcomponents = { Renderer([&grid, &palette]{
+        return render::grid(grid, palette);
+      }) };
 
       Add(Container::Vertical({
         Toggle(&tabnames, &tabselect),
@@ -135,8 +132,31 @@ Component WorldAndPotentials(const TracedGrid<char>& grid, const render::Palette
           })
       }));
     }
+
+    void ClearPotentials() {
+      tabselect = 0;
+      tabnames = { tabnames[0] };
+      tabcomponents = { tabcomponents[0] };
+    }
+
+    void RefreshPotentials() {
+      ClearPotentials();
+      if (auto r = current(model.program).target<RuleNode>(); r != nullptr) {
+        for (const auto& [sym, p] : r->potentials) {
+          tabnames.push_back(std::format("{}", sym));
+          tabcomponents.push_back(Renderer([&p]{
+            return render::potential_grid(p);
+          }));
+        }
+      }
+    }
+
+    void OnAnimation(animation::Params& params) {
+      RefreshPotentials();
+      ComponentBase::OnAnimation(params);
+    }
   };
-  return Make<Impl>(grid, palette);
+  return Make<Impl>(grid, model, palette);
 }
 
 auto ConsoleApp::operator()(std::span<const std::string_view> args) noexcept -> int {
@@ -178,22 +198,22 @@ auto ConsoleApp::operator()(std::span<const std::string_view> args) noexcept -> 
     },
   };
 
-  auto screen = ScreenInteractive::Fullscreen();
-  // screen.TrackMouse(false);
-
-  auto program_runtime = [&](std::stop_token stop) mutable noexcept {
+  auto program_runtime = [&grid, &model, &controls](std::stop_token stop) mutable noexcept {
     auto last_time = clk::now();
     // swap the two next lines
     for (auto _ : model.program(grid)) {
+      animation::RequestAnimationFrame();
+
       if (stop.stop_requested()) break;
 
       controls.sleep_missing(last_time);
+      controls.maybe_pause();
 
-      screen.RequestAnimationFrame();
       last_time = clk::now();
     }
+
     model.halted = true;
-    screen.RequestAnimationFrame(); 
+    animation::RequestAnimationFrame(); 
   };
 
   auto program_thread = std::jthread{ program_runtime };
@@ -218,11 +238,13 @@ auto ConsoleApp::operator()(std::span<const std::string_view> args) noexcept -> 
         | Renderer(window_wrap("controls")),
     }),
     Renderer([]{ return separator(); }),
-    WorldAndPotentials(grid, palette)
+    WorldAndPotentials(grid, model, palette)
       | Renderer(flex_grow),
   })
     | Renderer(flex_grow);
 
+  auto screen = ScreenInteractive::Fullscreen();
+  screen.TrackMouse(false);
   screen.Loop(view);
 
   return 0;
