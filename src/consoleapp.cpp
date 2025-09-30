@@ -2,7 +2,12 @@ module consoleapp;
 
 import log;
 import stormkit.core;
+import ftxui;
 
+import grid;
+import model;
+import parser;
+import render;
 import geometry;
 import rulenode;
 
