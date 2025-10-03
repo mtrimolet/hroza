@@ -1,0 +1,54 @@
+export module controls;
+
+import std;
+
+using namespace std::chrono_literals;
+
+static constexpr auto DEFAULT_TICKRATE = 60;
+
+export
+struct Controls {
+  bool tickrate_enabled = true;
+  int tickrate = DEFAULT_TICKRATE;
+  bool model_paused = false;
+  std::condition_variable pause_cv = {};
+  std::mutex pause_m = {};
+
+  std::function<void()> onReset = nullptr;
+  
+  void play_pause() {
+    {
+      auto l = std::lock_guard{ pause_m };
+      model_paused ^= true;
+    }
+    pause_cv.notify_one();
+  }
+
+  void reset() {
+    {
+      auto l = std::lock_guard{ pause_m };
+      model_paused = true;
+    }
+    pause_cv.notify_one();
+
+    onReset();
+  }
+
+  void maybe_pause() {
+    auto l = std::unique_lock{ pause_m };
+    pause_cv.wait(l, [&paused = model_paused]{ return not paused; });
+  }
+
+  using clk = std::chrono::high_resolution_clock;
+
+  void sleep_missing(clk::time_point last_time) {
+    if (tickrate_enabled and tickrate != 0) {
+      const auto tickperiod = std::chrono::duration_cast<clk::duration>( 1000ms / tickrate );
+      const auto elapsed = clk::now() - last_time;
+      const auto missing = tickperiod - std::min(elapsed, tickperiod);
+      std::this_thread::sleep_for(missing);
+    }
+  }
+};
+
+

@@ -9,7 +9,7 @@ import potentials;
 import rewriterule;
 import rulenode;
 import runner;
-
+import controls;
 import model;
 
 using namespace ftxui;
@@ -33,4 +33,7 @@ Element nodeRunner(const NodeRunner& node, const Palette& palette, bool selected
 Element symbols(std::string_view values, const Palette& palette) noexcept;
 
 Element model(const Model& node, const Palette& palette) noexcept;
+
+Component MainView(const TracedGrid<char>& grid, const Model& model, Controls& controls, const Palette& palette);
+
 }

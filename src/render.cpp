@@ -1,6 +1,5 @@
 module render;
 
-import grid;
 import log;
 
 using namespace ftxui;
@@ -15,6 +14,12 @@ Element canvasFromImage(const Image& img) noexcept {
 // TODO canvas don't get sized properly
 Element canvasFromImage(Image&& img) noexcept {
   return canvas(img.dimx(), img.dimy(), std::bind_back(&Canvas::DrawImage, 0, 0, std::move(img)));
+}
+
+Decorator window_wrap(std::string title) {
+  return [title](Element inner) {
+    return window(text(title), inner);
+  };
 }
 
 Element grid(const ::TracedGrid<char>& g, const Palette& palette) noexcept {
@@ -180,26 +185,31 @@ Element treeRunner(const TreeRunner& node, const Palette& palette, bool selected
       node.mode == TreeRunner::Mode::SEQUENCE ? "sequence"
     :                                           "markov";
 
-  auto elements = Elements{};
-  elements.append_range(std::views::zip(node.nodes, std::views::iota(ioffset{ 0 }))
-    | std::views::transform([&palette, &selected, current_index = node.current_index()](auto&& ni) noexcept {
+  auto elements = std::views::zip(node.nodes, std::views::iota(ioffset{ 0 }))
+    | std::views::transform([&palette, &selected, current_index = node.current_index()](const auto& ni) noexcept {
         const auto& [n, i] = ni;
         return nodeRunner(n, palette, selected and current_index == i);
-      }));
+      })
+    | std::ranges::to<Elements>();
 
   auto element = vbox({ text(tag), hbox({ separator(), vbox(elements) }) });
-  if (selected) element |= focus;
+  // if (selected) element |= focus;
   return element;
 }
 
 Element nodeRunner(const NodeRunner& node, const Palette& palette, bool selected) noexcept {
+  Element e;
   if (const auto t = node.target<TreeRunner>(); t != nullptr) {
-    return treeRunner(*t, palette, selected);
+    e = treeRunner(*t, palette, selected);
   }
-  if (const auto r = node.target<RuleRunner>(); r != nullptr) {
-    return ruleRunner(*r, palette);
+  else if (const auto r = node.target<RuleRunner>(); r != nullptr) {
+    e = ruleRunner(*r, palette);
   }
-  return text("<unknown_node_runner>");
+  else {
+    e = text("<unknown_node_runner>");
+  }
+  if (selected) e |= focus;
+  return e;
 }
 
 Element symbols(std::string_view values, const Palette& palette) noexcept {
@@ -215,7 +225,7 @@ Element symbols(std::string_view values, const Palette& palette) noexcept {
       pixel0.character = character;
       pixel0.background_color = palette.at(character);
       auto& pixel1 = texture.PixelAt(u.x * 2 + 1, u.y);
-      pixel1.character = character;
+      pixel1.character = " ";
       pixel1.background_color = palette.at(character);
     }
   );
@@ -234,6 +244,124 @@ Element model(const ::Model& model, const Palette& palette) noexcept {
              | vscroll_indicator | frame
     ),
   });
+}
+
+Component ControlsView(Controls& controls) {
+  return Container::Vertical({
+    Container::Horizontal({
+      Button("play/pause", std::bind_front(&Controls::play_pause, &controls)),
+      Button("reset", std::bind_front(&Controls::reset, &controls)),
+    }),
+    Slider<decltype(controls.tickrate)>({
+      .value = &controls.tickrate,
+      .direction = Direction::Right,
+      .on_change = nullptr,
+    })
+      | Renderer(border),
+    Container::Horizontal({
+      Renderer([&tickrate = controls.tickrate]{
+        return text(std::format("{} tick/s ", tickrate));
+      }),
+      Checkbox({
+        .label = "tickrate",
+        .checked = &controls.tickrate_enabled,
+        .transform = nullptr,
+      })
+        | Renderer(vcenter),
+    }),
+    Container::Horizontal({
+      // Button("previous", []{}),
+      Button("next", []{}),
+    })
+      | Renderer(hcenter),
+  });
+}
+
+template <typename T>
+struct GridScroll {
+  T x;
+  T y;
+};
+
+Component WorldAndPotentials(const TracedGrid<char>& grid, const Model& model, const render::Palette& palette) {
+  struct Impl : ComponentBase {
+    const Model& model;
+
+    std::vector<std::string> tabnames = {};
+    Components tabcomponents = {};
+    int tabselect = 0;
+    GridScroll<int> grid_scroll = { 0, 0 };
+
+    Impl(const TracedGrid<char>& grid, const Model& _model, const render::Palette& palette)
+    : model{_model}
+    {
+      tabnames = { "World" };
+      tabcomponents = { Renderer([&grid, &palette]{
+        return render::grid(grid, palette);
+      }) };
+
+      Add(Container::Vertical({
+        Toggle(&tabnames, &tabselect),
+        Container::Tab(tabcomponents, &tabselect)
+          | Renderer([&grid_scroll = grid_scroll](Element e){
+              return e | focusPosition(grid_scroll.x, grid_scroll.y)
+                | vscroll_indicator | hscroll_indicator | frame
+                | border | center | flex_grow;
+          })
+      }));
+    }
+
+    void ClearPotentials() {
+      tabselect = 0;
+      tabnames = { tabnames[0] };
+      tabcomponents = { tabcomponents[0] };
+    }
+
+    void RefreshPotentials() {
+      ClearPotentials();
+      if (auto r = current(model.program).target<RuleNode>(); r != nullptr) {
+        for (const auto& [sym, p] : r->potentials) {
+          tabnames.push_back(std::format("{}", sym));
+          tabcomponents.push_back(Renderer([&p]{
+            return potential_grid(p);
+          }));
+        }
+      }
+    }
+
+    void OnAnimation(animation::Params& params) {
+      RefreshPotentials();
+      ComponentBase::OnAnimation(params);
+    }
+  };
+  return Make<Impl>(grid, model, palette);
+}
+
+Component MainView(const TracedGrid<char>& grid, const Model& model, Controls& controls, const Palette& palette) {
+  return Container::Horizontal({
+    Container::Vertical({
+      Renderer([]{
+        return text("<Model Name>")
+          | hcenter | border | xflex_grow;
+      }),
+      Renderer([&model, &palette]{
+        return symbols(model.symbols, palette)
+          | window_wrap("symbols");
+      }),
+      Renderer([&model, &palette]{
+        return nodeRunner(model.program, palette)
+          | vscroll_indicator
+          | yframe
+          | window_wrap("program");
+      }),
+      ControlsView(controls)
+        | Renderer(window_wrap("controls")),
+    }),
+    Renderer([]{ return separator(); }),
+    WorldAndPotentials(grid, model, palette)
+      | Renderer(flex_grow),
+  })
+    | Renderer(flex_grow);
 }
 
 }
