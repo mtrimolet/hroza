@@ -83,7 +83,7 @@ auto ConsoleApp::operator()(std::span<const std::string_view> args) noexcept -> 
   auto view = render::MainView(grid, model, controls, palette);
 
   auto screen = ScreenInteractive::Fullscreen();
-  screen.TrackMouse(false);
+  // screen.TrackMouse(false);
   screen.Loop(view);
 
   return 0;

@@ -199,10 +199,10 @@ Element treeRunner(const TreeRunner& node, const Palette& palette, bool selected
 
 Element nodeRunner(const NodeRunner& node, const Palette& palette, bool selected) noexcept {
   Element e;
-  if (const auto t = node.target<TreeRunner>(); t != nullptr) {
+  if (const auto& t = node.target<TreeRunner>(); t != nullptr) {
     e = treeRunner(*t, palette, selected);
   }
-  else if (const auto r = node.target<RuleRunner>(); r != nullptr) {
+  else if (const auto& r = node.target<RuleRunner>(); r != nullptr) {
     e = ruleRunner(*r, palette);
   }
   else {
@@ -286,50 +286,74 @@ struct GridScroll {
 Component WorldAndPotentials(const TracedGrid<char>& grid, const Model& model, const render::Palette& palette) {
   struct Impl : ComponentBase {
     const Model& model;
+    const RuleNode* node = nullptr;
 
     std::vector<std::string> tabnames = {};
     Components tabcomponents = {};
     int tabselect = 0;
+    Component tabtoggle;
+    Component tabview;
     GridScroll<int> grid_scroll = { 0, 0 };
 
     Impl(const TracedGrid<char>& grid, const Model& _model, const render::Palette& palette)
-    : model{_model}
-    {
-      tabnames = { "World" };
-      tabcomponents = { Renderer([&grid, &palette]{
+    : model{ _model },
+      tabnames{ { "World" } },
+      tabcomponents{ { Renderer([&grid, &palette]{
         return render::grid(grid, palette);
-      }) };
-
+      }) } },
+      tabtoggle{ Toggle(&tabnames, &tabselect) },
+      tabview{ Container::Tab(tabcomponents, &tabselect)
+        | Renderer([&grid_scroll = grid_scroll](Element e){
+            return e | focusPosition(grid_scroll.x, grid_scroll.y)
+              | vscroll_indicator | hscroll_indicator | frame
+              | border | center | flex_grow;
+        }) }
+    {
       Add(Container::Vertical({
-        Toggle(&tabnames, &tabselect),
-        Container::Tab(tabcomponents, &tabselect)
-          | Renderer([&grid_scroll = grid_scroll](Element e){
-              return e | focusPosition(grid_scroll.x, grid_scroll.y)
-                | vscroll_indicator | hscroll_indicator | frame
-                | border | center | flex_grow;
-          })
+        tabtoggle,
+        tabview,
       }));
-    }
 
-    void ClearPotentials() {
-      tabselect = 0;
-      tabnames = { tabnames[0] };
-      tabcomponents = { tabcomponents[0] };
+      RefreshPotentials();
     }
 
     void RefreshPotentials() {
-      ClearPotentials();
-      if (auto r = current(model.program).target<RuleNode>(); r != nullptr) {
-        for (const auto& [sym, p] : r->potentials) {
-          tabnames.push_back(std::format("{}", sym));
-          tabcomponents.push_back(Renderer([&p]{
-            return potential_grid(p);
-          }));
-        }
+      auto c = current(model.program);
+      auto r = c == nullptr ? nullptr : 
+        c->target<RuleNode>();
+
+      if ((node == nullptr and r == nullptr)
+       or (node == r and std::ranges::equal(
+          std::views::keys(r->potentials),
+          tabnames | std::views::drop(1)
+            | std::views::transform([](const auto& n) { return n[0]; })
+        ))
+      ) {
+        return;
       }
+      ilog("refreshing");
+
+      tabnames = { tabnames[0] };
+      for (auto i = std::size_t{ 1 }; i < tabview->ChildCount(); ++i) {
+        tabview->ChildAt(i)->Detach();
+      }
+
+      for (const auto& [sym, p] : r != nullptr ? r->potentials : decltype(r->potentials){}) {
+        tabnames.push_back(std::format("{}", sym));
+        tabview->Add(Renderer([&p]{
+          return potential_grid(p);
+        }));
+      }
+
+      tabselect = node != r ? 0
+        : std::min<int>(tabselect, std::ranges::size(tabnames) - 1);
+      tabview->SetActiveChild(tabview->ChildAt(tabselect));
+
+      node = r;
     }
 
     void OnAnimation(animation::Params& params) {
+      ilog("anim {}", params.duration());
       RefreshPotentials();
       ComponentBase::OnAnimation(params);
     }

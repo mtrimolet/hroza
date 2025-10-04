@@ -31,12 +31,14 @@ auto reset(NodeRunner& n) noexcept -> void {
   }
 }
 
-auto current(const NodeRunner& n) noexcept -> const RuleRunner::RuleNode& {
+auto current(const NodeRunner& n) noexcept -> const RuleRunner::RuleNode* {
   if (auto p = n.target<RuleRunner>(); p != nullptr) {
-    return p->rulenode;
+    return &p->rulenode;
   }
 
   if (auto p = n.target<TreeRunner>(); p != nullptr) {
+    if (p->current_node == std::ranges::end(p->nodes))
+      return nullptr;
     return current(*p->current_node);
   }
 

@@ -9,7 +9,7 @@ export {
 struct Field {
   bool recompute, essential, inversed;
   std::unordered_set<char> substrate, zero;
-  auto potential(const Grid<char>& grid) const noexcept -> Potential;
+  auto potential(const Grid<char>& grid, Potential& potential) const noexcept -> void;
 };
 
 using Fields = std::unordered_map<char, Field>;

@@ -191,7 +191,9 @@ auto RuleNode::infer(const Grid<char>& grid) noexcept -> std::vector<Change<char
           continue;
         }
 
-        potentials.insert_or_assign(c, f.potential(grid));
+        if (not potentials.contains(c))
+          potentials.emplace(c, Potential{ grid.extents, std::numeric_limits<double>::quiet_NaN() });
+        f.potential(grid, potentials.at(c));
 
         if (f.essential and std::none_of(
           // std::execution::par,

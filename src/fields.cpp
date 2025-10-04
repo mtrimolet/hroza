@@ -6,8 +6,8 @@ import geometry;
 
 using namespace stormkit;
 
-auto Field::potential(const Grid<char>& grid) const noexcept -> Potential {
-  auto potential = Potential{grid.extents, std::numeric_limits<double>::quiet_NaN()};
+auto Field::potential(const Grid<char>& grid, Potential& potential) const noexcept -> void {
+  // auto potential = Potential{grid.extents, std::numeric_limits<double>::quiet_NaN()};
   propagate(
     mdiota(potential.area())
       | std::views::filter([this, &grid](auto u) noexcept {
@@ -37,5 +37,5 @@ auto Field::potential(const Grid<char>& grid) const noexcept -> Potential {
     }
   );
 
-  return potential;
+  // return potential;
 }
