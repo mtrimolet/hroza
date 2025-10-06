@@ -289,7 +289,6 @@ Component WorldAndPotentials(const TracedGrid<char>& grid, const Model& model, c
     const RuleNode* node = nullptr;
 
     std::vector<std::string> tabnames = {};
-    Components tabcomponents = {};
     int tabselect = 0;
     Component tabtoggle;
     Component tabview;
@@ -298,20 +297,21 @@ Component WorldAndPotentials(const TracedGrid<char>& grid, const Model& model, c
     Impl(const TracedGrid<char>& grid, const Model& _model, const render::Palette& palette)
     : model{ _model },
       tabnames{ { "World" } },
-      tabcomponents{ { Renderer([&grid, &palette]{
-        return render::grid(grid, palette);
-      }) } },
       tabtoggle{ Toggle(&tabnames, &tabselect) },
-      tabview{ Container::Tab(tabcomponents, &tabselect)
-        | Renderer([&grid_scroll = grid_scroll](Element e){
-            return e | focusPosition(grid_scroll.x, grid_scroll.y)
-              | vscroll_indicator | hscroll_indicator | frame
-              | border | center | flex_grow;
-        }) }
+      tabview{
+        Container::Tab({ Renderer([&grid, &palette]{
+          return render::grid(grid, palette);
+        }) }, &tabselect)
+      }
     {
       Add(Container::Vertical({
         tabtoggle,
-        tabview,
+        tabview | Renderer([&grid_scroll = grid_scroll](Element e){
+          return e
+            | focusPosition(grid_scroll.x, grid_scroll.y)
+            | vscroll_indicator | hscroll_indicator | frame
+            | border | center | flex_grow;
+        }),
       }));
 
       RefreshPotentials();
@@ -323,37 +323,41 @@ Component WorldAndPotentials(const TracedGrid<char>& grid, const Model& model, c
         c->target<RuleNode>();
 
       if ((node == nullptr and r == nullptr)
-       or (node == r and std::ranges::equal(
-          std::views::keys(r->potentials),
-          tabnames | std::views::drop(1)
-            | std::views::transform([](const auto& n) { return n[0]; })
-        ))
+          or (node == r and std::ranges::equal(
+            std::views::keys(r->potentials)
+              | std::ranges::to<std::set>(),
+            tabnames | std::views::drop(1)
+              | std::views::transform([](const auto& n) { return n[0]; })
+              | std::ranges::to<std::set>()
+          ))
       ) {
         return;
       }
-      ilog("refreshing");
+
+      // ilog("refreshing {} -> {}", tabnames | std::views::drop(1), r ? std::views::keys(r->potentials) | std::ranges::to<std::vector>() : std::vector<char>{ });
 
       tabnames = { tabnames[0] };
-      for (auto i = std::size_t{ 1 }; i < tabview->ChildCount(); ++i) {
-        tabview->ChildAt(i)->Detach();
+      while (tabview->ChildCount() > 1) {
+        tabview->ChildAt(1)->Detach();
       }
 
-      for (const auto& [sym, p] : r != nullptr ? r->potentials : decltype(r->potentials){}) {
-        tabnames.push_back(std::format("{}", sym));
-        tabview->Add(Renderer([&p]{
-          return potential_grid(p);
-        }));
+      if (r) {
+        for (const auto& [sym, p] : r->potentials) {
+          tabnames.push_back(std::format("{}", sym));
+          tabview->Add(Renderer([&p]{
+            return potential_grid(p);
+          }));
+        }
       }
 
       tabselect = node != r ? 0
         : std::min<int>(tabselect, std::ranges::size(tabnames) - 1);
-      tabview->SetActiveChild(tabview->ChildAt(tabselect));
+      // ilog("new select {}", tabselect);
 
       node = r;
     }
 
     void OnAnimation(animation::Params& params) {
-      ilog("anim {}", params.duration());
       RefreshPotentials();
       ComponentBase::OnAnimation(params);
     }
