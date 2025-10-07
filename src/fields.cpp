@@ -7,7 +7,11 @@ import geometry;
 using namespace stormkit;
 
 auto Field::potential(const Grid<char>& grid, Potential& potential) const noexcept -> void {
-  // auto potential = Potential{grid.extents, std::numeric_limits<double>::quiet_NaN()};
+  potential.values.clear();
+  potential.values.resize(
+    potential.extents.extent(0) * potential.extents.extent(1) * potential.extents.extent(2),
+    std::numeric_limits<double>::quiet_NaN()
+  );
   propagate(
     mdiota(potential.area())
       | std::views::filter([this, &grid](auto u) noexcept {
