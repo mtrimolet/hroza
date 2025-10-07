@@ -383,7 +383,7 @@ Component MainView(const TracedGrid<char>& grid, const Model& model, Controls& c
           | window_wrap("program");
       }),
       ControlsView(controls)
-        | Renderer(window_wrap("controls")),
+        | Renderer(window_wrap("controls") | size(HEIGHT, EQUAL, 17)),
     }),
     Renderer([]{ return separator(); }),
     WorldAndPotentials(grid, model, palette)
