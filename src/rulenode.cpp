@@ -134,11 +134,11 @@ auto RuleNode::scan(const TracedGrid<char>& grid) noexcept -> std::vector<Match>
         const auto& [rule, r] = v;
         auto zone = grid.area();
         return mdiota(zone)
-          | std::views::filter([r_area = rule.area(), z_m = zone.shiftmax()](auto u) noexcept {
-              auto r_m = r_area.shiftmax();
-              auto umod = u % r_area.size;
-              return (umod.x == r_m.x or u.x == z_m.x)
-                 and (umod.y == r_m.y or u.y == z_m.y);
+          | std::views::filter([r_area = rule.area(), zone_max = zone.shiftmax()](auto u) noexcept {
+              return glm::all(
+                   glm::equal(u, zone_max)
+                or glm::equal(u % r_area.size, r_area.shiftmax())
+              );
           })
           | std::views::transform([&grid, &rule](auto u) noexcept {
               return rule.get_ishifts(grid[u])
