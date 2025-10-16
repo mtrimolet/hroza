@@ -21,7 +21,7 @@ end
 
 add_repositories("tapzcrew-repo https://github.com/tapzcrew/xmake-repo main")
 
-add_requires("glm", "frozen")
+add_requires("glm  1.0.1", "frozen")
 
 -- stormkit deps, remove when handled by xmake
 add_requires("unordered_dense", "tl_function_ref", "cpptrace")
