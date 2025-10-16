@@ -19,8 +19,8 @@ struct Match {
 
   double w = 1.0;
 
-  inline constexpr auto area() const noexcept -> Area3U {
-    return rules[r].area() + u;
+  auto area() const noexcept -> Area3U {
+    return rules[r].output.area() + u;
   }
 
   auto conflict(const Match& other) const noexcept -> bool;

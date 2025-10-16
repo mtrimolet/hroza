@@ -41,24 +41,10 @@ struct RuleNode {
   Future     future = {};
   Trajectory trajectory = {};
 
-  inline constexpr RuleNode(Mode _mode, std::vector<RewriteRule>&& _rules, RewriteRule::Unions&& _unions) noexcept 
-  : mode{_mode}, rules{std::move(_rules)}, unions{std::move(_unions)}
-  {}
-
-  inline constexpr RuleNode(Mode _mode, std::vector<RewriteRule>&& _rules, RewriteRule::Unions&& _unions, Fields&& _fields, double _temperature = 0.0) noexcept 
-  : mode{_mode}, rules{std::move(_rules)}, unions{std::move(_unions)},
-    inference{Inference::DISTANCE}, temperature{_temperature}, fields{std::move(_fields)}
-  {}
-
-  inline constexpr RuleNode(Mode _mode, std::vector<RewriteRule>&& _rules, RewriteRule::Unions&& _unions, Observes&& _observes, double _temperature = 0.0) noexcept 
-  : mode{_mode}, rules{std::move(_rules)}, unions{std::move(_unions)},
-    inference{Inference::OBSERVE}, temperature{_temperature}, observes{std::move(_observes)}
-  {}
-
-  inline constexpr RuleNode(Mode _mode, std::vector<RewriteRule>&& _rules, RewriteRule::Unions&& _unions, Observes&& _observes, cpp::UInt _limit = 0, double _depthCoefficient = 0.0) noexcept 
-  : mode{_mode}, rules{std::move(_rules)}, unions{std::move(_unions)},
-    inference{Inference::SEARCH}, limit{_limit}, depthCoefficient{_depthCoefficient}, observes{std::move(_observes)}
-  {}
+  RuleNode(Mode _mode, std::vector<RewriteRule>&& _rules, RewriteRule::Unions&& _unions) noexcept;
+  RuleNode(Mode _mode, std::vector<RewriteRule>&& _rules, RewriteRule::Unions&& _unions, Fields&& _fields, double _temperature = 0.0) noexcept;
+  RuleNode(Mode _mode, std::vector<RewriteRule>&& _rules, RewriteRule::Unions&& _unions, Observes&& _observes, double _temperature = 0.0) noexcept;
+  RuleNode(Mode _mode, std::vector<RewriteRule>&& _rules, RewriteRule::Unions&& _unions, Observes&& _observes, cpp::UInt _limit = 0, double _depthCoefficient = 0.0) noexcept;
 
   auto operator()(const TracedGrid<char>& grid) noexcept -> std::vector<Change<char>>;
 

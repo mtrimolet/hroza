@@ -7,6 +7,25 @@ import log;
 
 using namespace stormkit;
 
+RuleNode::RuleNode(RuleNode::Mode _mode, std::vector<RewriteRule>&& _rules, RewriteRule::Unions&& _unions) noexcept 
+: mode{_mode}, rules{std::move(_rules)}, unions{std::move(_unions)}
+{}
+
+RuleNode::RuleNode(RuleNode::Mode _mode, std::vector<RewriteRule>&& _rules, RewriteRule::Unions&& _unions, Fields&& _fields, double _temperature) noexcept 
+: mode{_mode}, rules{std::move(_rules)}, unions{std::move(_unions)},
+  inference{Inference::DISTANCE}, temperature{_temperature}, fields{std::move(_fields)}
+{}
+
+RuleNode::RuleNode(RuleNode::Mode _mode, std::vector<RewriteRule>&& _rules, RewriteRule::Unions&& _unions, Observes&& _observes, double _temperature) noexcept 
+: mode{_mode}, rules{std::move(_rules)}, unions{std::move(_unions)},
+  inference{Inference::OBSERVE}, temperature{_temperature}, observes{std::move(_observes)}
+{}
+
+RuleNode::RuleNode(RuleNode::Mode _mode, std::vector<RewriteRule>&& _rules, RewriteRule::Unions&& _unions, Observes&& _observes, cpp::UInt _limit, double _depthCoefficient) noexcept 
+: mode{_mode}, rules{std::move(_rules)}, unions{std::move(_unions)},
+  inference{Inference::SEARCH}, limit{_limit}, depthCoefficient{_depthCoefficient}, observes{std::move(_observes)}
+{}
+
 auto RuleNode::operator()(const TracedGrid<char>& grid) noexcept -> std::vector<Change<char>> {
   matches.erase(
     std::remove_if(
@@ -108,19 +127,20 @@ auto RuleNode::scan(const TracedGrid<char>& grid) noexcept -> std::vector<Match>
       | std::views::transform([&grid, changes = std::ranges::subrange(since, now)](const auto& v) noexcept {
           const auto& [rule, r] = v;
           auto zone = grid.area();
-          return changes
-            | std::views::transform([&rule](auto change) noexcept {
-                return rule.get_ishifts(change.value)
-                  | std::views::transform([u = change.u] (const auto& shift) noexcept {
-                      return u - shift;
-                  });
-            })
-            | std::views::join
-            | std::views::filter(std::bind_front(&Area3U::contains, zone - Area3U{ {}, rule.area().shiftmax() }))
-            | std::ranges::to<std::unordered_set>()
-            | std::views::transform([r](auto u) noexcept {
-                return std::tuple{ u, r };
-            });
+          return changes | std::views::transform([&rule](auto change) noexcept {
+                   return rule.get_ishifts(change.value)
+                       | std::views::transform(
+                              [u = change.u](const auto &shift) noexcept {
+                                return u - shift;
+                              });
+                 })
+              | std::views::join
+              | std::views::filter(std::bind_front(
+                  &Area3U::contains,
+                  zone - Area3U{{}, rule.output.area().shiftmax()}))
+              | std::ranges::to<std::unordered_set>()
+              | std::views::transform(
+                     [r](auto u) noexcept { return std::tuple{u, r}; });
       })
       | std::views::join
       | std::views::transform([this](auto&& ur) noexcept {
@@ -134,7 +154,7 @@ auto RuleNode::scan(const TracedGrid<char>& grid) noexcept -> std::vector<Match>
         const auto& [rule, r] = v;
         auto zone = grid.area();
         return mdiota(zone)
-          | std::views::filter([r_area = rule.area(), zone_max = zone.shiftmax()](auto u) noexcept {
+          | std::views::filter([r_area = rule.output.area(), zone_max = zone.shiftmax()](auto u) noexcept {
               return glm::all(
                    glm::equal(u, zone_max)
                 or glm::equal(u % r_area.size, r_area.shiftmax())
@@ -147,7 +167,7 @@ auto RuleNode::scan(const TracedGrid<char>& grid) noexcept -> std::vector<Match>
                 });
           })
           | std::views::join
-          | std::views::filter(std::bind_front(&Area3U::contains, zone - Area3U{ {}, rule.area().shiftmax() }))
+          | std::views::filter(std::bind_front(&Area3U::contains, zone - Area3U{ {}, rule.output.area().shiftmax() }))
           | std::views::transform([r](auto u) noexcept {
               return std::tuple{ u, r };
           });

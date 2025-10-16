@@ -1,5 +1,6 @@
 module tui.render;
 
+import glm;
 import log;
 
 using namespace ftxui;
@@ -169,11 +170,7 @@ Element ruleRunner(const RuleRunner& node, const Palette& palette) noexcept {
     elements.push_back(rule(*irule, palette, std::ranges::distance(irule, next_rule)));
     irule = next_rule;
   }
-  // elements.push_back(hbox(rulenode->potentials
-  //   | std::views::transform([&palette](const auto& p) noexcept {
-  //       return potential(std::get<0>(p), std::get<1>(p), palette);
-  //     })
-  //   | std::ranges::to<Elements>()));
+
   return vbox({
     text(std::format("{} ({}/{})", tag, node.step, steps)),
     hbox({ separator(), vbox(elements) })

@@ -11,110 +11,45 @@ using namespace stormkit;
 
 export 
 struct RewriteRule {
+  using Input  = std::optional<std::set<char>>;
+  using Output = std::optional<char>;
+  using Unions = std::unordered_map<char, std::set<char>>;
+  using Shifts = std::unordered_multimap<char, glm::vec<3, u32>>;
+  using Dist   = std::bernoulli_distribution;
+  
   static constexpr auto IGNORED_SYMBOL = char { '*' };
   
-  using Unions = std::unordered_map<char, std::set<char>>;
-  // using Union  = Unions::node_type;
-
-  using Input  = std::optional<std::set<char>>;
   Grid<Input>  input;
-
-  using Output = std::optional<char>;
   Grid<Output> output;
 
-  std::bernoulli_distribution draw = std::bernoulli_distribution { 1.0 };
+  Dist draw;
   bool original;
 
-  using Shifts = std::unordered_multimap<char, glm::vec<3, u32>>;
-  Shifts ishifts;
-
-  RewriteRule() = delete;
-  RewriteRule(Grid<Input>&& input, Grid<Output>&& output, double p = 1.0, bool original = true) noexcept;
-
-  auto symmetries(std::string_view subgroup = "") const noexcept -> std::vector<RewriteRule>;
-
-  inline constexpr auto operator==(const RewriteRule& other) const noexcept -> bool {
-    return input    == other.input
-       and output   == other.output
-       and draw.p() == other.draw.p();
-  };
-
-  static inline constexpr auto parse(
+  static auto parse(
     const Unions& unions,
     std::string_view input,
     std::string_view output,
     double p = 1.0
-  ) noexcept -> RewriteRule {
-    return {
-      Grid<Input>::parse(input, [&unions](auto raw) noexcept -> Input {
-        return raw == IGNORED_SYMBOL ? Input {} : Input { unions.contains(raw) ? unions.at(raw) : std::set{ raw } };
-      }),
-      Grid<std::optional<char>>::parse(output, [](auto raw) noexcept -> Output {
-        return raw == IGNORED_SYMBOL ? Output {} : Output { raw };
-      }),
-      p
-    };
-  }
+  ) noexcept -> RewriteRule;
 
-  inline constexpr auto xreflected() const noexcept -> RewriteRule {
-    return RewriteRule{
-      input.xreflected(),
-      output.xreflected(),
-      draw.p(),
-      false
-    };
-  }
+  RewriteRule() = delete;
+  RewriteRule(Grid<Input>&& input, Grid<Output>&& output, double p = 1.0, bool original = true) noexcept;
 
-  inline constexpr auto xyrotated() const noexcept -> RewriteRule {
-    return {
-      input.xyrotated(),
-      output.xyrotated(),
-      draw.p(),
-      false
-    };
-  }
-
-  inline constexpr auto zyrotated() const noexcept -> RewriteRule {
-    return {
-      input.zyrotated(),
-      output.zyrotated(),
-      draw.p(),
-      false
-    };
-  }
-
-  inline constexpr auto area() const noexcept -> Area3U {
-    return output.area();
-  }
-
-  /** Provides the relative area that this rule would update */
-  inline constexpr auto forward_neighborhood() const noexcept -> Area3I {
-    return area();
-  }
+  auto operator==(const RewriteRule& other) const noexcept -> bool;
 
   /** Provides the relative area from inside which this rule would update the origin */
-  inline constexpr auto backward_neighborhood() const noexcept -> Area3I {
-    const auto a = forward_neighborhood();
-    const auto shift = glm::vec<3, i32>{1, 1, 1} - static_cast<glm::vec<3, i32>>(a.size);
-    return a + shift;
-  }
+  auto backward_neighborhood() const noexcept -> Area3I;
+  auto get_ishifts(char c) const noexcept -> std::vector<glm::vec<3, u32>>;
 
-  constexpr auto get_ishifts(char c) const noexcept {
-    auto ignored_bucket = ishifts.bucket(IGNORED_SYMBOL);
-    auto shifts = std::ranges::subrange(
-      ishifts.cbegin(ignored_bucket),
-      ishifts.cend(ignored_bucket)
-    )
-      | std::views::transform(monadic::get<1>())
-      | std::ranges::to<std::vector>();
-    auto bucket = ishifts.bucket(c);
-    shifts.append_range(std::ranges::subrange(
-      ishifts.cbegin(bucket),
-      ishifts.cend(bucket)
-    )
-      | std::views::transform(monadic::get<1>()));
-    return shifts;
-  }
+  auto xreflected() const noexcept -> RewriteRule;
+  auto xyrotated() const noexcept -> RewriteRule;
+  auto zyrotated() const noexcept -> RewriteRule;
+
+  auto symmetries(std::string_view subgroup = "") const noexcept -> std::vector<RewriteRule>;
+
+private:
+  Shifts ishifts;
+
 };
 
 export template <>
