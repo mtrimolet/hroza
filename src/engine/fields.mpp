@@ -1,9 +1,9 @@
-export module fields;
+export module engine.fields;
 
 import std;
 
 import grid;
-import potentials;
+import engine.potentials;
 
 export {
 struct Field {

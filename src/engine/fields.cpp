@@ -1,4 +1,4 @@
-module fields;
+module engine.fields;
 
 import glm;
 import stormkit.core;

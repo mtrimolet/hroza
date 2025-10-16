@@ -1,4 +1,4 @@
-module render;
+module tui.render;
 
 import log;
 

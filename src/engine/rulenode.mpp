@@ -1,4 +1,4 @@
-export module rulenode;
+export module engine.rulenode;
 
 import std;
 import glm;
@@ -6,13 +6,13 @@ import stormkit.core;
 import utils;
 
 import grid;
-import rewriterule;
-import match;
+import engine.rewriterule;
+import engine.match;
 
-import potentials;
-import fields;
-import observes;
-import search;
+import engine.potentials;
+import engine.fields;
+import engine.observes;
+import engine.search;
 
 using namespace stormkit;
 

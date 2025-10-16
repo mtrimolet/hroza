@@ -93,7 +93,7 @@ target("hroza")
     add_files(
         "lib/**.mpp",
         "src/**.mpp",
-        "src/*.cpp"
+        "src/**.cpp"
     )
     set_rundir("$(projectdir)")
 

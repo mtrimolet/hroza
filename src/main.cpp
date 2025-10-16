@@ -3,8 +3,8 @@
 
 import std;
 import stormkit.log;
-import consoleapp;
-import windowapp;
+import tui.consoleapp;
+import gui.windowapp;
 
 using namespace stormkit;
 

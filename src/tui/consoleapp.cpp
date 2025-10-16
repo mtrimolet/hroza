@@ -1,15 +1,15 @@
-module consoleapp;
+module tui.consoleapp;
 
 import log;
 import stormkit.core;
 import ftxui;
 
 import grid;
-import model;
+import engine.model;
 import parser;
-import render;
+import tui.render;
 import geometry;
-import rulenode;
+import engine.rulenode;
 import controls;
 
 using namespace stormkit;

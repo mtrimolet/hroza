@@ -1,16 +1,16 @@
-export module render;
+export module tui.render;
 
 import std;
 import stormkit.core;
 import ftxui;
 
 import grid;
-import potentials;
-import rewriterule;
-import rulenode;
-import runner;
+import engine.potentials;
+import engine.rewriterule;
+import engine.rulenode;
+import engine.runner;
 import controls;
-import model;
+import engine.model;
 
 using namespace ftxui;
 using namespace stormkit;

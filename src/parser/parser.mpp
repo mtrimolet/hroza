@@ -6,13 +6,12 @@ import utils;
 
 import pugixml;
 
-import model;
-
-import rewriterule; // <rule>
-import rulenode;    // <one>, <prl>, <all>
-import fields;      // <field>
-import observes;    // <observe>
-import runner;      // <sequence>, <markov>
+import engine.model;
+import engine.rewriterule; // <rule>
+import engine.rulenode;    // <one>, <prl>, <all>
+import engine.fields;      // <field>
+import engine.observes;    // <observe>
+import engine.runner;      // <sequence>, <markov>
 
 // using namespace stormkit;
 // using namespace std::literals;

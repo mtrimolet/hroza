@@ -1,9 +1,9 @@
-export module observes;
+export module engine.observes;
 
 import std;
 
 import grid;
-import potentials;
+import engine.potentials;
 
 export {
 struct Observe {

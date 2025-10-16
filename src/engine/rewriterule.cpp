@@ -1,4 +1,4 @@
-module rewriterule;
+module engine.rewriterule;
 
 import frozen;
 import log;

@@ -1,4 +1,4 @@
-module rulenode;
+module engine.rulenode;
 
 import sort;
 import geometry;

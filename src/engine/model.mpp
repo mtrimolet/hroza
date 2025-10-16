@@ -1,9 +1,9 @@
-export module model;
+export module engine.model;
 
 import std;
 
-import rewriterule;
-export import runner;
+import engine.rewriterule;
+export import engine.runner;
 
 export
 struct Model {

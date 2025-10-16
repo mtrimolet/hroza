@@ -1,9 +1,9 @@
-export module search;
+export module engine.search;
 
 import std;
 
 import grid;
-import observes;
+import engine.observes;
 
 export {
 using Trajectory = std::vector<std::vector<Change<char>>>;

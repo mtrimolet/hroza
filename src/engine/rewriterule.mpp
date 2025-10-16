@@ -1,4 +1,4 @@
-export module rewriterule;
+export module engine.rewriterule;
 
 import std;
 import glm;

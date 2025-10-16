@@ -1,4 +1,4 @@
-module windowapp;
+module gui.windowapp;
 
 using namespace stormkit;
 

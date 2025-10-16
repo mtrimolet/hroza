@@ -1,4 +1,4 @@
-export module match;
+export module engine.match;
 
 import std;
 import glm;
@@ -6,8 +6,8 @@ import stormkit.core;
 import geometry;
 
 import grid;
-import rewriterule;
-import potentials;
+import engine.rewriterule;
+import engine.potentials;
 
 using namespace stormkit;
 
