@@ -7,7 +7,8 @@ using namespace stormkit;
 auto RuleRunner::operator()(TracedGrid<char>& grid) noexcept -> std::generator<bool> {
   if (steps > 0 and step >= steps) co_return;
 
-  auto changes = rulenode(grid);
+  auto changes = std::vector<Change<char>>{};
+  rulenode(grid, changes);
   if (std::ranges::empty(changes)) co_return;
 
   std::for_each(

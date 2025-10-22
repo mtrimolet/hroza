@@ -11,7 +11,7 @@ using namespace stormkit;
 export {
 
 struct RuleRunner {
-  using RuleNode = std::function<std::vector<Change<char>>(TracedGrid<char>&)>;
+  using RuleNode = std::function<void(const TracedGrid<char>&, std::vector<Change<char>>&)>;
   RuleNode rulenode;
   cpp::UInt steps;
   cpp::UInt step = 0;
