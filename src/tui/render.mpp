@@ -5,11 +5,12 @@ import stormkit.core;
 import ftxui;
 
 import grid;
-import engine.potentials;
+import potentials;
+import controls;
+
 import engine.rewriterule;
 import engine.rulenode;
 import engine.runner;
-import controls;
 import engine.model;
 
 using namespace ftxui;

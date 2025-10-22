@@ -1,4 +1,4 @@
-export module engine.potentials;
+export module potentials;
 
 import std;
 

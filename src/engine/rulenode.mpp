@@ -6,10 +6,11 @@ import stormkit.core;
 import utils;
 
 import grid;
+import potentials;
+
 import engine.rewriterule;
 import engine.match;
 
-import engine.potentials;
 import engine.fields;
 import engine.observes;
 import engine.search;

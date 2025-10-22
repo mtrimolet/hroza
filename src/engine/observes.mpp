@@ -3,7 +3,8 @@ export module engine.observes;
 import std;
 
 import grid;
-import engine.potentials;
+import potentials;
+import engine.rewriterule;
 
 export {
 struct Observe {

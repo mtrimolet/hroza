@@ -3,7 +3,7 @@ export module engine.fields;
 import std;
 
 import grid;
-import engine.potentials;
+import potentials;
 
 export {
 struct Field {

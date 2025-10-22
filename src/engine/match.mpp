@@ -6,8 +6,8 @@ import stormkit.core;
 import geometry;
 
 import grid;
+import potentials;
 import engine.rewriterule;
-import engine.potentials;
 
 using namespace stormkit;
 
