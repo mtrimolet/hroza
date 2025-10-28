@@ -7,11 +7,6 @@ import geometry;
 using namespace stormkit;
 
 auto Field::potential(const Grid<char>& grid, Potential& potential) const noexcept -> void {
-  potential.values.clear();
-  potential.values.resize(
-    potential.extents.extent(0) * potential.extents.extent(1) * potential.extents.extent(2),
-    std::numeric_limits<double>::quiet_NaN()
-  );
   propagate(
     mdiota(potential.area())
       | std::views::filter([this, &grid](auto u) noexcept {
@@ -19,7 +14,7 @@ auto Field::potential(const Grid<char>& grid, Potential& potential) const noexce
       })
       | std::views::transform([&potential](auto u) noexcept {
           potential[u] = 0.0;
-          return std::make_pair(u, 0.0);
+          return std::tuple{ u, 0.0 };
       }),
     [this, &grid, &potential](auto&& front) noexcept {
       static constexpr auto neigh_size = 3u * glm::vec<3, u32>{1, 1, 1};
@@ -28,7 +23,7 @@ auto Field::potential(const Grid<char>& grid, Potential& potential) const noexce
 
       auto [u, p] = front;
       auto new_us = (neigh + u).umeet(potential.area());
-      auto new_p  = inversed ? p - 1 : p + 1;
+      auto new_p  = inversed ? p - 1.0 : p + 1.0;
       return mdiota(new_us)
         | std::views::filter([this, &grid, &potential](auto n) noexcept {
             return not (potential[n] == 0.0 or std::isnormal(potential[n]))
@@ -36,10 +31,30 @@ auto Field::potential(const Grid<char>& grid, Potential& potential) const noexce
         })
         | std::views::transform([&potential, new_p](auto n) noexcept {
             potential[n] = new_p;
-            return std::make_pair(n, new_p);
+            return std::tuple{ n, new_p };
         });
     }
   );
+}
 
-  // return potential;
+auto Field::potentials(const Fields& fields, const Grid<char>& grid, Potentials& potentials) noexcept -> void {
+  for (auto& [c, f] : fields) {
+    if (potentials.contains(c) and not f.recompute) {
+      continue;
+    }
+
+    potentials.insert_or_assign(c, Potential{ grid.extents, std::numeric_limits<double>::quiet_NaN() });
+
+    f.potential(grid, potentials.at(c));
+
+    if (std::none_of(
+      // std::execution::par,
+      std::ranges::begin(potentials.at(c)),
+      std::ranges::end(potentials.at(c)),
+      is_normal
+    )) {
+      potentials.erase(potentials.find(c));
+      break;
+    }
+  }
 }

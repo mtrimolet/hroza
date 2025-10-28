@@ -48,7 +48,7 @@ struct RewriteRule {
   auto symmetries(std::string_view subgroup = "") const noexcept -> std::vector<RewriteRule>;
 
 private:
-  Shifts ishifts;
+  Shifts ishifts, oshifts;
 
 };
 

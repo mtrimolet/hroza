@@ -7,12 +7,17 @@ import potentials;
 import engine.rewriterule;
 
 export {
+struct Observe;
+using Observes = std::unordered_map<char, Observe>;
+
+using Future = Grid<std::unordered_set<char>>;
+
 struct Observe {
   std::optional<char>      from;
   std::unordered_set<char> to;
+
+  static auto future(std::vector<Change<char>>& changes, Future& future, const Grid<char>& grid, const Observes& observes) noexcept -> void;
+  static auto potentials(Potentials& potentials, const Future& future, const std::span<RewriteRule> rules) noexcept -> void;
 };
 
-using Observes = std::unordered_map<char, Observe>;
-
-using Future = Grid<char>;
 }

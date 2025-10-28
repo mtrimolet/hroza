@@ -35,6 +35,26 @@ auto Match::match(const Grid<char>& grid) const noexcept -> bool {
   );
 }
 
+auto Match::backward_match(const Potentials& potentials, double p) const noexcept -> bool {
+  auto zone = std::views::zip(mdiota(area()), rules[r].output)
+    | std::views::filter([](const auto& output) static noexcept {
+        return std::get<1>(output) != std::nullopt;
+    })
+    | std::views::transform([&potentials](const auto& output) noexcept {
+        auto [u, o] = output;
+        return potentials.at(*o)[u];
+    });
+  return std::all_of(
+    // std::execution::par,
+    std::ranges::begin(zone),
+    std::ranges::end(zone),
+    [p](auto current) noexcept {
+      return is_normal(current)
+         and current <= p;
+    }
+  );
+}
+
 auto Match::changes(const Grid<char>& grid) const noexcept -> std::vector<Change<char>> {
   return std::views::zip(mdiota(area()), rules[r].output)
     | std::views::filter([&grid](const auto& output) noexcept {
@@ -48,7 +68,20 @@ auto Match::changes(const Grid<char>& grid) const noexcept -> std::vector<Change
     | std::ranges::to<std::vector>();
 }
 
-auto Match::delta(const Grid<char>& grid, const Potentials& potentials) noexcept -> double {
+auto Match::backward_changes(const Potentials& potentials, double p) const noexcept -> std::vector<Change<std::tuple<char, double>>> {
+  return std::views::zip(mdiota(area()), rules[r].output)
+    | std::views::filter([&potentials](const auto& output) noexcept {
+        auto [u, o] = output;
+        return o
+           and is_normal(potentials.at(*o)[u]);
+    })
+    | std::views::transform([p](auto&& output) noexcept {
+        return Change{ std::get<0>(output), std::tuple{ *std::get<1>(output), p }};
+    })
+    | std::ranges::to<std::vector>();
+}
+
+auto Match::delta(const Grid<char>& grid, const Potentials& potentials) const noexcept -> double {
   auto vals = std::views::zip(mdiota(area()), rules[r].output)
     | std::views::filter([&grid](auto&& _o) noexcept {
         auto [u, o] = _o;

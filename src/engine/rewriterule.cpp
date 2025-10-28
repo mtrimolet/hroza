@@ -37,14 +37,27 @@ RewriteRule::RewriteRule(Grid<Input>&& _input, Grid<Output>&& _output, double p,
         // })
     )
     | std::views::transform([](auto&& p) noexcept {
+        auto [i, u] = p;
         // TODO this must change when fixing size of state representation
-        return std::get<0>(p).value_or(std::set{ IGNORED_SYMBOL }) 
-          | std::views::transform([u = std::get<1>(p)](auto c) noexcept {
+        return i.value_or(std::set{ IGNORED_SYMBOL }) 
+          | std::views::transform([u](auto c) noexcept {
               return std::tuple{ c, u };
           });
     })
     | std::views::join
-    | std::ranges::to<Shifts>()}
+    | std::ranges::to<Shifts>()
+  },
+  oshifts{
+    std::views::zip(
+      output,
+      mdiota(output.area())
+    )
+    | std::views::transform([](auto&& p) noexcept {
+        auto [o, u] = p;
+        return std::tuple{ o.value_or(IGNORED_SYMBOL), u };
+    })
+    | std::ranges::to<Shifts>()
+  }
 {}
 
 auto RewriteRule::get_ishifts(char c) const noexcept -> std::vector<glm::vec<3, u32>>{

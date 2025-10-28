@@ -6,11 +6,16 @@ import grid;
 import potentials;
 
 export {
+struct Field;
+using Fields = std::unordered_map<char, Field>;
+
 struct Field {
   bool recompute, essential, inversed;
   std::unordered_set<char> substrate, zero;
+
   auto potential(const Grid<char>& grid, Potential& potential) const noexcept -> void;
+
+  static auto potentials(const Fields& fields, const Grid<char>& grid, Potentials& potentials) noexcept -> void;
 };
 
-using Fields = std::unordered_map<char, Field>;
 }

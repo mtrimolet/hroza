@@ -57,67 +57,52 @@ auto RuleNode::scan(const TracedGrid<char>& grid) noexcept -> void {
     std::ranges::end(matches)
   );
 
-  if (since != now) {
-    matches.append_range(
-      std::views::zip(rules, std::views::iota(0u))
-        | std::views::transform([&grid, changes = std::ranges::subrange(since, now)](const auto& v) noexcept {
-            const auto& [rule, r] = v;
-            const auto valid_zone = grid.area() - Area3U{ {}, rule.output.area().shiftmax() };
-            return changes
-              // TODO group changes according to rule size
-              // currently this is highly redundant on adjacent changes (which happens a lot..)
-              | std::views::transform([&rule](auto change) noexcept {
-                  return rule.get_ishifts(change.value)
-                    | std::views::transform([u = change.u](const auto &shift) noexcept {
-                          return u - shift;
-                    });
-              })
-              | std::views::join
-              | std::views::filter(std::bind_front(&Area3U::contains, valid_zone))
-              | std::ranges::to<std::unordered_set>()
-              | std::views::transform([r](auto u) noexcept {
-                  return std::tuple{ u, r };
-              });
-        })
-        | std::views::join
-        | std::views::transform([this](auto&& ur) noexcept {
-            return Match{ rules, std::get<0>(ur), std::get<1>(ur) };
-        })
-        | std::views::filter(std::bind_back(&Match::match, grid))
-    );
-  }
-  else {
-    matches.append_range(std::views::zip(rules, std::views::iota(0u))
-      | std::views::transform([&grid](const auto& v) noexcept {
+  auto targets =
+    since == now ? mdiota(grid.area()) | std::ranges::to<std::vector>()
+    : std::ranges::subrange(since, now) | std::views::transform(&Change<char>::u) | std::ranges::to<std::vector>();
+
+  matches.append_range(
+    std::views::zip(rules, std::views::iota(0u))
+      | std::views::transform([&grid, &targets](const auto& v) noexcept {
           const auto& [rule, r] = v;
           const auto zone = grid.area();
           const auto valid_zone = zone - Area3U{ {}, rule.output.area().shiftmax() };
-          return mdiota(zone)
-            | std::views::filter([r_area = rule.output.area(), zone](auto u) noexcept {
-                return glm::all(
-                     glm::equal(u, zone.shiftmax())
-                  or glm::equal(u % r_area.size, r_area.shiftmax())
-                );
-            })
+          return targets
+            // | std::views::transform([r_area = rule.output.area(), zone](auto u) noexcept {
+            //     return glm::min(
+            //       u - (u % r_area.size) + r_area.shiftmax(),
+            //       zone.shiftmax()
+            //     );
+            // })
+            // | std::ranges::to<std::unordered_set>()
+            // TODO group changes according to rule size
+            // currently this is highly redundant on adjacent changes (which happens a lot..)
+            // This is the old way, it is not a grouping but a filter so it only applies to full grid scan
+            // | std::views::filter([r_area = rule.output.area(), zone](auto u) noexcept {
+            //     return glm::all(
+            //          glm::equal(u, zone.shiftmax())
+            //       or glm::equal(u % r_area.size, r_area.shiftmax())
+            //     );
+            // })
             | std::views::transform([&grid, &rule](auto u) noexcept {
                 return rule.get_ishifts(grid[u])
-                  | std::views::transform([u](const auto& shift) noexcept {
-                      return u - shift;
+                  | std::views::transform([u](const auto &shift) noexcept {
+                        return u - shift;
                   });
             })
             | std::views::join
             | std::views::filter(std::bind_front(&Area3U::contains, valid_zone))
+            | std::ranges::to<std::unordered_set>()
             | std::views::transform([r](auto u) noexcept {
                 return std::tuple{ u, r };
             });
       })
       | std::views::join
-      | std::views::transform([&rules = rules](auto&& ur) noexcept {
+      | std::views::transform([this](auto&& ur) noexcept {
           return Match{ rules, std::get<0>(ur), std::get<1>(ur) };
       })
       | std::views::filter(std::bind_back(&Match::match, grid))
-    );
-  }
+  );
 
   active = std::ranges::begin(matches);
 }
@@ -135,27 +120,54 @@ auto RuleNode::apply(const TracedGrid<char>& grid, std::vector<Change<char>>& ch
   matches.erase(active, std::ranges::end(matches));
 }
 
-auto RuleNode::predict(const Grid<char>&, std::vector<Change<char>>&) noexcept -> void {
-  if (std::ranges::empty(observes) or not std::ranges::empty(future)) {
-    return;
-  }
-
-  // Observe::future(changes, future, grid, observes);
-  if (std::ranges::empty(future)) {
-    active = std::ranges::end(matches);
-    return;
-  }
-
+auto RuleNode::predict(const Grid<char>& grid, std::vector<Change<char>>& changes) noexcept -> void {
   switch (inference) {
-    case Inference::OBSERVE:
-      // Observe::potentials(potentials, future, rules);
-      break;
-    case Inference::SEARCH:
-      // trajectory = Search::trajectory(future, grid, rules, limit);
-      break;
     case Inference::RANDOM:
+      break;
+
     case Inference::DISTANCE:
-      std::unreachable();
+      Field::potentials(fields, grid, potentials);
+      if (std::ranges::any_of(
+        fields,
+        [&potentials = potentials](const auto& p) noexcept {
+          const auto& [c, f] = p;
+          return f.essential and not potentials.contains(c);
+        }
+      )) {
+        active = std::ranges::end(matches);
+        return;
+      }
+      break;
+
+    case Inference::OBSERVE:
+      if (not std::ranges::empty(future)) {
+        return;
+      }
+
+      Observe::future(changes, future, grid, observes);
+      if (std::ranges::empty(future)) {
+        active = std::ranges::end(matches);
+        return;
+      }
+
+      Observe::potentials(potentials, future, rules);
+
+      break;
+
+    case Inference::SEARCH:
+      if (not std::ranges::empty(future)) {
+        return;
+      }
+
+      Observe::future(changes, future, grid, observes);
+      if (std::ranges::empty(future)) {
+        active = std::ranges::end(matches);
+        return;
+      }
+
+      // trajectory = Search::trajectory(future, grid, rules, limit);
+
+      break;
   }
 }
 
@@ -213,8 +225,7 @@ auto RuleNode::select(const Grid<char>& grid) noexcept -> void {
 auto RuleNode::pick(MatchIterator begin, MatchIterator end) noexcept -> MatchIterator {
   auto weights = std::ranges::subrange(begin, end)
                | std::views::transform(&Match::w);
-  ilog("matches: {}", std::ranges::size(matches));
-  ilog("weights: {}", weights | std::ranges::to<std::vector>());
+
   if (std::reduce(
     // std::execution::par,
     std::ranges::begin(weights),
@@ -222,81 +233,45 @@ auto RuleNode::pick(MatchIterator begin, MatchIterator end) noexcept -> MatchIte
   ) == 0.0) {
     return end;
   }
+
   auto picker = std::discrete_distribution{std::ranges::begin(weights), std::ranges::end(weights)};
   auto picked = picker(rng);
-  // ilog("{} picked {}", picker.probabilities(), picked);
+
   return std::ranges::next(begin, picked);
 }
 
-static constexpr auto is_normal = [](double value) static noexcept {
-  return value == 0.0 or std::isnormal(value);
-};
-
 auto RuleNode::infer(const Grid<char>& grid) noexcept -> void {
-  switch (inference) {
-    case Inference::DISTANCE:
-      for (auto& [c, f] : fields) {
-        if (potentials.contains(c) and not f.recompute) {
-          continue;
-        }
+  std::for_each(
+    // std::execution::par,
+    active, std::ranges::end(matches),
+    [&potentials = potentials, &grid](auto& m) noexcept {
+      m.w = m.delta(grid, potentials);
+  });
 
-        if (not potentials.contains(c))
-          potentials.emplace(c, Potential{ grid.extents, std::numeric_limits<double>::quiet_NaN() });
-        f.potential(grid, potentials.at(c));
+  active = std::partition(
+    // std::execution::par,
+    active, std::ranges::end(matches),
+    [](auto& m) noexcept {
+      return not is_normal(m.w);
+    }
+  );
 
-        if (f.essential and std::none_of(
-          // std::execution::par,
-          std::ranges::begin(potentials.at(c)),
-          std::ranges::end(potentials.at(c)),
-          is_normal
-        )) {
-          active = std::ranges::end(matches);
-          break;
-        }
-      }
+  if (active == std::ranges::end(matches)) return;
 
-      // compute sum of pointwise differences in potential
-      std::for_each(
-        // std::execution::par,
-        active, std::ranges::end(matches),
-        [&potentials = potentials, &grid](auto& m) noexcept {
-          m.w = m.delta(grid, potentials);
-      });
-
-      active = std::partition(
-        // std::execution::par,
-        active, std::ranges::end(matches),
-        [](auto& m) noexcept {
-          return not is_normal(m.w);
-        }
-      );
-
-      if (active == std::ranges::end(matches)) break;
-
-      if (temperature > 0.0) std::for_each(
-        // std::execution::par,
-        active, std::ranges::end(matches),
-        [temperature = temperature, first_w = active->w](auto& m) noexcept {
-          /** pre-Boltzmann distribution */
-          m.w = std::exp(-m.w / temperature);
-        }
-      );
-      else std::for_each(
-        // std::execution::par,
-        active, std::ranges::end(matches),
-        [](auto& m) noexcept {
-          /** pre-Softmax */
-          m.w = std::exp(-m.w);
-        }
-      );
-
-      break;
-    case Inference::OBSERVE:
-      // break;
-    case Inference::SEARCH:
-      // break;
-    case Inference::RANDOM:
-      // nothing to do, by default all weights are equal (= 1.0)
-      break;
-  }
+  if (temperature > 0.0) std::for_each(
+    // std::execution::par,
+    active, std::ranges::end(matches),
+    [temperature = temperature, first_w = active->w](auto& m) noexcept {
+      /** pre-Boltzmann distribution */
+      m.w = std::exp(-m.w / temperature);
+    }
+  );
+  else std::for_each(
+    // std::execution::par,
+    active, std::ranges::end(matches),
+    [](auto& m) noexcept {
+      /** pre-Softmax */
+      m.w = std::exp(-m.w);
+    }
+  );
 }
