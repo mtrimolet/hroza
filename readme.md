@@ -1,32 +1,44 @@
 # Hroza
 
-A C++ implementation of [MarkovJunior](https://github.com/mxgmn/MarkovJunior) based on [StormKit](https://github.com/TapzCrew/StormKit)
+A C++ implementation of [MarkovJunior](https://github.com/mxgmn/MarkovJunior) using [StormKit](https://github.com/TapzCrew/StormKit)
 
 ## Getting started
+### Setup
+[Install xmake](https://xmake.io/#/getting_started).  
 
-[Install xmake](https://xmake.io/#/getting_started)
+Configure xmake project and setup LLVM development kit.  
 
-Configure xmake project and setup LLVM development kit. I suppose it can work with LLVM v19 but I recommend using v20 at least. Developement is currently done using v21.  
-While developement is continuously made on `macos` using the `--HEAD` version of homebrew package `llvm`, compilation is also sometimes tested for `linux` using the AUR package `llvm-git`.  
-Maybe it works with your default compiler toolchain, I can't guarantee anything but it's a good opportunity to open an issue !  
+  I suppose it can work with LLVM v19 but I recommend using v20 at least. Developement is currently done using v21.  
+  While developement is continuously made on `macosx` using the `--HEAD` version of homebrew package `llvm`, compilation is also sometimes tested for `linux` using the AUR package `llvm-git`.  
+  Maybe it works with your default compiler toolchain, I can't guarantee anything but it's a good opportunity to open an issue !  
 
-On `macos`, this should look like this
+On `macosx`, we need to provide the path to swift-frontend for stormkit :
 ```sh
-xmake f --toolchain=llvm --sdk=/usr/local/opt/llvm --runtimes=c++_shared
+export PATH="/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin":$PATH
 ```
 
-On `linux`, this should look like this
 ```sh
-xmake f --toolchain=llvm --sdk=/opt/llvm-git --runtimes=c++_shared
+xmake f --toolchain=llvm \
+        --sdk=<path_to_llvm> \
+        --runtimes=c++_shared
 ```
 
-Then, build and run
+Ask your package manager about `path_to_llvm` (`brew --prefix llvm`).  
+| Plateform | path_to_llvm |
+| --- | --- |
+| `macosx` | `/usr/local/opt/llvm` |
+| `linux`  | `/opt/llvm-git` |
+
+Then build with `xmake build`. The executable can then be found at `build/macosx/IDONTREMEMBER/hroza`.  
+
+### Execute
+
+You can provide a path to an xml model as first positional argument :  
 ```sh
-xmake
-xmake run
+hroza models/NestedGrowth.xml
 ```
 
-You can provide a path to an xml model as argument, otherwise default is the one currently used as test case for development.  
+You can enable the `--gui` flag to run graphics in a window instead of terminal.  
 ```sh
-xmake run hroza models/GoToGradient.xml
+hroza --gui
 ```
