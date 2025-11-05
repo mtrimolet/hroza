@@ -4,7 +4,6 @@ import glm;
 import log;
 
 using namespace ftxui;
-using namespace stormkit;
 
 namespace render {
 
@@ -141,7 +140,7 @@ Element potential_grid(const ::Potential& g) noexcept {
 Element potential(char c, const Potential& pot, const Palette& palette) noexcept {
   auto col = palette.contains(c) ? palette.at(c) : Color::Default;
   return window(
-    text(std::string{c}) | color(col) | inverted,
+    text(std::string{c}) | ftxui::color(col) | inverted,
     potential_grid(pot)
   );
 }

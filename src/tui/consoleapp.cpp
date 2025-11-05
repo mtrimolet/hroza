@@ -2,15 +2,17 @@ module tui.consoleapp;
 
 import log;
 import stormkit.core;
-import ftxui;
 
 import grid;
-import engine.model;
-import parser;
-import tui.render;
 import geometry;
+
+import engine.model;
 import engine.rulenode;
+import parser;
 import controls;
+
+import ftxui;
+import tui.render;
 
 using namespace stormkit;
 using namespace ftxui;
@@ -25,7 +27,6 @@ static constexpr auto DEFAULT_TICKRATE = 60;
 
 auto ConsoleApp::operator()(std::span<const std::string_view> args) noexcept -> int {
   auto palettefile = DEFAULT_PALETTE_FILE;
-  // ilog("loading palette {}", palettefile.string());
   auto default_palette = parser::Palette(parser::document(palettefile));
 
   auto modelarg = std::ranges::find_if(args, [](const auto& arg) static noexcept {
@@ -33,7 +34,6 @@ auto ConsoleApp::operator()(std::span<const std::string_view> args) noexcept -> 
   });
   auto modelfile =
     modelarg != std::ranges::end(args) ? std::string{*modelarg} : DEFAULT_MODEL_FILE;
-  // ilog("loading model {}", modelfile.string());
 
   auto model = parser::Model(parser::document(modelfile));
   auto palette = model.symbols
@@ -55,9 +55,9 @@ auto ConsoleApp::operator()(std::span<const std::string_view> args) noexcept -> 
 
   auto controls = Controls {
     .tickrate = DEFAULT_TICKRATE,
-    .onReset = [&grid, &extent, &model]{
+    .onReset = [&grid, &model]{
       reset(model.program);
-      grid = TracedGrid{extent, model.symbols[0]};
+      grid = TracedGrid{grid.extents, model.symbols[0]};
       if (model.origin) grid[grid.area().center()] = model.symbols[1];
     },
   };
