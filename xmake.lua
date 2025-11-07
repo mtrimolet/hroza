@@ -26,16 +26,11 @@ add_requires("glm  1.0.1", "frozen")
 -- stormkit deps, remove when handled by xmake
 add_requires("unordered_dense", "tl_function_ref", "cpptrace")
 
-add_requires("stormkit develop", {
+add_requires("stormkit 20251105", {
     configs = {
-        image = false,
-        wsi = true,
-        log = true,
         entities = false,
-        gpu = false,
-        examples = false,
-        tests = false,
-        shared = true,
+        gpu = true,
+        debug = is_mode("debug"),
     },
 })
 
@@ -47,22 +42,29 @@ add_requires(
     "ftxui main"
 )
 
+add_requires("imgui", {
+    configs = {
+      vulkan = true,
+      debug = is_mode("debug"),
+      cxxflags = { "-DIMGUI_IMPL_VULKAN_NO_PROTOTYPES" },
+    },
+})
+
 add_requireconfs(
     "glm",
 
--- stormkit deps, remove when handled by xmake
     "pugixml",
     "cpptrace",
     { system=false }
 )
 
-if is_mode("debug") then
-    add_defines("_LIBCPP_DEBUG")
-    add_requireconfs(
-        "ftxui",
-        { debug = true }
-    )
-end
+-- if is_mode("debug") then
+--     add_defines("_LIBCPP_DEBUG")
+--     add_requireconfs(
+--         "ftxui",
+--         { debug = true }
+--     )
+-- end
 
 add_requireconfs("**", { configs = { modules = true, std_import = true, cpp = "latest" }})
 add_cxxflags("-fexperimental-library")
@@ -77,7 +79,7 @@ end
 target("hroza")
     set_kind("binary")
 
-    add_packages("stormkit", { components = { "core", "main", "wsi", "log" } })
+    add_packages("stormkit", { components = { "core", "log", "wsi", "gpu", "image" } })
 
     -- stormkit deps, remove when handled by xmake
     add_packages(
@@ -87,7 +89,8 @@ target("hroza")
         "unordered_dense", "tl_function_ref", "cpptrace",
 
         "pugixml",
-        "ftxui"
+        "ftxui",
+        "imgui"
     )
 
     add_files(
