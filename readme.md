@@ -29,9 +29,11 @@ Ask your package manager about `path_to_llvm` (`brew --prefix llvm`).
 | `macosx` | `/usr/local/opt/llvm` |
 | `linux`  | `/opt/llvm-git` |
 
-Then build with `xmake build`. The executable can then be found at `build/macosx/IDONTREMEMBER/hroza`.  
+Then build with `xmake build`. The executable can then be found at `build/<platform>/<arch>/<build_mode>/hroza`.  
 
 ### Execute
+
+You can run the built executable with `xmake run hroza`.
 
 You can provide a path to an xml model as first positional argument :  
 ```sh
