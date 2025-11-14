@@ -11,5 +11,5 @@ build/
 .DS_Store
 
 # Testing environment
-log.txt
-hroza-log.txt
+*log.txt
+imgui.ini
