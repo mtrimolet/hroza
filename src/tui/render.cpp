@@ -35,14 +35,15 @@ Element grid(const ::TracedGrid<char>& g, const Palette& palette) noexcept {
     stdv::zip(mdiota(g.area()), g),
     [&](auto u_char) noexcept {
       auto [u, character] = u_char;
+      
+      auto b = palette.contains(character) ? palette.at(character)
+                                           : Color::Default;
       auto& pixel0 = texture.PixelAt(u.x * 2, u.y);
-      pixel0.character = /* character; */ " ";
-      pixel0.background_color = palette.contains(character) ? palette.at(character)
-                                                            : Color::Default;
+      pixel0.character        = ' ';
+      pixel0.background_color = b;
       auto& pixel1 = texture.PixelAt(u.x * 2 + 1, u.y);
-      pixel1.character = /* character; */ " ";
-      pixel1.background_color = palette.contains(character) ? palette.at(character)
-                                                            : Color::Default;
+      pixel1.character        = ' ';
+      pixel1.background_color = b;
     }
   );
   auto w = texture.dimx(), h = texture.dimy();
@@ -65,32 +66,33 @@ Element rule(const ::RewriteRule& rule, const Palette& palette, stk::cpp::UInt c
     stdv::zip(mdiota(rule.input.area()), rule.input, rule.output),
     [&input, &output, &palette](auto uio) noexcept {
       auto [u, i, o] = uio;
-      // TODO this is using only one of the values
-      auto& ip0 = input.PixelAt(u.x * 2, u.y);
-      ip0.character = not i                         ? RewriteRule::IGNORED_SYMBOL
-                    : palette.contains(*i->begin()) ? ' '
-                                                    : '?';
-      ip0.background_color = i and palette.contains(*i->begin()) ? palette.at(*i->begin())
-                                                                 : Color::Default;
-      auto& ip1 = input.PixelAt(u.x * 2 + 1, u.y);
-      ip1.character = not i                         ? RewriteRule::IGNORED_SYMBOL
-                    : palette.contains(*i->begin()) ? ' '
-                                                    : '?';
-      ip1.background_color = i and palette.contains(*i->begin()) ? palette.at(*i->begin())
-                                                                 : Color::Default;
 
+      auto ib = i and palette.contains(*i->begin()) ? palette.at(*i->begin())
+                                                    : Color{ Color::Default };
+
+      auto& ip0 = input.PixelAt(u.x * 2, u.y);
+      ip0.character        = not i                         ? '>'
+                           : palette.contains(*i->begin()) ? ' '
+                                                           : '?';
+      ip0.background_color = ib;
+      auto& ip1 = input.PixelAt(u.x * 2 + 1, u.y);
+      ip1.character        = not i                         ? '<'
+                           : palette.contains(*i->begin()) ? ' '
+                                                           : '?';
+      ip1.background_color = ib;
+
+      auto ob = o and palette.contains(*o) ? palette.at(*o)
+                                           : Color{ Color::Default };
       auto& op0 = output.PixelAt(u.x * 2, u.y);
-      op0.character = not o                ? RewriteRule::IGNORED_SYMBOL
-                    : palette.contains(*o) ? ' '
-                                           : *o;
-      op0.background_color = o and palette.contains(*o) ? palette.at(*o)
-                                                        : Color::Default;
+      op0.character        = not o                ? '>'
+                           : palette.contains(*o) ? ' '
+                                                  : '?';
+      op0.background_color = ob;
       auto& op1 = output.PixelAt(u.x * 2 + 1, u.y);
-      op1.character = not o                ? RewriteRule::IGNORED_SYMBOL
-                    : palette.contains(*o) ? ' '
-                                           : *o;
-      op1.background_color = o and palette.contains(*o) ? palette.at(*o)
-                                                        : Color::Default;
+      op1.character        = not o                ? '<'
+                           : palette.contains(*o) ? ' '
+                                                  : *o;
+      op1.background_color = ob;
     }
   );
 
@@ -125,11 +127,13 @@ Element potential_grid(const ::Potential& g) noexcept {
   );
 
   auto normalize = [&min_g, &max_g](double t) noexcept {
-    t /= t > 0.0 ? max_g
-       : t < 0.0 ? min_g
-                 : 1.0;   // go to [-1, 1]
-    t += 1.0;             // go to [ 0, 2]
-    t /= 2.0;             // go to [ 0, 1]
+    // if (not is_normal(t)) return 0.0;
+
+    // go to [-1, 1]
+    t /= t > 0.0 ?  max_g
+       : t < 0.0 ? -min_g
+                 : 1.0;  
+
     return t;
   };
 
@@ -137,19 +141,22 @@ Element potential_grid(const ::Potential& g) noexcept {
     stdv::zip(mdiota(g.area()), g),
     [&](auto u_val) noexcept {
       auto [u, value] = u_val;
-      auto normalized = is_normal(value) ? normalize(value) : 0.5;
+      auto normalized = normalize(value);
+
+      auto b = not is_normal(normalized) ? Color{ Color::White }
+             : Color::Interpolate(
+                 normalized + (normalized < 0.0 ? 1.0 : 0.0),
+                 normalized < 0.0 ? Color{ Color::Blue  } : Color{ Color::Black },
+                 normalized < 0.0 ? Color{ Color::Black } : Color{ Color::Red   }
+             );
 
       auto& pixel0 = texture.PixelAt(u.x * 2, u.y);
-      pixel0.character = value == 0.0             ? "•"
-                       : not std::isnormal(value) ? "*"
-                                                  : " ";
-      pixel0.background_color = Color::Interpolate(normalized, Color::Blue, Color::Red);
+      pixel0.character        = ' ';
+      pixel0.background_color = b;
 
       auto& pixel1 = texture.PixelAt(u.x * 2 + 1, u.y);
-      pixel1.character = value == 0.0             ? "•"
-                       : not std::isnormal(value) ? "*"
-                                                  : " ";
-      pixel1.background_color = Color::Interpolate(normalized, Color::Blue, Color::Red);
+      pixel1.character        = ' ';
+      pixel1.background_color = b;
     }
   );
   auto w = texture.dimx(), h = texture.dimy();
@@ -234,10 +241,10 @@ Element symbols(std::string_view values, const Palette& palette) noexcept {
     [&](auto&& cu) noexcept {
       auto [character, u] = cu;
       auto& pixel0 = texture.PixelAt(u.x * 2, u.y);
-      pixel0.character = character;
+      pixel0.character        = character;
       pixel0.background_color = palette.at(character);
       auto& pixel1 = texture.PixelAt(u.x * 2 + 1, u.y);
-      pixel1.character = " ";
+      pixel1.character        = " ";
       pixel1.background_color = palette.at(character);
     }
   );
