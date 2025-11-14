@@ -156,7 +156,7 @@ auto WindowApp::operator()(std::span<const std::string_view> args) noexcept -> i
 
   // create swapchain
   const auto window_extent = window.extent();
-  const auto swapchain     = stkg::SwapChain::create(device, surface, window_extent.to<3>())
+  const auto swapchain     = stkg::SwapChain::create(device, surface, window_extent)
                            .transform_error(stkm::assert("Failed to create swapchain"))
                            .value();
 
@@ -353,7 +353,7 @@ auto WindowApp::operator()(std::span<const std::string_view> args) noexcept -> i
     },
     .MinAllocationSize = 1024 * 1024,
   };
-  // ImGui_ImplVulkan_LoadFunctions(VK_API_VERSION_1_1, stkg::imgui_vk_loader, std::bit_cast<void*>(&device));
+  ImGui_ImplVulkan_LoadFunctions(VK_API_VERSION_1_1, stkg::imgui_vk_loader, std::bit_cast<void*>(&device));
   ImGui_ImplVulkan_Init(&init_info);
 
   auto current_frame = 0uz;
