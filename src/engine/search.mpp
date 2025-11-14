@@ -8,7 +8,7 @@ import potentials;
 import engine.rewriterule;
 import engine.observes;
 
-using namespace stormkit;
+namespace stk = stormkit;
 
 export {
 
@@ -17,7 +17,7 @@ using Trajectory = std::vector<Grid<char>>;
 struct Search {
   static auto trajectory(Trajectory &traj, const Future &future,
                          const Grid<char> &grid, std::span<const RewriteRule> rules,
-                         bool all, u32 limit, double depthCoefficient) -> void;
+                         bool all, stk::u32 limit, double depthCoefficient) -> void;
 
   static auto forward_potentials(Potentials& potentials, const Grid<char>& grid,
                                  std::span<const RewriteRule> rules) noexcept -> void;

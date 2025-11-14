@@ -14,7 +14,9 @@ import controls;
 import ftxui;
 import tui.render;
 
-using namespace stormkit;
+namespace stdr = std::ranges;
+namespace stdv = std::views;
+
 using namespace ftxui;
 using namespace std::string_literals;
 using clk = std::chrono::high_resolution_clock;
@@ -29,15 +31,16 @@ auto ConsoleApp::operator()(std::span<const std::string_view> args) noexcept -> 
   auto palettefile = DEFAULT_PALETTE_FILE;
   auto default_palette = parser::Palette(parser::document(palettefile));
 
-  auto modelarg = std::ranges::find_if(args, [](const auto& arg) static noexcept {
-    return std::ranges::cbegin(std::ranges::search(arg, "models/"s)) == std::ranges::cbegin(arg);
+  auto modelarg = stdr::find_if(args, [](const auto& arg) static noexcept {
+    return stdr::cbegin(stdr::search(arg, "models/"s)) == stdr::cbegin(arg);
   });
   auto modelfile =
-    modelarg != std::ranges::end(args) ? std::string{*modelarg} : DEFAULT_MODEL_FILE;
+    modelarg != stdr::end(args) ? std::string{ *modelarg }
+                                : DEFAULT_MODEL_FILE;
 
   auto model = parser::Model(parser::document(modelfile));
   auto palette = model.symbols
-    | std::views::transform([&](auto character) noexcept {
+    | stdv::transform([&](auto character) noexcept {
         return std::make_pair(
           character,
           default_palette.contains(character)
@@ -47,17 +50,17 @@ auto ConsoleApp::operator()(std::span<const std::string_view> args) noexcept -> 
             : Color::Default
         );
     })
-    | std::ranges::to<render::Palette>();
+    | stdr::to<render::Palette>();
 
   auto extent = DEFAULT_GRID_EXTENT;
-  auto grid = TracedGrid{extent, model.symbols[0]};
+  auto grid = TracedGrid{ extent, model.symbols[0] };
   if (model.origin) grid[grid.area().center()] = model.symbols[1];
 
   auto controls = Controls {
     .tickrate = DEFAULT_TICKRATE,
     .onReset = [&grid, &model]{
       reset(model.program);
-      grid = TracedGrid{grid.extents, model.symbols[0]};
+      grid = { grid.extents, model.symbols[0] };
       if (model.origin) grid[grid.area().center()] = model.symbols[1];
     },
   };
@@ -70,8 +73,8 @@ auto ConsoleApp::operator()(std::span<const std::string_view> args) noexcept -> 
 
       if (stop.stop_requested()) break;
 
-      controls.sleep_missing(last_time);
-      controls.maybe_pause();
+      controls.rate_limit(last_time);
+      controls.wait_unpause();
 
       last_time = clk::now();
     }

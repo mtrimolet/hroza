@@ -9,13 +9,13 @@ import grid;
 import potentials;
 import engine.rewriterule;
 
-using namespace stormkit;
+namespace stk  = stormkit;
 
 export
 struct Match {
   std::span<const RewriteRule> rules;
-  glm::vec<3, u32> u;
-  ioffset          r;
+  glm::vec<3, stk::u32> u;
+  stk::ioffset          r;
 
   double w = 1.0;
 

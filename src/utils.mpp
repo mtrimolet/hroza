@@ -4,14 +4,16 @@ import std;
 import ranges;
 import stormkit.core;
 
-using namespace stormkit;
+namespace stk = stormkit;
+namespace stdr = std::ranges;
+namespace stdv = std::views;
 
 export {
 
 template <class R, class T>
 concept container_compatible_range = 
-  std::ranges::input_range<R>
-  and std::convertible_to<std::ranges::range_reference_t<R>, T>;
+  stdr::input_range<R>
+  and std::convertible_to<stdr::range_reference_t<R>, T>;
 
 template <class... T>
 struct Visitor : T... { using T::operator()...; };
@@ -28,37 +30,37 @@ std::function<ReturnType (Args...)> memoize(std::function<ReturnType (Args...)> 
   });
 }
 
-template <meta::IsArithmetic T>
-inline constexpr auto fromBase(std::string_view x, u8 base) noexcept -> T {
+template <stk::meta::IsArithmetic T>
+inline constexpr auto fromBase(std::string_view x, stk::u8 base) noexcept -> T {
   auto&& out = T{};
   auto&& result =
-      std::from_chars(std::ranges::cbegin(x), std::ranges::cend(x), out, base);
-  ensures(result.ec == std::errc{},
+      std::from_chars(stdr::cbegin(x), stdr::cend(x), out, base);
+  stk::ensures(result.ec == std::errc{},
           std::format("cannot parse integer base {} from '{}': {}", base, x,
                       std::make_error_code(result.ec).message()));
   return out;
 }
 
-template <std::ranges::sized_range A, std::ranges::sized_range B>
+template <stdr::sized_range A, stdr::sized_range B>
 inline constexpr auto cartesian_product(A&& a, B&& b) noexcept -> decltype(auto) {
   return std::forward<A>(a) 
-    | std::views::transform([&b] (auto&& i) noexcept {
+    | stdv::transform([&b] (auto&& i) noexcept {
         return std::forward<B>(b)
-          | std::views::transform([&i] (auto&& j) noexcept { return std::make_pair(i, j); })
-          | std::ranges::to<std::vector>();
+          | stdv::transform([&i] (auto&& j) noexcept { return std::tuple{ i, j }; })
+          | stdr::to<std::vector>();
     }) 
-  | std::views::join
-  | std::ranges::to<std::vector>();
+  | stdv::join
+  | stdr::to<std::vector>();
 }
 
-template <std::ranges::sized_range A>
-inline constexpr auto chunk(A&& a, usize extent) noexcept -> decltype(auto) {
-  return std::views::iota(0u, std::ranges::size(a))
-    | std::views::stride(extent)
-    | std::views::transform([&a, extent](auto i) noexcept {
-        return std::ranges::subrange(
-          std::ranges::begin(a) + i,
-          std::ranges::begin(a) + i + extent
+template <stdr::sized_range A>
+inline constexpr auto chunk(A&& a, stk::usize extent) noexcept -> decltype(auto) {
+  return stdv::iota(0u, stdr::size(a))
+    | stdv::stride(extent)
+    | stdv::transform([&a, extent](auto i) noexcept {
+        return stdr::subrange(
+          stdr::begin(a) + i,
+          stdr::begin(a) + i + extent
         );
     });
 }

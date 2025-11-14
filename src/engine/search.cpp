@@ -5,12 +5,16 @@ import geometry;
 
 import engine.match;
 
+namespace stk  = stormkit;
+namespace stdr = std::ranges;
+namespace stdv = std::views;
+
 template <>
 struct std::hash<Grid<char>::Extents> {
   inline constexpr auto operator()(Grid<char>::Extents t) const noexcept -> std::size_t {
     return std::hash<decltype(t.extent(0))>{}(t.extent(0))
-       and std::hash<decltype(t.extent(1))>{}(t.extent(1))
-       and std::hash<decltype(t.extent(2))>{}(t.extent(2));
+         ^ std::hash<decltype(t.extent(1))>{}(t.extent(1))
+         ^ std::hash<decltype(t.extent(2))>{}(t.extent(2));
   }
 };
 
@@ -37,7 +41,7 @@ auto Search::trajectory(
   const Future& future,
   const Grid<char>& grid,
   std::span<const RewriteRule> rules,
-  bool all, u32 limit, double depthCoefficient
+  bool all, stk::u32 limit, double depthCoefficient
 ) -> void {
   // traj = {};
   auto candidates = std::vector<Candidate>{};
@@ -62,21 +66,21 @@ auto Search::trajectory(
     return;
   }
 
-  auto visited = std::views::zip(
-    candidates | std::views::transform(&Candidate::state),
-    std::views::iota(std::size_t{ 0u })
+  auto visited = stdv::zip(
+    candidates | stdv::transform(&Candidate::state),
+    stdv::iota(std::size_t{ 0u })
   )
-    | std::ranges::to<std::unordered_map>();
+    | stdr::to<std::unordered_map>();
 
   for (
-    auto q = std::views::zip(
-      candidates | std::views::transform(std::bind_back(&Candidate::weight, depthCoefficient)),
-      std::views::iota(0u)
+    auto q = stdv::zip(
+      candidates | stdv::transform(std::bind_back(&Candidate::weight, depthCoefficient)),
+      stdv::iota(0u)
     )
-      | std::ranges::to<std::priority_queue>([](const auto& a, const auto& b){
+      | stdr::to<std::priority_queue>([](const auto& a, const auto& b){
           return std::get<0>(a) - std::get<0>(b);
       });
-    not std::ranges::empty(q) and (limit == 0 or std::ranges::size(candidates) < limit);
+    not stdr::empty(q) and (limit == 0 or stdr::size(candidates) < limit);
     q.pop()
   ) {
     auto [score, parentIndex]  = q.top();
@@ -108,7 +112,7 @@ auto Search::trajectory(
           continue;
         }
 
-        auto childIndex = std::ranges::size(candidates);
+        auto childIndex = stdr::size(candidates);
         visited.emplace(childState, childIndex);
         candidates.emplace_back(
           childState, parentIndex, parent.depth + 1,
@@ -132,26 +136,26 @@ auto Search::trajectory(
     }
   }
 
-  if (std::ranges::empty(candidates)
-   or std::ranges::prev(std::ranges::end(candidates))->forward != 0.0
+  if (stdr::empty(candidates)
+   or stdr::prev(stdr::cend(candidates))->forward != 0.0
   ) {
     // traj = {};
     return;
   }
 
   // TODO use child.depth to resize traj
-  for (auto candidate = std::ranges::prev(std::ranges::cend(candidates));
+  for (auto candidate = stdr::prev(stdr::cend(candidates));
        candidate->parentIndex >= 0;
-       candidate = std::ranges::next(std::ranges::cbegin(candidates), candidate->parentIndex)
+       candidate = stdr::next(stdr::cbegin(candidates), candidate->parentIndex)
   ) {
-    traj.emplace(std::ranges::begin(traj), candidate->state);
+    traj.emplace(stdr::begin(traj), candidate->state);
   }
 }
 
 auto Search::forward_potentials(Potentials& potentials, const Grid<char>& grid, std::span<const RewriteRule> rules) noexcept -> void {
   propagate(
-    std::views::zip(mdiota(grid.area()), grid)
-      | std::views::transform([&potentials](const auto& p) noexcept {
+    stdv::zip(mdiota(grid.area()), grid)
+      | stdv::transform([&potentials](const auto& p) noexcept {
           auto [u, c] = p;
           potentials.at(c)[u] = 0.0;
           return std::tuple{ u, c };
@@ -159,14 +163,14 @@ auto Search::forward_potentials(Potentials& potentials, const Grid<char>& grid, 
     [&potentials, &rules](auto&& front) noexcept {
       auto [u, c] = front;
       auto p = potentials.at(c)[u];
-      return std::views::iota(0u, std::ranges::size(rules))
-        | std::views::transform([&rules, u](auto r) noexcept {
+      return stdv::iota(0u, stdr::size(rules))
+        | stdv::transform([&rules, u](auto r) noexcept {
             return Match{ rules, u, r };
         })
-        | std::views::filter(std::bind_back(&Match::forward_match, potentials, p))
-        | std::views::transform(std::bind_back(&Match::forward_changes, potentials, p + 1))
-        | std::views::join
-        | std::views::transform([&potentials](auto&& ch) noexcept {
+        | stdv::filter(std::bind_back(&Match::forward_match, potentials, p))
+        | stdv::transform(std::bind_back(&Match::forward_changes, potentials, p + 1))
+        | stdv::join
+        | stdv::transform([&potentials](auto&& ch) noexcept {
             auto [c, p] = ch.value;
             potentials.at(c)[ch.u] = p;
             return std::tuple{ ch.u, c };
@@ -176,8 +180,8 @@ auto Search::forward_potentials(Potentials& potentials, const Grid<char>& grid, 
 }
 
 auto Search::backward_delta(const Potentials& potentials, const Grid<char>& grid) noexcept -> double {
-  auto vals = std::views::zip(mdiota(grid.area()), grid)
-    | std::views::transform([&potentials] (const auto& locus) noexcept {
+  auto vals = stdv::zip(mdiota(grid.area()), grid)
+    | stdv::transform([&potentials] (const auto& locus) noexcept {
         auto [u, value] = locus;
         return potentials.contains(value) ? potentials.at(value)[u]
           : 0.0;
@@ -185,33 +189,33 @@ auto Search::backward_delta(const Potentials& potentials, const Grid<char>& grid
   
   return std::reduce(
     // std::execution::par,
-    std::ranges::begin(vals),
-    std::ranges::end(vals)
+    stdr::begin(vals),
+    stdr::end(vals)
   );
 }
 
 auto Search::forward_delta(const Potentials& potentials, const Future& future) noexcept -> double {
-  auto vals = std::views::zip(mdiota(future.area()), future)
-    | std::views::transform([&potentials] (const auto& locus) noexcept {
+  auto vals = stdv::zip(mdiota(future.area()), future)
+    | stdv::transform([&potentials] (const auto& locus) noexcept {
         auto [u, value] = locus;
-        if (std::ranges::empty(value)) {
+        if (stdr::empty(value)) {
           return std::numeric_limits<double>::quiet_NaN();
         }
 
         auto candidates = potentials
-          | std::views::transform([u] (const auto& pot){
+          | stdv::transform([u] (const auto& pot){
               const auto& [c, potential] = pot;
               return potential[u];
           })
-          | std::views::filter(is_normal);
-        return std::ranges::empty(candidates) ? std::numeric_limits<double>::quiet_NaN()
-          : std::ranges::min(candidates);
+          | stdv::filter(is_normal);
+        return stdr::empty(candidates) ? std::numeric_limits<double>::quiet_NaN()
+          : stdr::min(candidates);
     });
   
   return std::reduce(
     // std::execution::par,
-    std::ranges::begin(vals),
-    std::ranges::end(vals)
+    stdr::begin(vals),
+    stdr::end(vals)
   );
 }
 
@@ -225,46 +229,46 @@ auto Candidate::children(std::span<const RewriteRule> rules, bool all) const -> 
   // simulate rulenode (one | all)
   auto result = std::vector<Grid<char>>{};
   // scan matches
-  auto matches = std::views::zip(rules, std::views::iota(0u))
-    | std::views::transform([&grid = state](const auto& v) noexcept {
+  auto matches = stdv::zip(rules, stdv::iota(0u))
+    | stdv::transform([&grid = state](const auto& v) noexcept {
         const auto& [rule, r] = v;
         const auto zone = grid.area();
         const auto valid_zone = zone - Area3U{ {}, rule.output.area().shiftmax() };
         return mdiota(grid.area())
-          // | std::views::transform([r_area = rule.output.area(), zone](auto u) noexcept {
+          // | stdv::transform([r_area = rule.output.area(), zone](auto u) noexcept {
           //     return glm::min(
           //       u - (u % r_area.size) + r_area.shiftmax(),
           //       zone.shiftmax()
           //     );
           // })
-          // | std::ranges::to<std::unordered_set>()
+          // | stdr::to<std::unordered_set>()
           // TODO group changes according to rule size
           // currently this is highly redundant on adjacent changes (which happens a lot..)
           // This is the old way, it is not a grouping but a filter so it only applies to full grid scan
-          // | std::views::filter([r_area = rule.output.area(), zone](auto u) noexcept {
+          // | stdv::filter([r_area = rule.output.area(), zone](auto u) noexcept {
           //     return glm::all(
           //          glm::equal(u, zone.shiftmax())
           //       or glm::equal(u % r_area.size, r_area.shiftmax())
           //     );
           // })
-          | std::views::transform([&grid, &rule](auto u) noexcept {
+          | stdv::transform([&grid, &rule](auto u) noexcept {
               return rule.get_ishifts(grid[u])
-                | std::views::transform([u](const auto &shift) noexcept {
+                | stdv::transform([u](const auto &shift) noexcept {
                       return u - shift;
                 });
           })
-          | std::views::join
-          | std::views::filter(std::bind_front(&Area3U::contains, valid_zone))
-          | std::ranges::to<std::unordered_set>()
-          | std::views::transform([r](auto u) noexcept {
+          | stdv::join
+          | stdv::filter(std::bind_front(&Area3U::contains, valid_zone))
+          | stdr::to<std::unordered_set>()
+          | stdv::transform([r](auto u) noexcept {
               return std::tuple{ u, r };
           });
     })
-    | std::views::join
-    | std::views::transform([&rules](auto&& ur) noexcept {
+    | stdv::join
+    | stdv::transform([&rules](auto&& ur) noexcept {
         return Match{ rules, std::get<0>(ur), std::get<1>(ur) };
     })
-    | std::views::filter(std::bind_back(&Match::match, state));
+    | stdv::filter(std::bind_back(&Match::match, state));
   if (all) {
     // all :
     //   non overlaping matches induce a common substate when applied simultaneously
@@ -272,10 +276,10 @@ auto Candidate::children(std::span<const RewriteRule> rules, bool all) const -> 
     //     cartesian product of the overlaping rules grouped by joined overlapping area
     // mock:
     auto common_substate = state;
-    std::ranges::for_each(
+    stdr::for_each(
       matches
-        | std::views::transform(std::bind_back(&Match::changes, common_substate))
-        | std::views::join,
+        | stdv::transform(std::bind_back(&Match::changes, common_substate))
+        | stdv::join,
       [&common_substate](auto&& c) {
         common_substate[c.u] = c.value;
     });
@@ -298,9 +302,9 @@ auto Candidate::children(std::span<const RewriteRule> rules, bool all) const -> 
     //   each match gives an induced state when applied individually
     result.append_range(
       matches
-        | std::views::transform([&state = state](auto&& m) {
+        | stdv::transform([&state = state](auto&& m) {
           auto newstate = state;
-          std::ranges::for_each(
+          stdr::for_each(
             m.changes(newstate),
             [&newstate](auto&& c) {
               newstate[c.u] = c.value;

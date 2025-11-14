@@ -30,7 +30,7 @@ add_requires("stormkit 20251105", {
     configs = {
         entities = false,
         gpu = true,
-        debug = is_mode("debug"),
+        -- debug = is_mode("debug"),
     },
 })
 

@@ -8,20 +8,20 @@ export
 struct Controls {
   using clock = std::chrono::high_resolution_clock;
 
-  bool tickrate_enabled = true;
-  int  tickrate         = DEFAULT_TICKRATE;
+  bool   ratelimit_enabled = true;
+  double tickrate          = DEFAULT_TICKRATE;
 
-  bool model_paused     = false;
-  std::condition_variable pause_cv = {};
-  std::mutex pause_m = {};
+  bool                    model_paused = false;
+  std::condition_variable pause_cv     = {};
+  std::mutex              pause_m      = {};
 
   std::function<void()> onReset = nullptr;
   
-  void play_pause();
+  void toggle_pause();
   void reset();
-  void maybe_pause();
+  void wait_unpause();
 
-  void sleep_missing(clock::time_point last_time);
+  void rate_limit(clock::time_point last_time);
 };
 
 

@@ -6,11 +6,13 @@ import stormkit.core;
 import utils;
 import geometry;
 
-using namespace stormkit;
+namespace stk  = stormkit;
+namespace stdr = std::ranges;
+namespace stdv = std::views;
 
 export {
 
-inline constexpr auto fromExtents(std::dims<3> extents) noexcept -> glm::vec<3, u32> {
+inline constexpr auto fromExtents(std::dims<3> extents) noexcept -> glm::vec<3, stk::u32> {
   return {
     extents.extent(2),
     extents.extent(1),
@@ -18,7 +20,7 @@ inline constexpr auto fromExtents(std::dims<3> extents) noexcept -> glm::vec<3, 
   };
 }
 
-inline constexpr auto toExtents(glm::vec<3, u32> size) noexcept -> std::dims<3> {
+inline constexpr auto toExtents(glm::vec<3, stk::u32> size) noexcept -> std::dims<3> {
   return std::dims<3>{
     size.z,
     size.y,
@@ -27,35 +29,35 @@ inline constexpr auto toExtents(glm::vec<3, u32> size) noexcept -> std::dims<3> 
 }
 
 inline constexpr auto strides(std::dims<3> extents) noexcept -> decltype(auto) {
-  return std::make_tuple(extents.extent(2) * extents.extent(1), extents.extent(2), 1u);
+  return std::tuple{ extents.extent(2) * extents.extent(1), extents.extent(2), 1u };
 }
 
-inline constexpr auto toIndex(glm::vec<3, u32> u, std::dims<3> extents) noexcept -> u32 {
+inline constexpr auto toIndex(glm::vec<3, stk::u32> u, std::dims<3> extents) noexcept -> stk::u32 {
   auto&& [z, y, x] = strides(extents);
-  return geometry::dot(u, {x, y, z});
+  return geometry::dot(u, { x, y, z });
 }
 
-inline constexpr auto fromIndex(u32 i, std::dims<3> extents) noexcept -> glm::vec<3, u32> {
+inline constexpr auto fromIndex(stk::u32 i, std::dims<3> extents) noexcept -> glm::vec<3, stk::u32> {
   auto&& [z, y, x] = strides(extents);
-  return glm::vec<3, u32>{i / x, i / y, i / z} % fromExtents(extents);
+  return glm::vec<3, stk::u32>{i / x, i / y, i / z} % fromExtents(extents);
 }
 
-inline constexpr auto next(glm::vec<3, u32> u, std::dims<3> extents) noexcept -> glm::vec<3, u32> {
+inline constexpr auto next(glm::vec<3, stk::u32> u, std::dims<3> extents) noexcept -> glm::vec<3, stk::u32> {
   return fromIndex(toIndex(u, extents) + 1, extents);
 }
 
-inline constexpr auto prev(glm::vec<3, u32> u, const std::dims<3>& extents) noexcept -> glm::vec<3, u32> {
+inline constexpr auto prev(glm::vec<3, stk::u32> u, const std::dims<3>& extents) noexcept -> glm::vec<3, stk::u32> {
   return fromIndex(toIndex(u, extents) - 1, extents);
 }
 
-template <meta::IsArithmetic T>
+template <stk::meta::IsArithmetic T>
 inline constexpr auto mdiota(HyperRectangle<3, T> zone) noexcept -> decltype(auto) {
-  return std::views::iota(static_cast<T>(0), static_cast<T>(zone.size.z * zone.size.y * zone.size.x))
-    | std::views::transform(std::bind_back(fromIndex, toExtents(zone.size)))
-    | std::views::transform(std::bind_back(std::plus<glm::vec<3, T>>{}, zone.u));
+  return stdv::iota(static_cast<T>(0), static_cast<T>(zone.size.z * zone.size.y * zone.size.x))
+    | stdv::transform(std::bind_back(fromIndex, toExtents(zone.size)))
+    | stdv::transform(std::bind_back(std::plus<glm::vec<3, T>>{}, zone.u));
 }
 
-template <meta::IsArithmetic T>
+template <stk::meta::IsArithmetic T>
 inline constexpr auto mdiota(glm::vec<3, T> origin, glm::vec<3, T> outerbound) noexcept -> decltype(auto) {
   return mdiota<T>({origin, outerbound - origin});
 }
@@ -77,7 +79,7 @@ struct Grid {
   {}
 
   inline constexpr Grid(Extents _extents, T v) noexcept
-  : Grid{std::from_range, std::views::repeat(v, _extents.extent(0) * _extents.extent(1) * _extents.extent(2)), _extents}
+  : Grid{std::from_range, stdv::repeat(v, _extents.extent(0) * _extents.extent(1) * _extents.extent(2)), _extents}
   {}
 
   inline constexpr Grid() noexcept
@@ -87,118 +89,118 @@ struct Grid {
   inline constexpr auto operator==(const Grid<T>& other) const noexcept -> bool = default;
 
   inline constexpr auto data() const noexcept -> decltype(auto) {
-    return std::ranges::data(values);
+    return stdr::data(values);
   }
   inline constexpr auto cdata() const noexcept -> decltype(auto) {
-    return std::ranges::cdata(values);
+    return stdr::cdata(values);
   }
 
   using View = std::mdspan<T, Extents>;
   inline constexpr operator View() const noexcept {
-    return {data(), extents};
+    return { data(), extents };
   }
   using ConstView = std::mdspan<const T, Extents>;
   inline constexpr operator ConstView() const noexcept {
-    return {cdata(), extents};
+    return { cdata(), extents };
   }
 
-  inline constexpr T& operator[](glm::vec<3, u32> u) noexcept {
+  inline constexpr T& operator[](glm::vec<3, stk::u32> u) noexcept {
     return values[toIndex(u, extents)];
   }
 
-  inline constexpr const T& operator[](glm::vec<3, u32> u) const noexcept {
+  inline constexpr const T& operator[](glm::vec<3, stk::u32> u) const noexcept {
     return values[toIndex(u, extents)];
   }
 
-  inline constexpr T& at(glm::vec<3, u32> u) {
+  inline constexpr T& at(glm::vec<3, stk::u32> u) {
     return values.at(toIndex(u, extents));
   }
 
-  inline constexpr const T& at(glm::vec<3, u32> u) const {
+  inline constexpr const T& at(glm::vec<3, stk::u32> u) const {
     return values.at(toIndex(u, extents));
   }
 
   inline constexpr auto begin() const noexcept -> decltype(auto) {
-    return std::ranges::begin(values);
+    return stdr::begin(values);
   }
   inline constexpr auto cbegin() const noexcept -> decltype(auto) {
-    return std::ranges::cbegin(values);
+    return stdr::cbegin(values);
   }
 
   inline constexpr auto end() const noexcept -> decltype(auto) {
-    return std::ranges::end(values);
+    return stdr::end(values);
   }
   inline constexpr auto cend() const noexcept -> decltype(auto) {
-    return std::ranges::cend(values);
+    return stdr::cend(values);
   }
 
   inline constexpr auto empty() const noexcept -> decltype(auto) {
-    return std::ranges::empty(values);
+    return stdr::empty(values);
   }
 
   static inline constexpr auto parse(std::string_view str, std::function<T(char)> project = std::identity{}) noexcept -> decltype(auto) {
     static constexpr char ZSEP = ' ', YSEP = '/';
 
     auto&& values = str
-      | std::views::split(ZSEP)
-      | std::views::transform([&project](auto&& square){ 
+      | stdv::split(ZSEP)
+      | stdv::transform([&project](auto&& square){ 
           return square
-            | std::views::split(YSEP)
-            | std::views::transform([&project](auto&& line){
+            | stdv::split(YSEP)
+            | stdv::transform([&project](auto&& line){
                 return line
-                  | std::views::transform(project)
-                  | std::ranges::to<std::vector>();
+                  | stdv::transform(project)
+                  | stdr::to<std::vector>();
               })
-            | std::ranges::to<std::vector>(); 
+            | stdr::to<std::vector>(); 
         })
-      | std::ranges::to<std::vector>();
+      | stdr::to<std::vector>();
 
     auto&& extents = std::dims<3>{
-      std::ranges::size(values),
-      std::ranges::empty(values) ? 0u
-        : std::ranges::size(values[0]),
-      std::ranges::empty(values) or std::ranges::empty(values[0]) ? 0u
-        : std::ranges::size(values[0][0]),
+      stdr::size(values),
+      stdr::empty(values) ? 0u
+        : stdr::size(values[0]),
+      stdr::empty(values) or stdr::empty(values[0]) ? 0u
+        : stdr::size(values[0][0]),
     };
 
     return std::move(values)
-      | std::views::join
-      | std::views::join
-      | std::ranges::to<Grid<T>>(std::move(extents));
+      | stdv::join
+      | stdv::join
+      | stdr::to<Grid<T>>(std::move(extents));
   }
 
   inline constexpr auto area() const noexcept -> Area3U {
-    return {{}, fromExtents(extents)};
+    return { {}, fromExtents(extents) };
   }
 
   inline constexpr auto xreflected() const noexcept -> Grid<T> {
     auto area = ::xreflected(this->area());
     return mdiota(area)
-      | std::views::transform([this, size = area.size](auto&& u) noexcept {
+      | stdv::transform([this, size = area.size](auto&& u) noexcept {
           return this->at({ size.x - u.x - 1u, u.y, u.z });
       })
-      // | std::views::transform(std::bind_front(&Grid<T>::at, this))
-      | std::ranges::to<Grid<T>>(toExtents(area.size));
+      // | stdv::transform(std::bind_front(&Grid<T>::at, this))
+      | stdr::to<Grid<T>>(toExtents(area.size));
   }
 
   inline constexpr auto xyrotated() const noexcept -> Grid<T> {
     auto area = ::xyrotated(this->area());
     return mdiota(area)
-      | std::views::transform([this, size = area.size](auto&& u) noexcept {
+      | stdv::transform([this, size = area.size](auto&& u) noexcept {
           return this->at({ u.y, size.x - u.x - 1u, u.z });
       })
-      // | std::views::transform(std::bind_front(&Grid<T>::at, this))
-      | std::ranges::to<Grid<T>>(toExtents(area.size));
+      // | stdv::transform(std::bind_front(&Grid<T>::at, this))
+      | stdr::to<Grid<T>>(toExtents(area.size));
   }
 
   inline constexpr auto zyrotated() const noexcept -> Grid<T> {
     auto area = ::zyrotated(this->area());
     return mdiota(area)
-      | std::views::transform([this, size = area.size](auto&& u) noexcept {
+      | stdv::transform([this, size = area.size](auto&& u) noexcept {
           return this->at({ u.x, size.z - u.z - 1u, u.y });
       })
-      // | std::views::transform(std::bind_front(&Grid<T>::at, this))
-      | std::ranges::to<Grid<T>>(toExtents(area.size));
+      // | stdv::transform(std::bind_front(&Grid<T>::at, this))
+      | stdr::to<Grid<T>>(toExtents(area.size));
   }
 };
 
@@ -231,13 +233,13 @@ struct std::formatter<Grid<T>> {
       // else
           out << std::format("{}", g.values);
 
-      return std::ranges::copy(std::move(out).str(), ctx.out()).out;
+      return stdr::copy(std::move(out).str(), ctx.out()).out;
   }
 };
 
 template <class T>
 struct Change {
-  glm::vec<3, u32> u;
+  glm::vec<3, stk::u32> u;
   T value;
 };
 
@@ -270,7 +272,7 @@ struct std::formatter<Change<T>> {
       // else
           out << std::format("change[u = {}, value = {}] ", c.u, c.value);
 
-      return std::ranges::copy(std::move(out).str(), ctx.out()).out;
+      return stdr::copy(std::move(out).str(), ctx.out()).out;
   }
 };
 

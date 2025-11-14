@@ -2,21 +2,16 @@ module engine.runner;
 
 import log;
 
-using namespace stormkit;
+namespace stdr = std::ranges;
 
 auto RuleRunner::operator()(TracedGrid<char>& grid) noexcept -> std::generator<bool> {
   if (steps > 0 and step >= steps) co_return;
 
   auto changes = std::vector<Change<char>>{};
   rulenode(grid, changes);
-  if (std::ranges::empty(changes)) co_return;
+  if (stdr::empty(changes)) co_return;
 
-  std::for_each(
-    // std::execution::par,
-    std::ranges::begin(changes),
-    std::ranges::end(changes),
-    std::bind_front(&TracedGrid<char>::apply, &grid)
-  );
+  stdr::for_each(changes, std::bind_front(&TracedGrid<char>::apply, &grid));
   step++;
   co_yield true;
 }
@@ -28,7 +23,7 @@ auto reset(NodeRunner& n) noexcept -> void {
   }
 
   if (auto p = n.target<TreeRunner>(); p != nullptr) {
-    std::ranges::for_each(p->nodes, reset);
+    stdr::for_each(p->nodes, reset);
   }
 }
 
@@ -38,7 +33,7 @@ auto current(const NodeRunner& n) noexcept -> const RuleRunner::RuleNode* {
   }
 
   if (auto p = n.target<TreeRunner>(); p != nullptr) {
-    if (p->current_node == std::ranges::end(p->nodes))
+    if (p->current_node == stdr::end(p->nodes))
       return nullptr;
     return current(*p->current_node);
   }
@@ -47,8 +42,8 @@ auto current(const NodeRunner& n) noexcept -> const RuleRunner::RuleNode* {
 }
 
 auto TreeRunner::operator()(TracedGrid<char>& grid) noexcept -> std::generator<bool> {
-  for (current_node  = std::ranges::begin(nodes);
-       current_node != std::ranges::end(nodes);
+  for (current_node  = stdr::begin(nodes);
+       current_node != stdr::end(nodes);
   ) {
     auto found = false;
     for (auto s : (*current_node)(grid)) {
@@ -58,8 +53,8 @@ auto TreeRunner::operator()(TracedGrid<char>& grid) noexcept -> std::generator<b
 
     if (not found) current_node++;
 
-    else if (mode == Mode::MARKOV) current_node = std::ranges::begin(nodes);
+    else if (mode == Mode::MARKOV) current_node = stdr::begin(nodes);
   }
 
-  std::ranges::for_each(nodes, reset);
+  stdr::for_each(nodes, reset);
 }

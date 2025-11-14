@@ -4,7 +4,10 @@ import frozen;
 import log;
 import utils;
 
-using namespace stormkit;
+namespace stk  = stormkit;
+namespace stkm = stk::monadic;
+namespace stdr = std::ranges;
+namespace stdv = std::views;
 
 auto RewriteRule::parse(
   const Unions& unions,
@@ -29,51 +32,43 @@ RewriteRule::RewriteRule(Grid<Input>&& _input, Grid<Output>&& _output, double p,
   draw{p},
   original{_original},
   ishifts{
-    std::views::zip(
-      input,
-      mdiota(input.area())
-        // | std::views::transform([m = input.area().shiftmax()](auto u) noexcept {
-        //     return m - u;
-        // })
-    )
-    | std::views::transform([](auto&& p) noexcept {
-        auto [i, u] = p;
-        // TODO this must change when fixing size of state representation
-        return i.value_or(std::set{ IGNORED_SYMBOL }) 
-          | std::views::transform([u](auto c) noexcept {
-              return std::tuple{ c, u };
-          });
-    })
-    | std::views::join
-    | std::ranges::to<Shifts>()
+    std::from_range,
+    stdv::zip(input, mdiota(input.area()))
+      | stdv::transform([](auto&& p) noexcept {
+          auto [i, u] = p;
+          // TODO this must change when fixing size of state representation
+          return i.value_or(std::set{ IGNORED_SYMBOL }) 
+            | stdv::transform([u](auto c) noexcept {
+                return std::tuple{ c, u };
+            });
+      })
+      | stdv::join
   },
   oshifts{
-    std::views::zip(
-      output,
-      mdiota(output.area())
-    )
-    | std::views::transform([](auto&& p) noexcept {
-        auto [o, u] = p;
-        return std::tuple{ o.value_or(IGNORED_SYMBOL), u };
-    })
-    | std::ranges::to<Shifts>()
+    std::from_range,
+    stdv::zip(output, mdiota(output.area()))
+      | stdv::transform([](auto&& p) noexcept {
+          auto [o, u] = p;
+          return std::tuple{ o.value_or(IGNORED_SYMBOL), u };
+      })
   }
 {}
 
-auto RewriteRule::get_ishifts(char c) const noexcept -> std::vector<glm::vec<3, u32>>{
+auto RewriteRule::get_ishifts(char c) const noexcept -> std::vector<glm::vec<3, stk::u32>>{
+  auto shifts = std::vector<glm::vec<3, stk::u32>>{};
+
   auto ignored_bucket = ishifts.bucket(IGNORED_SYMBOL);
-  auto shifts = std::ranges::subrange(
-    ishifts.cbegin(ignored_bucket),
-    ishifts.cend(ignored_bucket)
-  )
-    | std::views::transform(monadic::get<1>())
-    | std::ranges::to<std::vector>();
-  auto bucket = ishifts.bucket(c);
-  shifts.append_range(std::ranges::subrange(
-    ishifts.cbegin(bucket),
-    ishifts.cend(bucket)
-  )
-    | std::views::transform(monadic::get<1>()));
+  auto bucket         = ishifts.bucket(c);
+
+  shifts.append_range(
+    stdr::subrange(ishifts.cbegin(ignored_bucket), ishifts.cend(ignored_bucket))
+      | stdv::transform(stkm::get<1>())
+  );
+  shifts.append_range(
+    stdr::subrange(ishifts.cbegin(bucket), ishifts.cend(bucket))
+      | stdv::transform(stkm::get<1>())
+  );
+
   return shifts;
 }
 
@@ -85,12 +80,12 @@ auto RewriteRule::operator==(const RewriteRule& other) const noexcept -> bool {
 
 auto RewriteRule::backward_neighborhood() const noexcept -> Area3I {
   const auto a = output.area();
-  const auto shift = glm::vec<3, i32>{1, 1, 1} - static_cast<glm::vec<3, i32>>(a.size);
+  const auto shift = glm::vec<3, stk::i32>{1, 1, 1} - static_cast<glm::vec<3, stk::i32>>(a.size);
   return a + shift;
 }
 
 auto RewriteRule::xreflected() const noexcept -> RewriteRule {
-  return RewriteRule{
+  return {
     input.xreflected(),
     output.xreflected(),
     draw.p(),
@@ -139,14 +134,17 @@ constexpr auto square_subgroups =
   });
 
 auto RewriteRule::symmetries(std::string_view subgroup) const noexcept -> std::vector<RewriteRule> {
-  return std::ranges::fold_left(
-    std::views::zip(square_groups<RewriteRule>, square_subgroups.at(std::empty(subgroup) ? "(xy)" : subgroup))
-      | std::views::filter(monadic::get<1>())
-      | std::views::transform(monadic::get<0>())
-      | std::views::transform([this](const auto& s) noexcept { return s(*this); }),
+  return stdr::fold_left(
+    stdv::zip(
+      square_groups<RewriteRule>,
+      square_subgroups.at(std::empty(subgroup) ? "(xy)" : subgroup)
+    )
+      | stdv::filter(stkm::get<1>())
+      | stdv::transform(stkm::get<0>())
+      | stdv::transform([this](const auto& s) noexcept { return s(*this); }),
     std::vector<RewriteRule>{},
     [](auto&& acc, auto&& r) static noexcept {
-      if (not std::ranges::contains(acc, r))
+      if (not stdr::contains(acc, r))
         acc.push_back(std::move(r));
       return acc;
     }

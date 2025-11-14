@@ -15,7 +15,7 @@ import engine.fields;
 import engine.observes;
 import engine.search;
 
-using namespace stormkit;
+namespace stk = stormkit;
 
 // TODO: CRTP / deducing-this ?
 
@@ -32,7 +32,7 @@ struct RuleNode {
 
   double temperature = 0.0;
 
-  cpp::UInt   limit = 0;
+  stk::cpp::UInt   limit = 0;
   double depthCoefficient = 0.5;
 
   Fields   fields = {};
@@ -45,7 +45,7 @@ struct RuleNode {
   RuleNode(Mode _mode, std::vector<RewriteRule>&& _rules, RewriteRule::Unions&& _unions) noexcept;
   RuleNode(Mode _mode, std::vector<RewriteRule>&& _rules, RewriteRule::Unions&& _unions, Fields&& _fields, double _temperature = 0.0) noexcept;
   RuleNode(Mode _mode, std::vector<RewriteRule>&& _rules, RewriteRule::Unions&& _unions, Observes&& _observes, double _temperature = 0.0) noexcept;
-  RuleNode(Mode _mode, std::vector<RewriteRule>&& _rules, RewriteRule::Unions&& _unions, Observes&& _observes, cpp::UInt _limit = 0, double _depthCoefficient = 0.5) noexcept;
+  RuleNode(Mode _mode, std::vector<RewriteRule>&& _rules, RewriteRule::Unions&& _unions, Observes&& _observes, stk::cpp::UInt _limit = 0, double _depthCoefficient = 0.5) noexcept;
 
   auto operator()(const TracedGrid<char>& grid, std::vector<Change<char>>& changes) noexcept -> void;
 
@@ -55,7 +55,7 @@ private:
   MatchIterator active = std::ranges::begin(matches);
   auto pick(MatchIterator begin, MatchIterator end) noexcept -> MatchIterator;
 
-  std::optional<ioffset> prev = {};
+  std::optional<stk::ioffset> prev = {};
   auto scan(const TracedGrid<char>& grid) noexcept -> void;
   auto select(const Grid<char>& grid) noexcept -> void;
   auto apply(const TracedGrid<char>& grid, std::vector<Change<char>>& changes) -> void;

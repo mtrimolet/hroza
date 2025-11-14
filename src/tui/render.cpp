@@ -3,6 +3,10 @@ module tui.render;
 import glm;
 import log;
 
+namespace stk  = stormkit;
+namespace stdr = std::ranges;
+namespace stdv = std::views;
+
 using namespace ftxui;
 
 namespace render {
@@ -27,22 +31,27 @@ Element grid(const ::TracedGrid<char>& g, const Palette& palette) noexcept {
     static_cast<int>(g.extents.extent(2)) * 2,
     static_cast<int>(g.extents.extent(1))
   };
-  std::ranges::for_each(std::views::zip(mdiota(g.area()), g), [&](auto u_char) noexcept {
-    auto [u, character] = u_char;
-    auto& pixel0 = texture.PixelAt(u.x * 2, u.y);
-    pixel0.character = /* character; */ " ";
-    pixel0.background_color = palette.contains(character) ? palette.at(character) : Color::Default;
-    auto& pixel1 = texture.PixelAt(u.x * 2 + 1, u.y);
-    pixel1.character = /* character; */ " ";
-    pixel1.background_color = palette.contains(character) ? palette.at(character) : Color::Default;
-  });
+  stdr::for_each(
+    stdv::zip(mdiota(g.area()), g),
+    [&](auto u_char) noexcept {
+      auto [u, character] = u_char;
+      auto& pixel0 = texture.PixelAt(u.x * 2, u.y);
+      pixel0.character = /* character; */ " ";
+      pixel0.background_color = palette.contains(character) ? palette.at(character)
+                                                            : Color::Default;
+      auto& pixel1 = texture.PixelAt(u.x * 2 + 1, u.y);
+      pixel1.character = /* character; */ " ";
+      pixel1.background_color = palette.contains(character) ? palette.at(character)
+                                                            : Color::Default;
+    }
+  );
   auto w = texture.dimx(), h = texture.dimy();
   return canvasFromImage(std::move(texture))
     | size(WIDTH, EQUAL, w)
     | size(HEIGHT, EQUAL, h);
 }
 
-Element rule(const ::RewriteRule& rule, const Palette& palette, cpp::UInt count = 1) noexcept {
+Element rule(const ::RewriteRule& rule, const Palette& palette, stk::cpp::UInt count = 1) noexcept {
   auto input = Image{
     static_cast<int>(rule.input.extents.extent(2)) * 2,
     static_cast<int>(rule.input.extents.extent(1))
@@ -52,24 +61,36 @@ Element rule(const ::RewriteRule& rule, const Palette& palette, cpp::UInt count 
     static_cast<int>(rule.output.extents.extent(1))
   };
 
-  std::ranges::for_each(
-    std::views::zip(mdiota(rule.input.area()), rule.input, rule.output),
+  stdr::for_each(
+    stdv::zip(mdiota(rule.input.area()), rule.input, rule.output),
     [&input, &output, &palette](auto uio) noexcept {
       auto [u, i, o] = uio;
       // TODO this is using only one of the values
       auto& ip0 = input.PixelAt(u.x * 2, u.y);
-      ip0.character = not i ? RewriteRule::IGNORED_SYMBOL : palette.contains(*i->begin()) ? ' ' : '?';
-      ip0.background_color = i and palette.contains(*i->begin()) ? palette.at(*i->begin()) : Color::Default;
+      ip0.character = not i                         ? RewriteRule::IGNORED_SYMBOL
+                    : palette.contains(*i->begin()) ? ' '
+                                                    : '?';
+      ip0.background_color = i and palette.contains(*i->begin()) ? palette.at(*i->begin())
+                                                                 : Color::Default;
       auto& ip1 = input.PixelAt(u.x * 2 + 1, u.y);
-      ip1.character = not i ? RewriteRule::IGNORED_SYMBOL : palette.contains(*i->begin()) ? ' ' : '?';
-      ip1.background_color = i and palette.contains(*i->begin()) ? palette.at(*i->begin()) : Color::Default;
+      ip1.character = not i                         ? RewriteRule::IGNORED_SYMBOL
+                    : palette.contains(*i->begin()) ? ' '
+                                                    : '?';
+      ip1.background_color = i and palette.contains(*i->begin()) ? palette.at(*i->begin())
+                                                                 : Color::Default;
 
       auto& op0 = output.PixelAt(u.x * 2, u.y);
-      op0.character = not o ? RewriteRule::IGNORED_SYMBOL : palette.contains(*o) ? ' ' : *o;
-      op0.background_color = o and palette.contains(*o) ? palette.at(*o) : Color::Default;
+      op0.character = not o                ? RewriteRule::IGNORED_SYMBOL
+                    : palette.contains(*o) ? ' '
+                                           : *o;
+      op0.background_color = o and palette.contains(*o) ? palette.at(*o)
+                                                        : Color::Default;
       auto& op1 = output.PixelAt(u.x * 2 + 1, u.y);
-      op1.character = not o ? RewriteRule::IGNORED_SYMBOL : palette.contains(*o) ? ' ' : *o;
-      op1.background_color = o and palette.contains(*o) ? palette.at(*o) : Color::Default;
+      op1.character = not o                ? RewriteRule::IGNORED_SYMBOL
+                    : palette.contains(*o) ? ' '
+                                           : *o;
+      op1.background_color = o and palette.contains(*o) ? palette.at(*o)
+                                                        : Color::Default;
     }
   );
 
@@ -93,44 +114,44 @@ Element potential_grid(const ::Potential& g) noexcept {
     static_cast<int>(g.extents.extent(2)) * 2,
     static_cast<int>(g.extents.extent(1))
   };
-  auto [min_g, max_g] = std::ranges::fold_left(
-    g, std::make_pair(0.0, 0.0),
+  auto [min_g, max_g] = stdr::fold_left(
+    g, std::tuple{ 0.0, 0.0 },
     [](auto&& a, auto p) static noexcept {
-      return std::make_pair(
+      return std::tuple{
         std::min(std::get<0>(a), p),
         std::max(std::get<1>(a), p)
-      );
+      };
     }
   );
 
   auto normalize = [&min_g, &max_g](double t) noexcept {
-    t /= t > 0.0 ? max_g : t < 0.0 ? min_g : 1.0;   // go to [-1, 1]
-    t += 1.0;                                       // go to [ 0, 2]
-    t /= 2.0;                                       // go to [ 0, 1]
+    t /= t > 0.0 ? max_g
+       : t < 0.0 ? min_g
+                 : 1.0;   // go to [-1, 1]
+    t += 1.0;             // go to [ 0, 2]
+    t /= 2.0;             // go to [ 0, 1]
     return t;
   };
-  std::ranges::for_each(std::views::zip(mdiota(g.area()), g), [&](auto u_val) noexcept {
-    auto [u, value] = u_val;
-    auto normal = value == 0.0 or std::isnormal(value);
-    auto& pixel0 = texture.PixelAt(u.x * 2, u.y);
-    pixel0.character =
-        value == 0.0             ? "•"
-      : not std::isnormal(value) ? "*"
-                                 : " ";
-    pixel0.background_color = Color::Interpolate(
-      not normal ? 0.5 : normalize(value),
-      Color::Blue, Color::Red
-    );
-    auto& pixel1 = texture.PixelAt(u.x * 2 + 1, u.y);
-    pixel1.character =
-        value == 0.0             ? "•"
-      : not std::isnormal(value) ? "*"
-                                 : " ";
-    pixel1.background_color = Color::Interpolate(
-      not normal ? 0.5 : normalize(value),
-      Color::Blue, Color::Red
-    );
-  });
+
+  stdr::for_each(
+    stdv::zip(mdiota(g.area()), g),
+    [&](auto u_val) noexcept {
+      auto [u, value] = u_val;
+      auto normalized = is_normal(value) ? normalize(value) : 0.5;
+
+      auto& pixel0 = texture.PixelAt(u.x * 2, u.y);
+      pixel0.character = value == 0.0             ? "•"
+                       : not std::isnormal(value) ? "*"
+                                                  : " ";
+      pixel0.background_color = Color::Interpolate(normalized, Color::Blue, Color::Red);
+
+      auto& pixel1 = texture.PixelAt(u.x * 2 + 1, u.y);
+      pixel1.character = value == 0.0             ? "•"
+                       : not std::isnormal(value) ? "*"
+                                                  : " ";
+      pixel1.background_color = Color::Interpolate(normalized, Color::Blue, Color::Red);
+    }
+  );
   auto w = texture.dimx(), h = texture.dimy();
   return canvasFromImage(std::move(texture))
     | size(WIDTH, EQUAL, w)
@@ -140,7 +161,7 @@ Element potential_grid(const ::Potential& g) noexcept {
 Element potential(char c, const Potential& pot, const Palette& palette) noexcept {
   auto col = palette.contains(c) ? palette.at(c) : Color::Default;
   return window(
-    text(std::string{c}) | ftxui::color(col) | inverted,
+    text(std::string{ c }) | ftxui::color(col) | inverted,
     potential_grid(pot)
   );
 }
@@ -149,24 +170,23 @@ Element ruleRunner(const RuleRunner& node, const Palette& palette) noexcept {
   auto rulenode = node.rulenode.target<RuleNode>();
   if (rulenode == nullptr) return text("<unknown_rule_node>");
   
-  auto tag =
-      rulenode->mode == RuleNode::Mode::ONE ? "one"
-    : rulenode->mode == RuleNode::Mode::ALL ? "all"
-    :                                         "prl";
+  auto tag = rulenode->mode == RuleNode::Mode::ONE ? "one"
+           : rulenode->mode == RuleNode::Mode::ALL ? "all"
+                                                   : "prl";
 
-  auto steps = node.steps != 0 ? std::format("{}", node.steps) : std::string{"∞"};
+  auto steps = node.steps != 0 ? std::format("{}", node.steps)
+                               : std::string{ "∞" };
 
   auto elements = Elements{};
   for(
-    auto irule = std::ranges::cbegin(rulenode->rules);
-    irule != std::ranges::cend(rulenode->rules);
+    auto irule = stdr::cbegin(rulenode->rules);
+    irule != stdr::cend(rulenode->rules);
   ) {
-    auto next_rule = std::ranges::find_if(
-      std::ranges::subrange(irule, std::ranges::cend(rulenode->rules))
-        | std::views::drop(1),
+    auto next_rule = stdr::find_if(
+      stdr::subrange(irule, stdr::cend(rulenode->rules)) | stdv::drop(1),
       &RewriteRule::original
     );
-    elements.push_back(rule(*irule, palette, std::ranges::distance(irule, next_rule)));
+    elements.push_back(rule(*irule, palette, stdr::distance(irule, next_rule)));
     irule = next_rule;
   }
 
@@ -177,16 +197,15 @@ Element ruleRunner(const RuleRunner& node, const Palette& palette) noexcept {
 }
 
 Element treeRunner(const TreeRunner& node, const Palette& palette, bool selected) noexcept {
-  auto tag =
-      node.mode == TreeRunner::Mode::SEQUENCE ? "sequence"
-    :                                           "markov";
+  auto tag = node.mode == TreeRunner::Mode::SEQUENCE ? "sequence"
+                                                     : "markov";
 
-  auto elements = std::views::zip(node.nodes, std::views::iota(ioffset{ 0 }))
-    | std::views::transform([&palette, &selected, current_index = node.current_index()](const auto& ni) noexcept {
+  auto elements = stdv::zip(node.nodes, stdv::iota(stk::ioffset{ 0 }))
+    | stdv::transform([&palette, &selected, current_index = node.current_index()](const auto& ni) noexcept {
         const auto& [n, i] = ni;
         return nodeRunner(n, palette, selected and current_index == i);
       })
-    | std::ranges::to<Elements>();
+    | stdr::to<Elements>();
 
   auto element = vbox({ text(tag), hbox({ separator(), vbox(elements) }) });
   // if (selected) element |= focus;
@@ -209,12 +228,9 @@ Element nodeRunner(const NodeRunner& node, const Palette& palette, bool selected
 }
 
 Element symbols(std::string_view values, const Palette& palette) noexcept {
-  auto texture = Image{8 * 2, 1 + static_cast<int>(std::ranges::size(values)) / 8};
-  std::ranges::for_each(
-    std::views::zip(
-      values,
-      mdiota(std::dims<3>{1, texture.dimy(), texture.dimx() / 2})
-    ),
+  auto texture = Image{ 8 * 2, 1 + static_cast<int>(stdr::size(values)) / 8 };
+  stdr::for_each(
+    stdv::zip(values, mdiota(std::dims<3>{ 1, texture.dimy(), texture.dimx() / 2 })),
     [&](auto&& cu) noexcept {
       auto [character, u] = cu;
       auto& pixel0 = texture.PixelAt(u.x * 2, u.y);
@@ -234,10 +250,14 @@ Element symbols(std::string_view values, const Palette& palette) noexcept {
 
 Element model(const ::Model& model, const Palette& palette) noexcept {
   return vbox({
-    window(text("symbols"), symbols(model.symbols, palette)),
-    window(text(model.halted ? "program (H)" : "program"),
-           nodeRunner(model.program, palette)
-             | vscroll_indicator | frame
+    window(
+      text("symbols"),
+      symbols(model.symbols, palette)
+    ),
+    window(
+      text(model.halted ? "program (H)" : "program"),
+      nodeRunner(model.program, palette)
+        | vscroll_indicator | frame
     ),
   });
 }
@@ -245,7 +265,7 @@ Element model(const ::Model& model, const Palette& palette) noexcept {
 Component ControlsView(Controls& controls) {
   return Container::Vertical({
     Container::Horizontal({
-      Button("play/pause", std::bind_front(&Controls::play_pause, &controls)),
+      Button("play/pause", std::bind_front(&Controls::toggle_pause, &controls)),
       Button("reset", std::bind_front(&Controls::reset, &controls)),
     }),
     Slider<decltype(controls.tickrate)>({
@@ -260,7 +280,7 @@ Component ControlsView(Controls& controls) {
       }),
       Checkbox({
         .label = "tickrate",
-        .checked = &controls.tickrate_enabled,
+        .checked = &controls.ratelimit_enabled,
         .transform = nullptr,
       })
         | Renderer(vcenter),
@@ -319,18 +339,18 @@ Component WorldAndPotentials(const TracedGrid<char>& grid, const Model& model, c
         c->target<RuleNode>();
 
       if ((node == nullptr and r == nullptr)
-          or (node == r and std::ranges::equal(
-            std::views::keys(r->potentials)
-              | std::ranges::to<std::set>(),
-            tabnames | std::views::drop(1)
-              | std::views::transform([](const auto& n) { return n[0]; })
-              | std::ranges::to<std::set>()
+       or (node == r and stdr::equal(
+            stdv::keys(r->potentials)
+              | stdr::to<std::set>(),
+            tabnames | stdv::drop(1)
+              | stdv::transform([](const auto& n) { return n[0]; })
+              | stdr::to<std::set>()
           ))
       ) {
         return;
       }
 
-      // ilog("refreshing {} -> {}", tabnames | std::views::drop(1), r ? std::views::keys(r->potentials) | std::ranges::to<std::vector>() : std::vector<char>{ });
+      // ilog("refreshing {} -> {}", tabnames | stdv::drop(1), r ? stdv::keys(r->potentials) | stdr::to<std::vector>() : std::vector<char>{ });
 
       tabnames = { tabnames[0] };
       while (tabview->ChildCount() > 1) {
@@ -347,7 +367,7 @@ Component WorldAndPotentials(const TracedGrid<char>& grid, const Model& model, c
       }
 
       tabselect = node != r ? 0
-        : std::min<int>(tabselect, std::ranges::size(tabnames) - 1);
+        : std::min<int>(tabselect, stdr::size(tabnames) - 1);
       // ilog("new select {}", tabselect);
 
       node = r;

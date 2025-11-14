@@ -13,9 +13,6 @@ import engine.fields;      // <field>
 import engine.observes;    // <observe>
 import engine.runner;      // <sequence>, <markov>
 
-// using namespace stormkit;
-// using namespace std::literals;
-
 export {
 
 namespace parser {

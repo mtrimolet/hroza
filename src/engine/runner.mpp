@@ -6,15 +6,15 @@ import utils;
 
 import grid;
 
-using namespace stormkit;
+namespace stk = stormkit;
 
 export {
 
 struct RuleRunner {
   using RuleNode = std::function<void(const TracedGrid<char>&, std::vector<Change<char>>&)>;
   RuleNode rulenode;
-  cpp::UInt steps;
-  cpp::UInt step = 0;
+  stk::cpp::UInt steps;
+  stk::cpp::UInt step = 0;
 
   auto operator()(TracedGrid<char>& grid) noexcept -> std::generator<bool>;
 };
@@ -35,7 +35,7 @@ struct TreeRunner {
   :  mode{_mode}, nodes{std::move(_nodes)}
   {}
 
-  inline constexpr auto current_index() const noexcept -> ioffset {
+  inline constexpr auto current_index() const noexcept -> stk::ioffset {
     return std::ranges::distance(std::ranges::begin(nodes), current_node);
   }
 

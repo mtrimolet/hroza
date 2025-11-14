@@ -4,7 +4,7 @@ import std;
 import glm;
 import stormkit.core;
 
-using namespace stormkit;
+namespace stk = stormkit;
 
 export {
 
@@ -16,7 +16,7 @@ using glm::operator%;
 using glm::operator==;
 using glm::operator!=;
 
-template <usize E, meta::IsArithmetic T>
+template <stk::usize E, stk::meta::IsArithmetic T>
 struct std::formatter<glm::vec<E, T>> {
   template<class ParseContext>
   constexpr ParseContext::iterator parse(ParseContext& ctx)
@@ -50,7 +50,7 @@ namespace geometry {
 
 // glm only provides geometry functions for vectors of floating-point number types
 
-template <meta::IsArithmetic T>
+template <stk::meta::IsArithmetic T>
 inline constexpr auto dot(const glm::vec<3, T>& a, const glm::vec<3, T>& b) noexcept -> decltype(auto) {
   // this will silently overflow
   return a.x * b.x
@@ -61,16 +61,16 @@ inline constexpr auto dot(const glm::vec<3, T>& a, const glm::vec<3, T>& b) noex
 }
 
 template <>
-struct std::hash<glm::vec<3, u32>> {
-  inline constexpr auto operator()(glm::vec<3, u32> u) const noexcept -> std::size_t {
-    auto h = std::hash<u32>{};
+struct std::hash<glm::vec<3, stk::u32>> {
+  inline constexpr auto operator()(glm::vec<3, stk::u32> u) const noexcept -> std::size_t {
+    auto h = std::hash<stk::u32>{};
     return h(u.x)
          ^ h(u.y)
          ^ h(u.z);
   }
 };
 
-template <usize E, meta::IsArithmetic T>
+template <stk::usize E, stk::meta::IsArithmetic T>
 struct HyperRectangle {
   using Position = glm::vec<E, T>;
   using Size = glm::vec<E, std::make_unsigned_t<T>>;
@@ -83,7 +83,7 @@ struct HyperRectangle {
   inline constexpr HyperRectangle(Position _u, Size _size) noexcept
     : u{_u}, size{_size} {}
 
-  template <meta::IsArithmetic T2>
+  template <stk::meta::IsArithmetic T2>
   inline constexpr HyperRectangle(const HyperRectangle<E, T2>& other) noexcept
     : HyperRectangle{other.u, other.size} {}
 
@@ -158,8 +158,8 @@ struct HyperRectangle {
   }
 };
 
-using Area3U = HyperRectangle<3, u32>;
-using Area3I = HyperRectangle<3, i32>;
+using Area3U = HyperRectangle<3, stk::u32>;
+using Area3I = HyperRectangle<3, stk::i32>;
 
 inline constexpr auto xreflected(const Area3U& a) noexcept -> Area3U {
   /* u -> { size.x - u.x - 1u, u.y, u.z } */
@@ -184,7 +184,7 @@ inline constexpr auto zyrotated(const Area3U& a) noexcept -> Area3U {
   }};
 }
 
-template <usize E, class T>
+template <stk::usize E, class T>
 struct std::formatter<HyperRectangle<E, T>> {
   template<class ParseContext>
   constexpr ParseContext::iterator parse(ParseContext& ctx)
