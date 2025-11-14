@@ -105,12 +105,6 @@ auto WindowApp::operator()(std::span<const std::string_view> args) noexcept -> i
     WINDOW_TITLE, WINDOW_SIZE, stkw::WindowFlag::DEFAULT | stkw::WindowFlag::EXTERNAL_CONTEXT
   );
 
-  window.on<stkw::EventType::KEY_DOWN>([&window](stk::u8 /*id*/,
-                                                stkw::Key key,
-                                                char /*c*/) mutable noexcept {
-      if (key == stkw::Key::ESCAPE) window.close();
-  });
-
   ilog("init stormkit vulkan");
   *stkg::initialize_backend().transform_error(stkm::assert("Failed to initialize gpu backend"));
 
@@ -356,13 +350,54 @@ auto WindowApp::operator()(std::span<const std::string_view> args) noexcept -> i
   ImGui_ImplVulkan_LoadFunctions(VK_API_VERSION_1_1, stkg::imgui_vk_loader, std::bit_cast<void*>(&device));
   ImGui_ImplVulkan_Init(&init_info);
 
+  window.on(
+    stkw::KeyDownEventFunc{ [&window, &io](stk::u8 /*id*/, stkw::Key key, char c) mutable noexcept {
+      if (key == stkw::Key::ESCAPE) window.close();
+      io.AddInputCharactersUTF8(&c);
+    } },
+    stkw::MouseMovedEventFunc{ [&io](stk::u8 /*id*/, const stk::math::vec2i& position) mutable noexcept {
+      const auto _position = position.to<stk::f32>();
+      io.AddMouseSourceEvent(ImGuiMouseSource_Mouse);
+      io.AddMousePosEvent(_position.x, _position.y);
+    } },
+    stkw::MouseButtonDownEventFunc{ [&io](stk::u8 /*id*/, stkw::MouseButton button, const stk::math::vec2i&) mutable noexcept {
+      auto mouse_button = -1;
+      switch (button) {
+        case stkw::MouseButton::LEFT:     mouse_button = 0; break;
+        case stkw::MouseButton::RIGHT:    mouse_button = 1; break;
+        case stkw::MouseButton::MIDDLE:   mouse_button = 2; break;
+        case stkw::MouseButton::BUTTON_1: mouse_button = 3; break;
+        case stkw::MouseButton::BUTTON_2: mouse_button = 4; break;
+        default: return;
+      }
+      io.AddMouseSourceEvent(ImGuiMouseSource_Mouse);
+      io.AddMouseButtonEvent(mouse_button, true);
+    } },
+    stkw::MouseButtonUpEventFunc{ [&io](stk::u8 /*id*/, stkw::MouseButton button, const stk::math::vec2i&) mutable noexcept {
+      auto mouse_button = -1;
+      switch (button) {
+        case stkw::MouseButton::LEFT:     mouse_button = 0; break;
+        case stkw::MouseButton::RIGHT:    mouse_button = 1; break;
+        case stkw::MouseButton::MIDDLE:   mouse_button = 2; break;
+        case stkw::MouseButton::BUTTON_1: mouse_button = 3; break;
+        case stkw::MouseButton::BUTTON_2: mouse_button = 4; break;
+        default: return;
+      }
+      io.AddMouseSourceEvent(ImGuiMouseSource_Mouse);
+      io.AddMouseButtonEvent(mouse_button, false);
+    } }
+  );
+
   auto current_frame = 0uz;
   window.event_loop([&] mutable noexcept {
     ImGui_ImplVulkan_NewFrame();
     ImGui::NewFrame();
-    // TODO replace with copy of grid, potentials, etc...
-    ImGui::ShowDemoWindow(); // Show demo window! :)
 
+    // TODO replace with copy of grid, potentials, etc...
+    ImGui::ShowMetricsWindow(); // Show demo window! :)
+    // gui::MainView(grid, model, controls, palette);
+    // gui::MainView(grid, model, controls);
+    
     ImGui::Render();
 
     // get next swapchain image
