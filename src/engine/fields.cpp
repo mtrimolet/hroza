@@ -58,3 +58,13 @@ auto Field::potentials(const Fields& fields, const Grid<char>& grid, Potentials&
     }
   }
 }
+
+auto Field::essential_missing(const Fields& fields, const Potentials& potentials) noexcept -> bool {
+  return std::ranges::any_of(
+    fields,
+    [&potentials = potentials](const auto& p) noexcept {
+      const auto& [c, f] = p;
+      return f.essential and not potentials.contains(c);
+    }
+  );
+}

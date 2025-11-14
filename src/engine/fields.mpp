@@ -16,6 +16,7 @@ struct Field {
   auto potential(const Grid<char>& grid, Potential& potential) const noexcept -> void;
 
   static auto potentials(const Fields& fields, const Grid<char>& grid, Potentials& potentials) noexcept -> void;
+  static auto essential_missing(const Fields& fields, const Potentials& potentials) noexcept -> bool;
 };
 
 }

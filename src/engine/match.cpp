@@ -42,7 +42,33 @@ auto Match::backward_match(const Potentials& potentials, double p) const noexcep
     })
     | std::views::transform([&potentials](const auto& output) noexcept {
         auto [u, o] = output;
-        return potentials.at(*o)[u];
+        return potentials.contains(*o) ? potentials.at(*o)[u]
+               : std::numeric_limits<double>::quiet_NaN();
+    });
+  return std::all_of(
+    // std::execution::par,
+    std::ranges::begin(zone),
+    std::ranges::end(zone),
+    [p](auto current) noexcept {
+      return is_normal(current)
+         and current <= p;
+    }
+  );
+}
+
+auto Match::forward_match(const Potentials& potentials, double p) const noexcept -> bool {
+  auto zone = std::views::zip(mdiota(area()), rules[r].input)
+    | std::views::filter([](const auto& input) static noexcept {
+        return std::get<1>(input) != std::nullopt;
+    })
+    | std::views::transform([&potentials](const auto& input) noexcept {
+        auto [u, i] = input;
+        auto im = std::ranges::max(*i, {}, [&potentials, u] (auto i) {
+          return potentials.contains(i) ? potentials.at(i)[u]
+            : std::numeric_limits<double>::quiet_NaN();
+        });
+        return potentials.contains(im) ? potentials.at(im)[u]
+          : std::numeric_limits<double>::quiet_NaN();
     });
   return std::all_of(
     // std::execution::par,
@@ -69,6 +95,27 @@ auto Match::changes(const Grid<char>& grid) const noexcept -> std::vector<Change
 }
 
 auto Match::backward_changes(const Potentials& potentials, double p) const noexcept -> std::vector<Change<std::tuple<char, double>>> {
+  return std::views::zip(mdiota(area()), rules[r].input)
+    | std::views::filter([&potentials](const auto& input) noexcept {
+        auto [u, i] = input;
+        if (not i) return false;
+        auto im = std::ranges::max(*i, {}, [&potentials, u] (auto i) {
+          return potentials.contains(i) ? potentials.at(i)[u]
+            : std::numeric_limits<double>::quiet_NaN();
+        });
+        return is_normal(potentials.at(im)[u]);
+    })
+    | std::views::transform([&potentials, p](auto&& input) noexcept {
+        auto im = std::ranges::max(*std::get<1>(input), {}, [&potentials, u = std::get<0>(input)] (auto i) {
+          return potentials.contains(i) ? potentials.at(i)[u]
+            : std::numeric_limits<double>::quiet_NaN();
+        });
+        return Change{ std::get<0>(input), std::tuple{ im, p }};
+    })
+    | std::ranges::to<std::vector>();
+}
+
+auto Match::forward_changes(const Potentials& potentials, double p) const noexcept -> std::vector<Change<std::tuple<char, double>>> {
   return std::views::zip(mdiota(area()), rules[r].output)
     | std::views::filter([&potentials](const auto& output) noexcept {
         auto [u, o] = output;
@@ -96,7 +143,8 @@ auto Match::delta(const Grid<char>& grid, const Potentials& potentials) const no
 
         auto new_p = potentials.contains(new_value) ? potentials.at(new_value)[u] : 0.0;
         auto old_p = potentials.contains(old_value) ? potentials.at(old_value)[u] : 0.0;
-        if (old_p != 0.0 and not std::isnormal(old_p))
+
+        if (not is_normal(old_p))
           old_p = -1.0;
 
         return new_p - old_p;

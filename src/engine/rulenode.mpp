@@ -62,6 +62,6 @@ private:
 
   std::mt19937 rng = std::mt19937{std::random_device{}()};
 
-  auto predict(const Grid<char>& grid, std::vector<Change<char>>& changes) noexcept -> void;
+  auto predict(const Grid<char>& grid, std::vector<Change<char>>& changes) noexcept -> bool;
   auto infer(const Grid<char>& grid) noexcept -> void;
 };

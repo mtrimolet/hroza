@@ -28,7 +28,7 @@ auto Observe::future(std::vector<Change<char>>& changes, Future& future, const G
   }
 }
 
-auto Observe::potentials(Potentials& potentials, const Future& future, const std::span<RewriteRule> rules) noexcept -> void {
+auto Observe::backward_potentials(Potentials& potentials, const Future& future, std::span<const RewriteRule> rules) noexcept -> void {
   propagate(
     potentials
       | std::views::transform([&future](auto& p) noexcept {

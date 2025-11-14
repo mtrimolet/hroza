@@ -27,7 +27,7 @@ RuleNode::RuleNode(RuleNode::Mode _mode, std::vector<RewriteRule>&& _rules, Rewr
 {}
 
 auto RuleNode::operator()(const TracedGrid<char>& grid, std::vector<Change<char>>& changes) noexcept -> void {
-  predict(grid, changes);
+  if (not predict(grid, changes)) return;
   scan(grid);
   select(grid);
   apply(grid, changes);
@@ -120,54 +120,51 @@ auto RuleNode::apply(const TracedGrid<char>& grid, std::vector<Change<char>>& ch
   matches.erase(active, std::ranges::end(matches));
 }
 
-auto RuleNode::predict(const Grid<char>& grid, std::vector<Change<char>>& changes) noexcept -> void {
+auto RuleNode::predict(const Grid<char>& grid, std::vector<Change<char>>& changes) noexcept -> bool {
   switch (inference) {
     case Inference::RANDOM:
-      break;
+      return true;
 
     case Inference::DISTANCE:
       Field::potentials(fields, grid, potentials);
-      if (std::ranges::any_of(
-        fields,
-        [&potentials = potentials](const auto& p) noexcept {
-          const auto& [c, f] = p;
-          return f.essential and not potentials.contains(c);
-        }
-      )) {
-        active = std::ranges::end(matches);
-        return;
+      if (Field::essential_missing(fields, potentials)) {
+        return false;
       }
-      break;
+
+      return true;
 
     case Inference::OBSERVE:
       if (not std::ranges::empty(future)) {
-        return;
+        return true;
       }
 
       Observe::future(changes, future, grid, observes);
       if (std::ranges::empty(future)) {
-        active = std::ranges::end(matches);
-        return;
+        return false;
       }
 
-      Observe::potentials(potentials, future, rules);
+      Observe::backward_potentials(potentials, future, rules);
 
-      break;
+      return true;
 
     case Inference::SEARCH:
       if (not std::ranges::empty(future)) {
-        return;
+        return true;
       }
 
       Observe::future(changes, future, grid, observes);
       if (std::ranges::empty(future)) {
-        active = std::ranges::end(matches);
-        return;
+        return false;
       }
 
-      // trajectory = Search::trajectory(future, grid, rules, limit);
+      auto TRIES = limit < 0 ? 1 : 20;
+      for (auto k = 0; k < TRIES && std::ranges::empty(trajectory); k++)
+        Search::trajectory(trajectory, future, grid, rules, mode == Mode::ALL, limit, depthCoefficient);
 
-      break;
+      if (std::ranges::empty(trajectory))
+        ilog("SEARCH RETURNED NULL");
+
+      return true;
   }
 }
 

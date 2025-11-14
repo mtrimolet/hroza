@@ -1,10 +1,38 @@
 export module engine.search;
 
 import std;
+import stormkit.core;
 
 import grid;
+import potentials;
+import engine.rewriterule;
 import engine.observes;
 
+using namespace stormkit;
+
 export {
-using Trajectory = std::vector<std::vector<Change<char>>>;
+
+using Trajectory = std::vector<Grid<char>>;
+
+struct Search {
+  static auto trajectory(Trajectory &traj, const Future &future,
+                         const Grid<char> &grid, std::span<const RewriteRule> rules,
+                         bool all, u32 limit, double depthCoefficient) -> void;
+
+  static auto forward_potentials(Potentials& potentials, const Grid<char>& grid,
+                                 std::span<const RewriteRule> rules) noexcept -> void;
+
+  static auto backward_delta(const Potentials& potentials, const Grid<char>& grid) noexcept -> double;
+  static auto forward_delta(const Potentials& potentials, const Future& future) noexcept -> double;
+};
+
+struct Candidate {
+  Grid<char> state;
+  std::size_t parentIndex, depth;
+  double backward, forward;
+
+  auto weight(double depthCoefficient) const -> double;
+  auto children(std::span<const RewriteRule> rules, bool all) const -> std::vector<Grid<char>>;
+};
+
 }
