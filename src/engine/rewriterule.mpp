@@ -23,7 +23,7 @@ struct RewriteRule {
   Grid<Output> output;
 
   Dist draw;
-  bool original;
+  bool is_copy;
 
   static auto parse(
     const Unions& unions,
