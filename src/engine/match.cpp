@@ -5,14 +5,72 @@ import log;
 namespace stdr = std::ranges;
 namespace stdv = std::views;
 
-auto Match::conflict(const Match& other) const noexcept -> bool {
-  return stdr::any_of(
-    mdiota(area().meet(other.area())),
-    [&a = *this, &b = other](auto u) noexcept {
-      return a.rules[a.r].output.at(u - a.u)
-         and b.rules[b.r].output.at(u - b.u);
-    }
-  );
+auto Match::scan(
+  const Grid<char>& grid,
+  std::span<const RewriteRule> rules,
+  std::span<const Change<char>> history
+) noexcept -> std::vector<Match> {
+  if (not stdr::empty(history)) {
+    return {
+      std::from_range,
+      stdv::zip(rules, stdv::iota(0u))
+        | stdv::transform([&grid, &history](const auto& v) noexcept {
+            const auto& [rule, r] = v;
+            const auto g_area = grid.area();
+            const auto valid_zone = g_area - Area3U{ {}, rule.output.area().shiftmax() };
+            return history
+              | stdv::transform(&Change<char>::u)
+              // TODO group changes according to rule size
+              // currently this is highly redundant on adjacent changes (which happens a lot..)
+              | stdv::transform([&grid, &rule](auto u) noexcept {
+                  return rule.get_ishifts(grid[u])
+                    | stdv::transform(std::bind_front(std::minus{}, u));
+              })
+              | stdv::join
+              | stdr::to<std::unordered_set>()
+              | stdv::filter(std::bind_front(&Area3U::contains, valid_zone))
+              | stdv::transform([r](auto u) noexcept {
+                  return std::tuple{ u, r };
+              });
+        })
+        | stdv::join
+        | stdv::transform([rules](auto&& ur) noexcept {
+            return Match{ rules, std::get<0>(ur), std::get<1>(ur) };
+        })
+        | stdv::filter(std::bind_back(&Match::match, grid))
+    };
+  }
+
+  return {
+    std::from_range,
+    stdv::zip(rules, stdv::iota(0u))
+      | stdv::transform([&grid](const auto& v) noexcept {
+          const auto& [rule, r] = v;
+          const auto g_area = grid.area();
+          const auto valid_zone = g_area - Area3U{ {}, rule.output.area().shiftmax() };
+          return mdiota(g_area)
+            | stdv::filter([r_area = rule.output.area(), g_area](auto u) noexcept {
+                return glm::all(
+                     glm::equal(u, g_area.shiftmax())
+                  or glm::equal(u % r_area.size, r_area.shiftmax())
+                );
+            })
+            | stdv::transform([&grid, &rule](auto u) noexcept {
+                return rule.get_ishifts(grid[u])
+                  | stdv::transform(std::bind_front(std::minus{}, u));
+            })
+            | stdv::join
+            | stdv::filter(std::bind_front(&Area3U::contains, valid_zone))
+            | stdv::transform([r](auto u) noexcept {
+                return std::tuple{ u, r };
+            });
+      })
+      | stdv::join
+      | stdv::transform([rules](auto&& ur) noexcept {
+          return Match{ rules, std::get<0>(ur), std::get<1>(ur) };
+      })
+      | stdv::filter(std::bind_back(&Match::match, grid))
+  };
 }
 
 auto Match::match(const Grid<char>& grid) const noexcept -> bool {
@@ -23,6 +81,55 @@ auto Match::match(const Grid<char>& grid) const noexcept -> bool {
       return not i
           or i->contains(grid[u]);
     }
+  );
+}
+
+auto Match::conflict(const Match& other) const noexcept -> bool {
+  return stdr::any_of(
+    mdiota(area().meet(other.area())),
+    [&a = *this, &b = other](auto u) noexcept {
+      return a.rules[a.r].output.at(u - a.u)
+         and b.rules[b.r].output.at(u - b.u);
+    }
+  );
+}
+
+auto Match::changes(const Grid<char>& grid) const noexcept -> std::vector<Change<char>> {
+  return stdv::zip(mdiota(area()), rules[r].output)
+    | stdv::filter([&grid](const auto& output) noexcept {
+        auto [u, o] = output;
+        return  o
+           and *o != grid[u];
+    })
+    | stdv::transform([](auto&& output) static noexcept {
+        return Change{std::get<0>(output), *std::get<1>(output)};
+    })
+    | stdr::to<std::vector>();
+}
+
+auto Match::delta(const Grid<char>& grid, const Potentials& potentials) const noexcept -> double {
+  return stdr::fold_left(
+    stdv::zip(mdiota(area()), rules[r].output)
+      | stdv::filter([&grid](auto&& _o) noexcept {
+          auto [u, o] = _o;
+          return  o
+             and *o != grid[u];
+      })
+      | stdv::transform([&grid, &potentials] (const auto& _o) noexcept {
+          auto [u, o] = _o;
+
+          auto new_value = *o;
+          auto old_value = grid[u];
+
+          auto new_p = potentials.contains(new_value) ? potentials.at(new_value)[u] : 0.0;
+          auto old_p = potentials.contains(old_value) ? potentials.at(old_value)[u] : 0.0;
+
+          if (not is_normal(old_p))
+            old_p = -1.0;
+
+          return new_p - old_p;
+      }),
+    0, std::plus{}
   );
 }
 
@@ -66,20 +173,8 @@ auto Match::forward_match(const Potentials& potentials, double p) const noexcept
   );
 }
 
-auto Match::changes(const Grid<char>& grid) const noexcept -> std::vector<Change<char>> {
-  return stdv::zip(mdiota(area()), rules[r].output)
-    | stdv::filter([&grid](const auto& output) noexcept {
-        auto [u, o] = output;
-        return  o
-           and *o != grid[u];
-    })
-    | stdv::transform([](auto&& output) static noexcept {
-        return Change{std::get<0>(output), *std::get<1>(output)};
-    })
-    | stdr::to<std::vector>();
-}
-
-auto Match::backward_changes(const Potentials& potentials, double p) const noexcept -> std::vector<Change<std::tuple<char, double>>> {
+auto Match::backward_changes(const Potentials& potentials, double p) const noexcept
+-> std::vector<Change<std::tuple<char, double>>> {
   return stdv::zip(mdiota(area()), rules[r].input)
     | stdv::filter([&potentials](const auto& input) noexcept {
         auto [u, i] = input;
@@ -100,7 +195,8 @@ auto Match::backward_changes(const Potentials& potentials, double p) const noexc
     | stdr::to<std::vector>();
 }
 
-auto Match::forward_changes(const Potentials& potentials, double p) const noexcept -> std::vector<Change<std::tuple<char, double>>> {
+auto Match::forward_changes(const Potentials& potentials, double p) const noexcept
+-> std::vector<Change<std::tuple<char, double>>> {
   return stdv::zip(mdiota(area()), rules[r].output)
     | stdv::filter([&potentials](const auto& output) noexcept {
         auto [u, o] = output;
@@ -111,30 +207,4 @@ auto Match::forward_changes(const Potentials& potentials, double p) const noexce
         return Change{ std::get<0>(output), std::tuple{ *std::get<1>(output), p }};
     })
     | stdr::to<std::vector>();
-}
-
-auto Match::delta(const Grid<char>& grid, const Potentials& potentials) const noexcept -> double {
-  return stdr::fold_left(
-    stdv::zip(mdiota(area()), rules[r].output)
-      | stdv::filter([&grid](auto&& _o) noexcept {
-          auto [u, o] = _o;
-          return  o
-             and *o != grid[u];
-      })
-      | stdv::transform([&grid, &potentials] (const auto& _o) noexcept {
-          auto [u, o] = _o;
-
-          auto new_value = *o;
-          auto old_value = grid[u];
-
-          auto new_p = potentials.contains(new_value) ? potentials.at(new_value)[u] : 0.0;
-          auto old_p = potentials.contains(old_value) ? potentials.at(old_value)[u] : 0.0;
-
-          if (not is_normal(old_p))
-            old_p = -1.0;
-
-          return new_p - old_p;
-      }),
-    0, std::plus{}
-  );
 }

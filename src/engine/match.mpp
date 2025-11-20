@@ -23,16 +23,25 @@ struct Match {
     return rules[r].output.area() + u;
   }
 
-  auto conflict(const Match& other) const noexcept -> bool;
+  static auto scan(
+    const Grid<char>& grid,
+    std::span<const RewriteRule> rules,
+    std::span<const Change<char>> history = {}
+  ) noexcept -> std::vector<Match>;
+
   auto match(const Grid<char>& grid) const noexcept -> bool;
+  auto conflict(const Match& other) const noexcept -> bool;
   auto changes(const Grid<char>& grid) const noexcept -> std::vector<Change<char>>;
 
-  auto backward_match(const Potentials& potentials, double p) const noexcept -> bool;
-  auto backward_changes(const Potentials& potentials, double p) const noexcept -> std::vector<Change<std::tuple<char, double>>>;
-  auto forward_match(const Potentials& potentials, double p) const noexcept -> bool;
-  auto forward_changes(const Potentials& potentials, double p) const noexcept -> std::vector<Change<std::tuple<char, double>>>;
-
   auto delta(const Grid<char>& grid, const Potentials& potentials) const noexcept -> double;
+
+  auto backward_match(const Potentials& potentials, double p) const noexcept -> bool;
+  auto backward_changes(const Potentials& potentials, double p) const noexcept
+  -> std::vector<Change<std::tuple<char, double>>>;
+
+  auto forward_match(const Potentials& potentials, double p) const noexcept -> bool;
+  auto forward_changes(const Potentials& potentials, double p) const noexcept
+  -> std::vector<Change<std::tuple<char, double>>>;
 };
 
 export template <>

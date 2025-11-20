@@ -56,53 +56,9 @@ auto RuleNode::scan(const TracedGrid<char>& grid) noexcept -> void {
     stdr::end(matches)
   );
 
-  auto targets =
-    since != now ? stdr::subrange(since, now)
-                     | stdv::transform(&Change<char>::u)
-                     | stdr::to<std::vector>()
-                 : mdiota(grid.area())
-                     | stdr::to<std::vector>();
+  auto history = stdr::subrange(since, now) | stdr::to<std::vector>();
 
-  matches.append_range(
-    stdv::zip(rules, stdv::iota(0u))
-      | stdv::transform([&grid, &targets](const auto& v) noexcept {
-          const auto& [rule, r] = v;
-          const auto zone = grid.area();
-          const auto valid_zone = zone - Area3U{ {}, rule.output.area().shiftmax() };
-          return targets
-            // | stdv::transform([r_area = rule.output.area(), zone](auto u) noexcept {
-            //     return glm::min(
-            //       u - (u % r_area.size) + r_area.shiftmax(),
-            //       zone.shiftmax()
-            //     );
-            // })
-            // | stdr::to<std::unordered_set>()
-            // TODO group changes according to rule size
-            // currently this is highly redundant on adjacent changes (which happens a lot..)
-            // This is the old way, it is not a grouping but a filter so it only applies to full grid scan
-            // | stdv::filter([r_area = rule.output.area(), zone](auto u) noexcept {
-            //     return glm::all(
-            //          glm::equal(u, zone.shiftmax())
-            //       or glm::equal(u % r_area.size, r_area.shiftmax())
-            //     );
-            // })
-            | stdv::transform([&grid, &rule](auto u) noexcept {
-                return rule.get_ishifts(grid[u])
-                  | stdv::transform(std::bind_front(std::minus{}, u));
-            })
-            | stdv::join
-            | stdv::filter(std::bind_front(&Area3U::contains, valid_zone))
-            | stdr::to<std::unordered_set>()
-            | stdv::transform([r](auto u) noexcept {
-                return std::tuple{ u, r };
-            });
-      })
-      | stdv::join
-      | stdv::transform([this](auto&& ur) noexcept {
-          return Match{ rules, std::get<0>(ur), std::get<1>(ur) };
-      })
-      | stdv::filter(std::bind_back(&Match::match, grid))
-  );
+  matches.append_range(Match::scan(grid, rules, history));
 
   active = stdr::begin(matches);
 }
