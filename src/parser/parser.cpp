@@ -2,6 +2,8 @@ module parser;
 
 import log;
 
+import symmetry;
+
 namespace stk  = stormkit;
 namespace stdr = std::ranges;
 namespace stdv = std::views;
@@ -224,7 +226,7 @@ auto Rules(
   return {
     std::from_range,
     std::move(rules)
-     | stdv::transform(std::bind_back(&RewriteRule::symmetries, symmetry))
+     | stdv::transform(std::bind_back(symmetries<RewriteRule>, symmetry))
      | stdv::join
   };
 }

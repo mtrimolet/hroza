@@ -1,0 +1,52 @@
+export module symmetry;
+
+import std;
+import stormkit.core;
+import frozen;
+
+namespace stk  = stormkit;
+namespace stdr = std::ranges;
+namespace stdv = std::views;
+
+export {
+template <class T>
+const auto square_groups = std::array<std::function<T(const T&)>, 8> {
+  [](const T& x) static noexcept { return T{ x }                                            ; },
+  [](const T& x) static noexcept { return x                                    .xreflected(); },
+  [](const T& x) static noexcept { return x.xyrotated()                                     ; },
+  [](const T& x) static noexcept { return x.xyrotated()                        .xreflected(); },
+  [](const T& x) static noexcept { return x.xyrotated().xyrotated()                         ; },
+  [](const T& x) static noexcept { return x.xyrotated().xyrotated()            .xreflected(); },
+  [](const T& x) static noexcept { return x.xyrotated().xyrotated().xyrotated()             ; },
+  [](const T& x) static noexcept { return x.xyrotated().xyrotated().xyrotated().xreflected(); }
+};
+
+constexpr auto square_subgroups =
+  frozen::make_unordered_map<frozen::string, const std::array<bool, 8>, 6>({
+    {"()",     {true, false, false, false, false, false, false, false}},
+    {"(x)",    {true,  true, false, false, false, false, false, false}},
+    {"(y)",    {true, false, false, false,  true, false, false, false}},
+    {"(x)(y)", {true,  true, false, false,  true,  true, false, false}},
+    {"(xy+)",  {true, false,  true, false,  true, false,  true, false}},
+    {"(xy)",   {true,  true,  true,  true,  true,  true,  true,  true}}
+  });
+
+template <typename T>
+auto symmetries(const T& value, std::string_view subgroup) noexcept -> std::vector<T> {
+  return stdr::fold_left(
+    stdv::zip(
+      square_groups<T>,
+      square_subgroups.at(std::empty(subgroup) ? "(xy)" : subgroup)
+    )
+      | stdv::filter(stk::monadic::get<1>())
+      | stdv::transform(stk::monadic::get<0>())
+      | stdv::transform([&value](const auto& s) noexcept { return s(value); }),
+    std::vector<T>{},
+    [](auto&& acc, auto&& r) static noexcept {
+      if (not stdr::contains(acc, r))
+        acc.push_back(std::move(r));
+      return acc;
+    }
+  );
+}
+}
