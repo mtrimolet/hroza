@@ -273,6 +273,7 @@ Component ControlsView(Controls& controls) {
     Container::Horizontal({
       Button("play/pause", std::bind_front(&Controls::toggle_pause, &controls)),
       Button("reset", std::bind_front(&Controls::reset, &controls)),
+      Button("next", std::bind_front(&Controls::go_next, &controls)),
     }),
     Slider<decltype(controls.tickrate)>({
       .value = &controls.tickrate,
